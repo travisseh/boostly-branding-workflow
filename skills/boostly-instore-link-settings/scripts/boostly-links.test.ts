@@ -81,7 +81,55 @@ test("logo_replay describes the logo that will be carried forward", () => {
     filename: "card-final.png",
     uploaded_at: "2026-09-09T21:49:57.960Z",
     note: "replayed unchanged; pass --expect-from-readback to guard",
+    secondary: { attachment_id: null, filename: null, uploaded_at: null },
   });
+});
+
+test("secondary logo (light backgrounds) is pinned by the readback only when the field is present", () => {
+  // A readback written before 2026-10 has no secondary_logo_attachment_id: nothing is asserted.
+  const legacy = expectedLogoIdFromReadback({ account_branding: row("acct-logo") }, "account");
+  assert.equal("secondary_attachment_id" in legacy, false);
+  assertExpectedLogoAttachment(
+    row("acct-logo", { secondary_logo_attachment_id: "sec-1" }),
+    legacy,
+    "account",
+    "secondary_logo",
+  );
+  // A current readback pins it, null included.
+  const current = expectedLogoIdFromReadback(
+    { account_branding: row("acct-logo", { secondary_logo_attachment_id: "sec-1" }) },
+    "account",
+  );
+  assert.equal(current.secondary_attachment_id, "sec-1");
+  assertExpectedLogoAttachment(
+    row("acct-logo", { secondary_logo_attachment_id: "sec-1" }),
+    current,
+    "account",
+    "secondary_logo",
+  );
+  assert.throws(
+    () =>
+      assertExpectedLogoAttachment(
+        row("acct-logo", {
+          secondary_logo_attachment_id: "sec-2",
+          secondary_logo_filename: "sticker.png",
+        }),
+        current,
+        "account",
+        "secondary_logo",
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal((error as { exitCode?: number }).exitCode, 6);
+      assert.match(error.message, /secondary logo attachment sec-2/);
+      assert.match(error.message, /expects sec-1/);
+      assert.match(error.message, /--secondary-logo-file/);
+      assert.match(error.message, /--expect-secondary-logo-attachment-id sec-2/);
+      return true;
+    },
+  );
+  // The primary check ignores the secondary field.
+  assertExpectedLogoAttachment(row("acct-logo", { secondary_logo_attachment_id: "sec-9" }), current, "account");
 });
 
 test("expected logo id derives from the branding get shape at the selected scope", () => {

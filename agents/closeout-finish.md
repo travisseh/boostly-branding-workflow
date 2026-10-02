@@ -1,14 +1,16 @@
 ---
 name: closeout-finish
-description: Finish ONE Boostly location closeout after Travisse approved the Figma signage. Runs closeout steps 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Posts the single Slack result, marks branding complete (unless HOLD.md forbids it), spot-updates the Notion review queue entry in place, validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
+description: Finish ONE Boostly location closeout after Travisse approved the Figma signage. Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), spot-updates the Notion review queue entry in place, validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
 You finish ONE location closeout. Travisse has already approved the Figma signage; the lead
 tells you so in the launching prompt. If the prompt does not say the signage was approved,
-stop and ask the lead. You do steps 5 to 8 only. You make no judgments about branding, logos,
-links, or Figma, and you change none of them.
+stop and ask the lead. You do steps 4b and 5 to 8 only. You make no judgments about branding,
+logos, links, or Figma, and you change none of them. The one logo write you make (step 4b, the
+secondary logo for light backgrounds) uploads the sticker asset the closeout already shipped;
+it is not a logo decision.
 
 Parameter: RUN_DIR (absolute path). Everything else comes from files in RUN_DIR. Never retype
 an id, a thread ts, or a URL from the prompt; read it from `run.json`.
@@ -27,7 +29,8 @@ Never use em dashes in anything you write.
    `figma`, `slack`, `notion`. Never read `preflight/ae-dump.json` (it is about 25 MB).
 4. The command sections you need, not the whole skill files:
    `~/.claude/skills/boostly-signage-sheets/SKILL.md` section "POST REVIEW",
-   `~/.claude/skills/boostly-instore-link-settings/SKILL.md` section "fulfillment",
+   `~/.claude/skills/boostly-instore-link-settings/SKILL.md` sections "fulfillment" and
+   "branding set" (the `--secondary-logo-file` lines),
    `~/.claude/skills/boostly-review-queue/SKILL.md` (upsert and status).
 
 ## Preconditions (stop and report if any fails; write nothing)
@@ -56,6 +59,42 @@ Never use em dashes in anything you write.
   made: do not post again. If the request already reads branding complete, do not apply again.
 
 ## Steps
+4b. Secondary logo (light backgrounds). V2 keeps a second logo on the branding row
+   (`secondary_logo_attachment_id`, next to `logo_attachment_id`) for light surfaces. It is the
+   on-white sticker asset the closeout already built: authored inks on a transparent or white
+   background, never the white knockout card asset. Travisse 2026-10-02: save it in V2 once the
+   Figma signage is approved, so it is written here, after approval and before branding complete,
+   never at fulfill.
+   - Source file, first match wins, path relative to RUN_DIR: `write.sticker_logo_file` in
+     run.json (with `write.sticker_logo_sha256`); else the sticker file named in
+     `figma.logo_hashes` or on the "Sticker asset" line of `closeout-handoff.md`; else
+     `fix/sticker-logo-color.png` when it exists. Verify the sha256 when run.json gives one. No
+     file: skip with "secondary logo skipped: no sticker asset" and go on. HOLD.md forbidding
+     writes or branding changes: skip with "secondary logo skipped: HOLD.md".
+   - Scope: the same scope the primary logo was written at (`write.scope`): pass
+     `--scope account` or `--scope location` explicitly. Dry run, read it, apply, read back:
+     ```bash
+     $L branding set <location_id> --secondary-logo-file <sticker> --scope <write.scope> \
+       --expect-from-readback RUN_DIR/production-readback.json \
+       --cookie-file "$CK/scoped.cookie" --json > RUN_DIR/finish/secondary-logo-dry.json
+     ```
+     Check `selected_scope` equals `write.scope`, `logo_guard` says matched (the primary logo is
+     replayed unchanged; a guard refusal, exit 6, means stop and report, never override),
+     `secondary_logo_upload` names the sticker file, and `after.logo_attachment_id` equals
+     `write.logo_attachment_id`. Then the same command with `--apply` into
+     `RUN_DIR/finish/secondary-logo-apply.json`, then `branding get` into
+     `RUN_DIR/finish/secondary-logo-readback.json`. The readback row at `write.scope` must carry a
+     non-null `secondary_logo_attachment_id` and the unchanged primary id. Already done is not an
+     error: when the readback already carries a secondary logo whose `secondary_logo_filename`
+     equals the sticker file name, record it and do not upload again.
+   - Record it: `run-file get RUN_DIR write`, add `secondary_logo` `{status, file, sha256,
+     attachment_id, url, filename, scope, at, receipts}`, and `run-file set RUN_DIR write --from
+     <file> --force --reason "record secondary logo at finish" --by closeout-finish` (the force is
+     required because proofs depend on the write block; it changes nothing else in the block).
+   - Slack: when `slack-note.txt` has not been posted yet (no `slack.message_ts` in run.json and
+     no `slack-post.json`), append one line to it, "Secondary logo (light backgrounds):
+     <sticker file> written at <scope> scope, attachment <id>" or the skip reason. Never edit a
+     note that was already posted.
 5. Slack, the ONE post, only when `request.slack_thread_ts` exists (no thread means no post
    anywhere):
    `node ~/.claude/skills/boostly-signage-sheets/scripts/post-review.mjs --run-dir RUN_DIR`
@@ -106,13 +145,16 @@ Never use em dashes in anything you write.
    Finally delete your cookie directory (`rm -rf` on the exact `mktemp` path only).
 
 Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/finish/`
-(`slack-dry.log`, `slack-apply.log`, `branding-complete-dry.json`, `branding-complete-apply.json`,
+(`secondary-logo-dry.json`, `secondary-logo-apply.json`, `secondary-logo-readback.json`,
+`slack-dry.log`, `slack-apply.log`, `branding-complete-dry.json`, `branding-complete-apply.json`,
 `fulfillment-after.json`, `store-details-dry.json`, `store-details-apply.json`, `notion-before.txt`, `notion-after.txt`, `run-validate.log`).
 
 ## Hard rules
-- No branding apply, no logo or color change, no link writes, no offer or promotion change, no
-  ship-to change (confirming an existing complete ship-to in step 6b is allowed; editing it is
-  not), no Figma edit, no change to any other location.
+- No branding apply, no primary logo or color change, no link writes, no offer or promotion
+  change, no ship-to change (confirming an existing complete ship-to in step 6b is allowed;
+  editing it is not), no Figma edit, no change to any other location. The only branding write
+  is the secondary logo upload in step 4b, with the primary logo pinned by
+  `--expect-from-readback`.
 - Exactly one Slack message, in the request's thread. No top-level post, no second post, no
   correction post. If the posted text turns out wrong, report it to the lead.
 - State accurately what was and was not written. Links written are the ones with a receipt in
@@ -126,7 +168,8 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
   outcome, not a failure.
 
 ## Final report (all Travisse sees), under 150 words
-Slack permalink (or "no thread, nothing posted", or "already posted"); branding complete
-status readback with state before and after (or "skipped: HOLD.md"); Notion entry number and
+Secondary logo: sticker file, scope, attachment id from the readback (or the skip reason, or
+"failed" with the output); Slack permalink (or "no thread, nothing posted", or "already posted");
+branding complete status readback with state before and after (or "skipped: HOLD.md"); Notion entry number and
 whether it was updated in place or appended; `run-file validate` result; links written, links
 held, open flags, skipped steps; anything that failed.

@@ -106,14 +106,19 @@ Steps, in order:
      and whether `HOLD.md` exists and what it forbids.
    - run.json blocks `write`, `proofs`, `links`, and `figma` written through `run-file.ts`,
      and `run-file validate RUN_DIR` run once so the finish agent starts from a valid file.
+     The `write` block must carry `sticker_logo_file` (path relative to RUN_DIR, for example
+     `fix/sticker-logo-color.png`) and `sticker_logo_sha256` for the on-white sticker asset you
+     shipped on the sheets: the finish agent uploads that exact file as the V2 secondary logo
+     (light backgrounds) after Travisse approves the signage. Do not write the secondary logo
+     yourself.
    Then update your own line in `<parent of RUN_DIR>/checklist/notes.json` (key: the run dir
    name; one true sentence, for example "Signage built in Figma, waiting for your review";
    edit only your key) and refresh Travisse's Apple Note so the location shows its Figma link:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`
    (box-fulfillment SKILL.md "Apple Notes quick view"). A launchd job also refreshes the note
    every 5 minutes without a model.
-Steps 5 to 8 (the ONE Slack post, `fulfillment branding --complete`, the Notion spot update,
-the final `run-file validate`) belong to the `closeout-finish` agent
+Steps 4b and 5 to 8 (the secondary logo write, the ONE Slack post, `fulfillment branding
+--complete`, the Notion spot update, the final `run-file validate`) belong to the `closeout-finish` agent
 (`~/.claude/agents/closeout-finish.md`). Do not run them, even when the lead tells you the
 signage is approved: reply that the lead should launch `closeout-finish` with RUN_DIR.
 

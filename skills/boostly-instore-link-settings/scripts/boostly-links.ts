@@ -164,6 +164,7 @@ const BRANDING_FIELD_FLAGS = [
   ["print-text-color", "print_text_color"],
   ["print-text-secondary-color", "print_text_secondary_color"],
   ["logo-attachment-id", "logo_attachment_id"],
+  ["secondary-logo-attachment-id", "secondary_logo_attachment_id"],
 ] as const;
 
 type BrandingField = (typeof BRANDING_FIELD_FLAGS)[number][1];
@@ -254,6 +255,9 @@ type BrandingSettings = {
   print_text_color: string | null;
   print_text_secondary_color: string | null;
   logo_attachment_id: string | null;
+  // Secondary logo for light backgrounds (V2, 2026-10): the on-white sticker asset.
+  // Form fields: secondary_logo_attachment_id + secondary_logo_attachment_file.
+  secondary_logo_attachment_id: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
   x_url: string | null;
@@ -263,6 +267,8 @@ type BrandingSettings = {
   google_app_url: string | null;
   logo_url?: string | null;
   logo_filename?: string | null;
+  secondary_logo_url?: string | null;
+  secondary_logo_filename?: string | null;
 };
 
 type LocationSettings = {
@@ -444,6 +450,8 @@ function emptyBranding(): BrandingSettings {
     ...fields,
     logo_url: null,
     logo_filename: null,
+    secondary_logo_url: null,
+    secondary_logo_filename: null,
   };
 }
 
@@ -456,6 +464,8 @@ function normalizeBranding(
   }
   branding.logo_url = coerceUnset(value?.logo_url);
   branding.logo_filename = coerceUnset(value?.logo_filename);
+  branding.secondary_logo_url = coerceUnset(value?.secondary_logo_url);
+  branding.secondary_logo_filename = coerceUnset(value?.secondary_logo_filename);
   return branding;
 }
 
@@ -502,6 +512,14 @@ function resolveBranding(
       coerceUnset(override?.logo_filename) ??
       coerceUnset(account?.logo_filename) ??
       null,
+    secondary_logo_url:
+      coerceUnset(override?.secondary_logo_url) ??
+      coerceUnset(account?.secondary_logo_url) ??
+      null,
+    secondary_logo_filename:
+      coerceUnset(override?.secondary_logo_filename) ??
+      coerceUnset(account?.secondary_logo_filename) ??
+      null,
   };
 }
 
@@ -516,6 +534,7 @@ function hasCoreLocationOptions(options: Options): boolean {
 function hasBrandingOptions(options: Options): boolean {
   return (
     hasOption(options, "logo-file") ||
+    hasOption(options, "secondary-logo-file") ||
     BRANDING_FIELD_FLAGS.some(([flag]) => hasOption(options, flag)) ||
     optClear(options).some((field) => brandingFieldFromName(field) !== null)
   );
@@ -851,38 +870,59 @@ async function callServerAction<T>(
   }));
 }
 
+type ServerActionFilePart = {
+  fieldPath: [number, string];
+  blob: Blob;
+  filename: string;
+};
+
 async function callServerActionWithFile<T>(
   options: Options,
   path: string,
   action: ActionKey | string,
   body: unknown[],
-  file: { fieldPath: [number, string]; blob: Blob; filename: string },
+  fileOrFiles:
+    | ServerActionFilePart
+    | ServerActionFilePart[],
 ): Promise<T> {
-  const [argumentIndex, field] = file.fieldPath;
-  const argument = body[argumentIndex];
-  if (!argument || typeof argument !== "object" || Array.isArray(argument)) {
-    throw new CliError("File server-action argument must be an object.", 5);
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+  if (files.length === 0) {
+    throw new CliError("File server-action call needs at least one file.", 5);
   }
 
   // React Server Components encodes Blob/File arguments as a multipart part
-  // referenced from the root JSON model with `$B<partId>`.
-  const fileReference = {};
+  // referenced from the root JSON model with `$B<partId>`. Part ids start at 1
+  // ("0" is the root model); each file gets its own id.
   const encodedBody = body.slice();
-  encodedBody[argumentIndex] = {
-    ...(argument as Record<string, unknown>),
-    [field]: fileReference,
-  };
+  const references = new Map<object, string>();
+  files.forEach((file, index) => {
+    const [argumentIndex, field] = file.fieldPath;
+    const argument = encodedBody[argumentIndex];
+    if (!argument || typeof argument !== "object" || Array.isArray(argument)) {
+      throw new CliError("File server-action argument must be an object.", 5);
+    }
+    const fileReference = {};
+    references.set(fileReference, `$B${index + 1}`);
+    encodedBody[argumentIndex] = {
+      ...(argument as Record<string, unknown>),
+      [field]: fileReference,
+    };
+  });
   const buildForm = () => {
     const form = new FormData();
     // Part order matters: Next's Node runtime decodes multipart actions with
     // decodeReplyFromBusboy, which resolves $B references synchronously against
-    // parts already streamed. The file part must precede the root "0" model
+    // parts already streamed. The file parts must precede the root "0" model
     // (browsers emit blob parts first too), or the reference resolves to null.
-    form.set("1", file.blob, file.filename);
+    files.forEach((file, index) => {
+      form.set(String(index + 1), file.blob, file.filename);
+    });
     form.set(
       "0",
       JSON.stringify(encodedBody, (_key, value: unknown) => {
-        if (value === fileReference) return "$B1";
+        if (typeof value === "object" && value !== null && references.has(value)) {
+          return references.get(value);
+        }
         if (typeof value === "string" && value.startsWith("$")) {
           return `$${value}`;
         }
@@ -1593,6 +1633,7 @@ async function getLocationFromDbCore(
         'print_text_color', ab.print_text_color,
         'print_text_secondary_color', ab.print_text_secondary_color,
         'logo_attachment_id', ab.logo_attachment_id,
+        'secondary_logo_attachment_id', ab.secondary_logo_attachment_id,
         'facebook_url', ab.facebook_url,
         'instagram_url', ab.instagram_url,
         'x_url', ab.x_url,
@@ -1601,7 +1642,9 @@ async function getLocationFromDbCore(
         'apple_app_url', ab.apple_app_url,
         'google_app_url', ab.google_app_url,
         'logo_url', null,
-        'logo_filename', null
+        'logo_filename', null,
+        'secondary_logo_url', null,
+        'secondary_logo_filename', null
       ) end as account_branding,
       case when ob.id is null then null else jsonb_build_object(
         'web_primary_color', ob.web_primary_color,
@@ -1612,6 +1655,7 @@ async function getLocationFromDbCore(
         'print_text_color', ob.print_text_color,
         'print_text_secondary_color', ob.print_text_secondary_color,
         'logo_attachment_id', ob.logo_attachment_id,
+        'secondary_logo_attachment_id', ob.secondary_logo_attachment_id,
         'facebook_url', ob.facebook_url,
         'instagram_url', ob.instagram_url,
         'x_url', ob.x_url,
@@ -1620,7 +1664,9 @@ async function getLocationFromDbCore(
         'apple_app_url', ob.apple_app_url,
         'google_app_url', ob.google_app_url,
         'logo_url', null,
-        'logo_filename', null
+        'logo_filename', null,
+        'secondary_logo_url', null,
+        'secondary_logo_filename', null
       ) end as override_branding
     from locations l
     join accounts a on a.id = l.account_id
@@ -1724,18 +1770,16 @@ async function updateLocationForm(
   locationId: string,
   payload: Record<string, JsonValue | undefined>,
   logoFile?: LogoFile,
+  secondaryLogoFile?: LogoFile,
 ): Promise<JsonValue> {
-  if (logoFile) {
+  const files = logoFileParts(1, logoFile, secondaryLogoFile);
+  if (files.length > 0) {
     return callServerActionWithFile<JsonValue>(
       options,
       `/locations/${encodeURIComponent(locationId)}`,
       "updateLocation",
       [locationId, payload],
-      {
-        fieldPath: [1, "logo_attachment_file"],
-        blob: logoFile.blob,
-        filename: logoFile.filename,
-      },
+      files,
     );
   }
   return callServerAction<JsonValue>(
@@ -1838,32 +1882,57 @@ function brandingToFormFields(
     ...Object.fromEntries(
       BRANDING_FIELDS.map((field) => [
         field,
-        field === "logo_attachment_id"
+        field === "logo_attachment_id" ||
+        field === "secondary_logo_attachment_id"
           ? branding[field]
           : branding[field] ?? "",
       ]),
     ),
     logo_attachment_file: branding.logo_url ?? null,
+    secondary_logo_attachment_file: branding.secondary_logo_url ?? null,
   } as Record<string, string | null>;
+}
+
+// Multipart parts for the primary and/or secondary logo upload on the form
+// argument at `argumentIndex`. Both go through the same server action.
+function logoFileParts(
+  argumentIndex: number,
+  logoFile?: LogoFile,
+  secondaryLogoFile?: LogoFile,
+): ServerActionFilePart[] {
+  const parts: ServerActionFilePart[] = [];
+  if (logoFile) {
+    parts.push({
+      fieldPath: [argumentIndex, "logo_attachment_file"],
+      blob: logoFile.blob,
+      filename: logoFile.filename,
+    });
+  }
+  if (secondaryLogoFile) {
+    parts.push({
+      fieldPath: [argumentIndex, "secondary_logo_attachment_file"],
+      blob: secondaryLogoFile.blob,
+      filename: secondaryLogoFile.filename,
+    });
+  }
+  return parts;
 }
 
 async function updateAccountBranding(
   options: Options,
   branding: BrandingSettings,
   logoFile?: LogoFile,
+  secondaryLogoFile?: LogoFile,
 ): Promise<JsonValue> {
   const payload = brandingToFormFields(branding);
-  if (logoFile) {
+  const files = logoFileParts(0, logoFile, secondaryLogoFile);
+  if (files.length > 0) {
     return callServerActionWithFile<JsonValue>(
       options,
       "/account-settings",
       "updateAccountBranding",
       [payload],
-      {
-        fieldPath: [0, "logo_attachment_file"],
-        blob: logoFile.blob,
-        filename: logoFile.filename,
-      },
+      files,
     );
   }
   return callServerAction<JsonValue>(
@@ -1882,12 +1951,17 @@ type LogoFile = {
   blob: Blob;
 };
 
-async function readLogoFile(options: Options): Promise<LogoFile | undefined> {
-  const path = optString(options, "logo-file");
+async function readLogoFile(
+  options: Options,
+  fileFlag: "logo-file" | "secondary-logo-file" = "logo-file",
+): Promise<LogoFile | undefined> {
+  const idFlag =
+    fileFlag === "logo-file" ? "logo-attachment-id" : "secondary-logo-attachment-id";
+  const path = optString(options, fileFlag);
   if (!path) return undefined;
-  if (hasOption(options, "logo-attachment-id")) {
+  if (hasOption(options, idFlag)) {
     throw new CliError(
-      "Use either --logo-file or --logo-attachment-id, not both.",
+      `Use either --${fileFlag} or --${idFlag}, not both.`,
       2,
     );
   }
@@ -1903,7 +1977,7 @@ async function readLogoFile(options: Options): Promise<LogoFile | undefined> {
           : null;
   if (!contentType) {
     throw new CliError(
-      "--logo-file must be a PNG, JPEG, or GIF image.",
+      `--${fileFlag} must be a PNG, JPEG, or GIF image.`,
       2,
     );
   }
@@ -1912,12 +1986,12 @@ async function readLogoFile(options: Options): Promise<LogoFile | undefined> {
     bytes = await readFile(path);
   } catch (error) {
     throw new CliError(
-      `Could not read --logo-file ${path}: ${error instanceof Error ? error.message : String(error)}`,
+      `Could not read --${fileFlag} ${path}: ${error instanceof Error ? error.message : String(error)}`,
       2,
     );
   }
   if (bytes.length === 0) {
-    throw new CliError("--logo-file cannot be empty.", 2);
+    throw new CliError(`--${fileFlag} cannot be empty.`, 2);
   }
   return {
     path,
@@ -2072,6 +2146,10 @@ function mutateBranding(
       next.logo_url = null;
       next.logo_filename = null;
     }
+    if (field === "secondary_logo_attachment_id") {
+      next.secondary_logo_url = null;
+      next.secondary_logo_filename = null;
+    }
   }
   return next;
 }
@@ -2156,12 +2234,16 @@ function assertFillOnlyBranding(
   after: BrandingSettings,
   options: Options,
   logoFile: LogoFile | undefined,
+  secondaryLogoFile: LogoFile | undefined = undefined,
 ) {
   if (!optBool(options, "fill-only")) return;
   const conflicts = brandingFieldsRequested(options).filter(
     (field) => before[field] !== null && before[field] !== after[field],
   );
   if (logoFile && before.logo_attachment_id) conflicts.push("logo_attachment_id");
+  if (secondaryLogoFile && before.secondary_logo_attachment_id) {
+    conflicts.push("secondary_logo_attachment_id");
+  }
   if (conflicts.length) {
     throw new CliError(
       `Fill-only branding write refused because these target-scope fields are already populated: ${[...new Set(conflicts)].join(", ")}`,
@@ -2176,6 +2258,7 @@ function assertBrandingReadback(
   actual: BrandingSettings,
   options: Options,
   logoFile: LogoFile | undefined,
+  secondaryLogoFile: LogoFile | undefined = undefined,
 ) {
   const mismatches = brandingFieldsRequested(options).filter(
     (field) => actual[field] !== expected[field],
@@ -2186,6 +2269,14 @@ function assertBrandingReadback(
       actual.logo_attachment_id === before.logo_attachment_id
     ) {
       mismatches.push("logo_attachment_id");
+    }
+  }
+  if (secondaryLogoFile) {
+    if (
+      !actual.secondary_logo_attachment_id ||
+      actual.secondary_logo_attachment_id === before.secondary_logo_attachment_id
+    ) {
+      mismatches.push("secondary_logo_attachment_id");
     }
   }
   if (mismatches.length > 0) {
@@ -2208,6 +2299,11 @@ export type LogoReplayInfo = {
   filename: string | null;
   uploaded_at: string | null;
   note: string;
+  secondary: {
+    attachment_id: string | null;
+    filename: string | null;
+    uploaded_at: string | null;
+  };
 };
 
 // Attachment URLs carry a `2026-09-09T21-49-57-960Z-<hash>.png` basename.
@@ -2228,6 +2324,11 @@ export function logoReplayInfo(row: BrandingSettings): LogoReplayInfo {
     filename: row.logo_filename ?? null,
     uploaded_at: logoUploadedAtFromUrl(row.logo_url),
     note: "replayed unchanged; pass --expect-from-readback to guard",
+    secondary: {
+      attachment_id: row.secondary_logo_attachment_id ?? null,
+      filename: row.secondary_logo_filename ?? null,
+      uploaded_at: logoUploadedAtFromUrl(row.secondary_logo_url),
+    },
   };
 }
 
@@ -2235,16 +2336,21 @@ type ReadbackRowLike = {
   logo_attachment_id?: string | null;
   logo_url?: string | null;
   logo_filename?: string | null;
+  secondary_logo_attachment_id?: string | null;
+  secondary_logo_url?: string | null;
+  secondary_logo_filename?: string | null;
 } | null | undefined;
 
 // Accepts either the `branding get` shape (account_branding/override_branding/
 // effective_branding at the top level) or the `branding set --apply` output
 // shape (the same object nested under `.readback`). Returns the logo
 // attachment id at the requested scope, falling back to effective_branding.
+// `secondary_attachment_id` is undefined when the readback predates the
+// secondary logo field (2026-10), so nothing is asserted about it then.
 export function expectedLogoIdFromReadback(
   readback: unknown,
   scope: "account" | "location",
-): { attachment_id: string | null; source: string } {
+): { attachment_id: string | null; secondary_attachment_id?: string | null; source: string } {
   if (!readback || typeof readback !== "object" || Array.isArray(readback)) {
     throw new CliError("--expect-from-readback file is not a JSON object.", 2);
   }
@@ -2276,13 +2382,23 @@ export function expectedLogoIdFromReadback(
     );
   }
   const [key, row] = present[0];
+  const hasSecondary =
+    row != null && Object.prototype.hasOwnProperty.call(row, "secondary_logo_attachment_id");
   return {
     attachment_id: row?.logo_attachment_id ?? null,
+    ...(hasSecondary
+      ? { secondary_attachment_id: row?.secondary_logo_attachment_id ?? null }
+      : {}),
     source: `${prefix}${key}`,
   };
 }
 
-export type ExpectedLogo = { attachment_id: string | null; source: string };
+// `secondary_attachment_id` undefined means "not asserted".
+export type ExpectedLogo = {
+  attachment_id: string | null;
+  secondary_attachment_id?: string | null;
+  source: string;
+};
 
 // Resolves the expected id from --expect-logo-attachment-id and/or
 // --expect-from-readback. Returns undefined when neither flag is present.
@@ -2291,8 +2407,13 @@ export async function resolveExpectedLogo(
   scope: "account" | "location",
 ): Promise<ExpectedLogo | undefined> {
   const explicit = optString(options, "expect-logo-attachment-id");
+  const explicitSecondary = optString(options, "expect-secondary-logo-attachment-id");
   const readbackPath = optString(options, "expect-from-readback");
-  if (explicit === undefined && readbackPath === undefined) return undefined;
+  if (explicit === undefined && explicitSecondary === undefined && readbackPath === undefined) {
+    return undefined;
+  }
+  const parseId = (value: string): string | null =>
+    value.trim() === "" || value.toLowerCase() === "null" ? null : value.trim();
   let fromReadback: ExpectedLogo | undefined;
   if (readbackPath !== undefined) {
     let parsed: unknown;
@@ -2307,20 +2428,52 @@ export async function resolveExpectedLogo(
     const derived = expectedLogoIdFromReadback(parsed, scope);
     fromReadback = {
       attachment_id: derived.attachment_id,
+      ...("secondary_attachment_id" in derived
+        ? { secondary_attachment_id: derived.secondary_attachment_id }
+        : {}),
       source: `${readbackPath} (${derived.source})`,
     };
   }
+  if (explicitSecondary !== undefined) {
+    const id = parseId(explicitSecondary);
+    if (
+      fromReadback &&
+      fromReadback.secondary_attachment_id !== undefined &&
+      fromReadback.secondary_attachment_id !== id
+    ) {
+      throw new CliError(
+        `--expect-secondary-logo-attachment-id ${id ?? "null"} disagrees with --expect-from-readback ${fromReadback.source} (${fromReadback.secondary_attachment_id ?? "null"}). Pass one or make them agree.`,
+        2,
+      );
+    }
+    if (fromReadback) fromReadback = { ...fromReadback, secondary_attachment_id: id };
+  }
   if (explicit !== undefined) {
-    const id = explicit.trim() === "" || explicit.toLowerCase() === "null" ? null : explicit.trim();
+    const id = parseId(explicit);
     if (fromReadback && fromReadback.attachment_id !== id) {
       throw new CliError(
         `--expect-logo-attachment-id ${id ?? "null"} disagrees with --expect-from-readback ${fromReadback.source} (${fromReadback.attachment_id ?? "null"}). Pass one or make them agree.`,
         2,
       );
     }
-    return { attachment_id: id, source: "--expect-logo-attachment-id" };
+    return {
+      attachment_id: id,
+      ...(fromReadback && fromReadback.secondary_attachment_id !== undefined
+        ? { secondary_attachment_id: fromReadback.secondary_attachment_id }
+        : explicitSecondary !== undefined
+          ? { secondary_attachment_id: parseId(explicitSecondary) }
+          : {}),
+      source: "--expect-logo-attachment-id",
+    };
   }
-  return fromReadback;
+  if (fromReadback) return fromReadback;
+  // Only --expect-secondary-logo-attachment-id was given: the primary is not asserted,
+  // so callers must pass `secondary` to assertExpectedLogoAttachment.
+  return {
+    attachment_id: null,
+    secondary_attachment_id: parseId(explicitSecondary as string),
+    source: "--expect-secondary-logo-attachment-id",
+  };
 }
 
 // Throws (exit 6) when the row that is about to be replayed carries a logo
@@ -2331,7 +2484,22 @@ export function assertExpectedLogoAttachment(
   row: BrandingSettings,
   expected: ExpectedLogo,
   scope: "account" | "location",
+  which: "logo" | "secondary_logo" = "logo",
 ) {
+  if (which === "secondary_logo") {
+    if (expected.secondary_attachment_id === undefined) return;
+    const current = row.secondary_logo_attachment_id ?? null;
+    if (current === expected.secondary_attachment_id) return;
+    throw new CliError(
+      [
+        `Refusing branding write: the ${scope}-scope row would replay secondary logo attachment ${current ?? "null"} but ${expected.source} expects ${expected.secondary_attachment_id ?? "null"}.`,
+        `Current secondary logo: filename=${row.secondary_logo_filename ?? "null"} url=${row.secondary_logo_url ?? "null"} uploaded_at=${logoUploadedAtFromUrl(row.secondary_logo_url) ?? "unknown"}.`,
+        "Someone else likely uploaded a secondary logo since your last write.",
+        `Fix: pass --secondary-logo-file <path> to replace it, or --expect-secondary-logo-attachment-id ${current ?? "null"} to accept it.`,
+      ].join("\n"),
+      6,
+    );
+  }
   const current = row.logo_attachment_id ?? null;
   if (current === expected.attachment_id) return;
   throw new CliError(
@@ -2369,7 +2537,7 @@ function socialStateSnapshot(state: BrandingState) {
     BRANDING_FIELDS.map(field => [field, row?.[field] ?? null]),
   );
   const core = locationToFormData(state.location);
-  for (const field of [...BRANDING_FIELDS, "logo_attachment_file"]) delete core[field];
+  for (const field of [...BRANDING_FIELDS, "logo_attachment_file", "secondary_logo_attachment_file"]) delete core[field];
   return {
     location_id: state.location.id, account_id: state.context.account_id,
     scope: state.selected_scope, account: fields(state.account),
@@ -2466,7 +2634,8 @@ async function handleSocialsSet(options: Options, locationId: string) {
 }
 
 async function handleBrandingSet(options: Options, locationId: string) {
-  const logoFile = await readLogoFile(options);
+  const logoFile = await readLogoFile(options, "logo-file");
+  const secondaryLogoFile = await readLogoFile(options, "secondary-logo-file");
   const state = await getBrandingState(options, locationId);
   const session = await getAuthSessionAccount(options);
   const before =
@@ -2474,22 +2643,50 @@ async function handleBrandingSet(options: Options, locationId: string) {
       ? state.account
       : normalizeBranding(state.override);
   const after = mutateBranding(before, options);
-  assertFillOnlyBranding(before, after, options, logoFile);
+  assertFillOnlyBranding(before, after, options, logoFile, secondaryLogoFile);
 
   const replacesLogo = Boolean(logoFile) || hasOption(options, "logo-attachment-id");
+  const replacesSecondaryLogo =
+    Boolean(secondaryLogoFile) || hasOption(options, "secondary-logo-attachment-id");
   const expectedLogo = await resolveExpectedLogo(options, state.selected_scope);
+  const primaryAsserted =
+    expectedLogo !== undefined && expectedLogo.source !== "--expect-secondary-logo-attachment-id";
   let logoGuard: JsonValue;
   if (replacesLogo) {
-    logoGuard = expectedLogo
+    logoGuard = primaryAsserted
       ? "skipped: this write replaces the logo, so the replayed logo is discarded"
       : "not applicable: this write replaces the logo";
-  } else if (expectedLogo) {
-    assertExpectedLogoAttachment(before, expectedLogo, state.selected_scope);
+  } else if (expectedLogo && primaryAsserted) {
+    assertExpectedLogoAttachment(before, expectedLogo, state.selected_scope, "logo");
     logoGuard = `matched ${expectedLogo.attachment_id ?? "null"} from ${expectedLogo.source}`;
   } else {
     logoGuard = "unguarded";
   }
-  const logoReplay = replacesLogo ? null : logoReplayInfo(before);
+  // Same guard for the secondary logo (light backgrounds). A readback that predates the
+  // field asserts nothing about it; the write then replays whatever the row carries.
+  const secondaryAsserted =
+    expectedLogo !== undefined && expectedLogo.secondary_attachment_id !== undefined;
+  let secondaryLogoGuard: JsonValue;
+  if (replacesSecondaryLogo) {
+    secondaryLogoGuard = secondaryAsserted
+      ? "skipped: this write replaces the secondary logo, so the replayed secondary logo is discarded"
+      : "not applicable: this write replaces the secondary logo";
+  } else if (expectedLogo && secondaryAsserted) {
+    assertExpectedLogoAttachment(before, expectedLogo, state.selected_scope, "secondary_logo");
+    secondaryLogoGuard = `matched ${expectedLogo.secondary_attachment_id ?? "null"} from ${expectedLogo.source}`;
+  } else {
+    secondaryLogoGuard = "unguarded";
+  }
+  const logoReplay = replacesLogo && replacesSecondaryLogo ? null : logoReplayInfo(before);
+  if (logoReplay && replacesLogo) {
+    logoReplay.attachment_id = null;
+    logoReplay.filename = null;
+    logoReplay.uploaded_at = null;
+    logoReplay.note = "primary replaced by this write; secondary replayed unchanged";
+  }
+  if (logoReplay && replacesSecondaryLogo) {
+    logoReplay.secondary = { attachment_id: null, filename: null, uploaded_at: null };
+  }
 
   if (!optBool(options, "apply")) {
     if (logoReplay && logoReplay.attachment_id && !expectedLogo) {
@@ -2501,6 +2698,7 @@ async function handleBrandingSet(options: Options, locationId: string) {
       dry_run: true,
       logo_replay: logoReplay,
       logo_guard: logoGuard,
+      secondary_logo_guard: secondaryLogoGuard,
       selected_scope: state.selected_scope,
       scope_reason: state.scope_reason,
       account: {
@@ -2523,6 +2721,14 @@ async function handleBrandingSet(options: Options, locationId: string) {
             note: "Will upload and replace logo_attachment_id on --apply.",
           }
         : null,
+      secondary_logo_upload: secondaryLogoFile
+        ? {
+            filename: secondaryLogoFile.filename,
+            content_type: secondaryLogoFile.content_type,
+            size: secondaryLogoFile.size,
+            note: "Will upload and replace secondary_logo_attachment_id (light backgrounds) on --apply.",
+          }
+        : null,
     });
     return;
   }
@@ -2537,7 +2743,11 @@ async function handleBrandingSet(options: Options, locationId: string) {
   assertSessionMatchesContext(state, session);
 
   const requested = brandingFieldsRequested(options);
-  if (!logoFile && requested.every((field) => before[field] === after[field])) {
+  if (
+    !logoFile &&
+    !secondaryLogoFile &&
+    requested.every((field) => before[field] === after[field])
+  ) {
     printOutput(options, {
       success: true,
       no_op: true,
@@ -2550,12 +2760,13 @@ async function handleBrandingSet(options: Options, locationId: string) {
 
   const result =
     state.selected_scope === "account"
-      ? await updateAccountBranding(options, after, logoFile)
+      ? await updateAccountBranding(options, after, logoFile, secondaryLogoFile)
       : await updateLocationForm(
           options,
           locationId,
           locationFormWithBranding(state.location, after),
           logoFile,
+          secondaryLogoFile,
         );
   assertServerActionSucceeded(result, "Branding update");
   const readback = await getBrandingState(options, locationId);
@@ -2563,10 +2774,11 @@ async function handleBrandingSet(options: Options, locationId: string) {
     state.selected_scope === "account"
       ? readback.account
       : normalizeBranding(readback.override);
-  assertBrandingReadback(before, after, actual, options, logoFile);
+  assertBrandingReadback(before, after, actual, options, logoFile, secondaryLogoFile);
   printOutput(options, {
     success_result: result,
     logo_guard: logoGuard,
+    secondary_logo_guard: secondaryLogoGuard,
     selected_scope: state.selected_scope,
     scope_reason: state.scope_reason,
     readback: summarizeBrandingState(readback),
@@ -5154,8 +5366,12 @@ Branding/social/app fields:
   --print-primary-color, --print-secondary-color, --print-text-color, --print-text-secondary-color
   --logo-file <path> uploads a PNG, JPEG, or GIF and assigns it at the selected scope
   --logo-attachment-id
+  --secondary-logo-file <path> uploads the secondary logo (light backgrounds; the on-white sticker asset) at the selected scope
+  --secondary-logo-attachment-id
   --expect-logo-attachment-id <id|null> refuses the write (exit 6) unless the row about to be replayed carries exactly this logo attachment
+  --expect-secondary-logo-attachment-id <id|null> same guard for secondary_logo_attachment_id
   --expect-from-readback <path> derives that expected id from a prior branding get / branding set --apply JSON at the selected scope
+    (also pins secondary_logo_attachment_id when the readback carries that field)
     (runners: pass <run-dir>/production-readback.json on every branding set after the first apply; whole-row replay otherwise carries a foreign logo forward)
   --clear <field> clears a branding/social/app override/account field
 `);

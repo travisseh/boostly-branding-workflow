@@ -917,6 +917,15 @@ Use `/boostly-instore-link-settings` (CLI wraps the production server actions):
   manifest, list the session id in the run's OPEN items and the Notion entry, and re-check the account row
   (`branding get`) before marking anything ready to print. After a completion, re-verify the row against
   production-readback.json before trusting proofs.
+- SECONDARY LOGO (light backgrounds, V2 2026-10): the branding row carries a second logo,
+  `secondary_logo_attachment_id`, for light surfaces. It is the on-white sticker asset (authored
+  inks on transparent or white, the file the sheets' stickers use), never the knockout card asset.
+  It is written at finish, by the `closeout-finish` agent after Travisse approves the Figma
+  signage, with `branding set --secondary-logo-file <sticker> --scope <write.scope>
+  --expect-from-readback production-readback.json`, never at fulfill and never in the first
+  branding apply. The closeout records the file in run.json `write.sticker_logo_file`; the finish
+  records the receipt in `write.secondary_logo`. `branding get` shows it as
+  `secondary_logo_attachment_id` / `secondary_logo_url` / `secondary_logo_filename`.
 - Every `branding set` after the first apply must carry `--expect-from-readback <run-dir>/production-readback.json`
   so the CLI refuses (exit 6) to replay a logo someone else uploaded since our last write (2026-09-09 Swine Dining
   phone-photo incident: a two-color follow-up write carried a foreign JPG forward with a clean before/after diff).

@@ -256,7 +256,10 @@ real request was processed.
 11. **Close out automatically (Travisse, 2026-09-17).** Who runs it (2026-09-29): the
     `closeout-location` agent stops after the Figma build and writes `slack-note.txt` and
     `closeout-handoff.md`; after Travisse approves the signage, the lead launches a fresh
-    `closeout-finish` agent (Sonnet) with the run dir, which does the Slack post, branding
+    `closeout-finish` agent (Sonnet) with the run dir, which writes the V2 secondary logo
+    (light backgrounds: the on-white sticker asset recorded in run.json `write.sticker_logo_file`,
+    uploaded with `branding set --secondary-logo-file` at the primary logo's scope, after Figma
+    approval and before branding complete; Travisse 2026-10-02), then does the Slack post, branding
     complete, the store-details confirmation when the ship-to is complete (Travisse
     2026-10-01: "if in-store details are there just mark that complete, stop stopping and
     requiring me to specifically say that"; `fulfillment store-details <requestId> --confirm`,

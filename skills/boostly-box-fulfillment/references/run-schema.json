@@ -242,6 +242,71 @@
         "logo_file": { "type": ["string", "null"] },
         "logo_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
         "logo_attachment_id": { "type": ["string", "null"] },
+        "sticker_logo_file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "On-white sticker asset shipped on the sheets, relative to the run dir; the finish stage uploads it as the V2 secondary logo (light backgrounds)."
+        },
+        "sticker_logo_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "secondary_logo": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "Finish-stage receipt for the V2 secondary logo write (status, file, sha256, attachment_id, url, scope, at, receipts).",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_written",
+                "dry_run",
+                "held",
+                "skipped",
+                "applied"
+              ]
+            },
+            "file": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "attachment_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scope": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
         "gate_override": { "type": "boolean" },
         "receipts": {
           "type": "object",
