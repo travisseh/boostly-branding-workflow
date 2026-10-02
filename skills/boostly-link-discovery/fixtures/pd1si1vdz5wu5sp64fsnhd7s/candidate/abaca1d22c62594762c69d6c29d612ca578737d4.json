@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/iloveelcalamar/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:58:14.529Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/iloveelcalamar/",
+    "final_url": "https://www.instagram.com/iloveelcalamar/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "EL CALAMAR (@iloveelcalamar) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/79861634_380394972798490_5440817390357053440_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=100&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy42MTQuQzMifQ%3D%3D&_nc_ohc=0yZO3o5DJ18Q7kNvwEHhCHG&_nc_oc=AdoSpJDhCTgegctWA9Wd4TfflyUhTZAEIheMwjgg4YMYulHj2D_jLF00YU0cI--yeFI&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQBuZqa0ZBHuhayy_K7MP6iB1EVOh3mebgnpM056ze21rg&oe=6A4B8B63",
+      "og:title": "EL CALAMAR (@iloveelcalamar) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/iloveelcalamar/",
+      "og:description": "14K Followers, 5,766 Following, 7,419 Posts - See Instagram photos and videos from EL CALAMAR (@iloveelcalamar)",
+      "description": "14K Followers, 5,766 Following, 7,419 Posts - EL CALAMAR (@iloveelcalamar) on Instagram: \"El Mejor Sabor del Mar #mariscos #santaana #seafood #micheladas\nTel: 714-884-4510\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=iloveelcalamar",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/iloveelcalamar/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

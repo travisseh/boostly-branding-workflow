@@ -1,0 +1,35 @@
+{
+  "input_url": "https://brasstapbeerbar.myguestaccount.com/guest/egift",
+  "kind": "candidate",
+  "recorded_at": "2026-07-02T00:00:16.217Z",
+  "evidence": {
+    "input_url": "https://brasstapbeerbar.myguestaccount.com/guest/egift",
+    "final_url": "https://brasstapbeerbar.myguestaccount.com/en-us/guest/egift",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Electronic Gift Card Ordering",
+    "meta": {
+      "viewport": "width=device-width"
+    },
+    "h1": [
+      " Order an eGift "
+    ],
+    "h2": [
+      "Pick a Design",
+      "Select Value & Quantity"
+    ],
+    "text": " Electronic Gift Card Ordering English Toggle navigation Home Home Login Register Use the up and down arrow keys to browse options, then press Enter to select. Order an eGift Customize Your eGift Card Pick a Design Select Value & Quantity Amount: $10 $25 $50 $100 or enter your own value $ ($0.01 min and $200.00 max) Quantity: (per recipient) Preview From: To: Value: $ Quantity: Message: View Cart © Brass Tap 2020 Paytronix Systems Cookie Preferences Paytronix uses cookies to deliver the best possible experience to you. In order to continue using this website site, you agree that we may store and access cookies on your device as described in our Privacy Policy . OK, I understand Paytronix Systems Cookie Preferences Paytronix uses cookies to deliver the best possible experience to you. In order to continue using this website site, you agree that we may store and access cookies on your device as described in our Privacy Policy . OK, I understand ",
+    "links": [
+      "https://www.brasstapbeerbar.com/default.aspx",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/accountlogin",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/register",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/egift#",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/egift#",
+      "https://brasstapbeerbar.myguestaccount.com/en-us/guest/egift#",
+      "javascript://"
+    ],
+    "error": null
+  }
+}

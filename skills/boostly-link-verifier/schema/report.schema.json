@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boostly Link Verification Report",
+  "type": "object",
+  "required": ["location", "summary", "links", "checked_at"],
+  "properties": {
+    "checked_at": { "type": "string" },
+    "location": { "type": "object" },
+    "summary": { "type": "object" },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "input_url",
+          "final_url",
+          "link_type",
+          "fetch_method",
+          "liveness",
+          "relevance",
+          "status",
+          "validity_evidence",
+          "location_match_evidence",
+          "rejection_reason",
+          "checked_at"
+        ],
+        "properties": {
+          "input_url": { "type": "string" },
+          "final_url": { "type": ["string", "null"] },
+          "link_type": {
+            "enum": [
+              "website",
+              "ordering_menu",
+              "social_facebook",
+              "social_instagram",
+              "social_youtube",
+              "social_x_twitter",
+              "social_tiktok",
+              "app_download",
+              "other"
+            ]
+          },
+          "fetch_method": {
+            "enum": ["static_fetch", "playwright", "static_fetch_then_playwright", "static_fetch_browser_failed"]
+          },
+          "liveness": { "enum": ["live", "broken", "challenge", "unknown"] },
+          "relevance": { "enum": ["match", "mismatch", "uncertain"] },
+          "status": {
+            "enum": ["verified", "rejected", "needs_manual_review", "broken"]
+          },
+          "validity_evidence": { "type": "array", "items": { "type": "string" } },
+          "location_match_evidence": { "type": "array", "items": { "type": "string" } },
+          "rejection_reason": { "type": ["string", "null"] },
+          "checked_at": { "type": "string" }
+        }
+      }
+    }
+  }
+}

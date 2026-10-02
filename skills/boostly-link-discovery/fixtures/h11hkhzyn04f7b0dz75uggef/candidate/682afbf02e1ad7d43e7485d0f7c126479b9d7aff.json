@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/alsfamouspizzanj/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:55:01.512Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/alsfamouspizzanj/",
+    "final_url": "https://www.instagram.com/alsfamouspizzanj/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Al’s famous Pizza NJ (@alsfamouspizzanj) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/273572450_1609401669420405_2627267896597282940_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=111&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=30tdFEFOcWUQ7kNvwE95PF2&_nc_oc=AdoSUcxTEE_RoAzDLwMpuKYMwMOL1phpZi22t4bbhB3Mt8M9ApTd8a7WUPsAnyQMyvI&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQBOKdWU-aoPXov1zEEPPnwnAY9iN8kPSD1Fz53GitPnAg&oe=6A4B7B16",
+      "og:title": "Al’s famous Pizza NJ (@alsfamouspizzanj) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/alsfamouspizzanj/",
+      "og:description": "135 Followers, 41 Following, 58 Posts - See Instagram photos and videos from Al’s famous Pizza NJ (@alsfamouspizzanj)",
+      "description": "135 Followers, 41 Following, 58 Posts - Al’s famous Pizza NJ (@alsfamouspizzanj) on Instagram: \"Family friendly pizzeria located in Toms River NJ.  Open 11am -9:30 pm     7 days a week\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=alsfamouspizzanj",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/alsfamouspizzanj/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

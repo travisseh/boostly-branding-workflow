@@ -1,0 +1,32 @@
+{
+  "input_url": "https://order.toasttab.com/online/music-city-hot-chicken-fort-collins-ii-1820-n-college-ave-ste-180",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:57:48.058Z",
+  "evidence": {
+    "input_url": "https://order.toasttab.com/online/music-city-hot-chicken-fort-collins-ii-1820-n-college-ave-ste-180",
+    "final_url": "https://order.toasttab.com/online/music-city-hot-chicken-fort-collins-ii-1820-n-college-ave-ste-180",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 403,
+    "ok": false,
+    "title": "Just a moment...",
+    "meta": {
+      "robots": "noindex,nofollow",
+      "viewport": "width=device-width,initial-scale=1"
+    },
+    "h1": [
+      "order.toasttab.com"
+    ],
+    "h2": [
+      "Performing security verification",
+      "Verification successful. Waiting for order.toasttab.com to respond"
+    ],
+    "text": "order.toasttab.com Performing security verification This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot. Ray ID: a1495adffab12c1a Performance and Security by Cloudflare Privacy",
+    "links": [
+      "https://www.cloudflare.com/?utm_source=challenge&utm_campaign=m",
+      "https://www.cloudflare.com/privacypolicy/"
+    ],
+    "error": null,
+    "static_http_status": 403,
+    "static_error": null
+  }
+}

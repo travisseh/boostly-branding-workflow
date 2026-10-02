@@ -1,0 +1,21 @@
+{
+  "input_url": "https://pizzati.zenpepper.com/ui/newmenu",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:59:19.229Z",
+  "evidence": {
+    "input_url": "https://pizzati.zenpepper.com/ui/newmenu",
+    "final_url": "https://pizzati.zenpepper.com/ui/newmenu",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Online Order",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1, minimal-ui"
+    },
+    "h1": [],
+    "h2": [],
+    "text": " Online Order ",
+    "links": [],
+    "error": null
+  }
+}

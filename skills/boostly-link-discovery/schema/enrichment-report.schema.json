@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boostly Link Discovery Enrichment Report",
+  "type": "object",
+  "required": [
+    "checked_at",
+    "location_context",
+    "discovery_limits",
+    "existing_links",
+    "discovered_candidates",
+    "verified_links",
+    "category_results",
+    "proposed_location_updates",
+    "proposed_touchpoint_events",
+    "rejected_candidates",
+    "manual_review_items",
+    "summary"
+  ],
+  "properties": {
+    "checked_at": { "type": "string" },
+    "location_context": { "type": "object" },
+    "discovery_limits": { "type": "object" },
+    "existing_links": { "type": "array" },
+    "discovered_candidates": { "type": "array" },
+    "verified_links": { "type": "array" },
+    "category_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "category_status", "proposed_action"],
+        "properties": {
+          "category": { "type": "string" },
+          "category_status": {
+            "enum": [
+              "found_verified",
+              "found_broken",
+              "found_rejected",
+              "not_found",
+              "needs_manual_review",
+              "blocked_by_missing_context",
+              "existing_verified",
+              "existing_broken",
+              "existing_rejected",
+              "existing_needs_manual_review"
+            ]
+          },
+          "proposed_action": { "enum": ["create", "update", "noop"] }
+        }
+      }
+    },
+    "proposed_location_updates": { "type": "array" },
+    "proposed_touchpoint_events": { "type": "array" },
+    "source_pages": { "type": "array" },
+    "rejected_candidates": { "type": "array" },
+    "manual_review_items": { "type": "array" },
+    "summary": { "type": "object" }
+  }
+}

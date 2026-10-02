@@ -1,0 +1,21 @@
+{
+  "input_url": "https://orders.hickorystation.net/#/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:58:47.902Z",
+  "evidence": {
+    "input_url": "https://orders.hickorystation.net/#/",
+    "final_url": "https://orders.hickorystation.net/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Hickory Station Pizzeria",
+    "meta": {
+      "viewport": "width=device-width,initial-scale=1"
+    },
+    "h1": [],
+    "h2": [],
+    "text": " Hickory Station Pizzeria ",
+    "links": [],
+    "error": null
+  }
+}

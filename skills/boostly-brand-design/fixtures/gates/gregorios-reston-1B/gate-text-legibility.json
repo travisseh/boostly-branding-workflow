@@ -1,0 +1,28 @@
+{
+  "pass": false,
+  "verdict": "business_name_unreadable_at_product_size",
+  "product_logo_box": {
+    "width": 126,
+    "height": 56
+  },
+  "expected_text": "Gregorio's Trattoria",
+  "recognized_text": "GE°B0TIO§",
+  "normalized_expected": "GREGORIOSTRATTORIA",
+  "normalized_recognized": "GEB0TIO",
+  "edit_distance": 14,
+  "maximum_edit_distance": 2,
+  "source_ocr_readable": null,
+  "counter_topology": {
+    "pass": true,
+    "expected_counter_count": 9,
+    "detected_counter_count": 34,
+    "minimum_detected_counter_count": 5,
+    "minimum_hole_area_px": 42,
+    "source_detected_counter_count": null,
+    "reasons": []
+  },
+  "notes": [],
+  "reasons": [
+    "expected_business_name_not_readable_at_126x56"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "input_url": "https://mama-fla.cloveronline.com/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:40.798Z",
+  "evidence": {
+    "input_url": "https://mama-fla.cloveronline.com/",
+    "final_url": "https://mama-fla.cloveronline.com/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "MAMA FLA Italian Cuisine",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "description": "Explore authentic Appetizers, Beer and Coktails and order online from our restaurant. Based in IDAHO FALLS.",
+      "robots": "all"
+    },
+    "h1": [],
+    "h2": [],
+    "text": " MAMA FLA Italian Cuisine ",
+    "links": [],
+    "error": null
+  }
+}

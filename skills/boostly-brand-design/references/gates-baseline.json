@@ -1,0 +1,1568 @@
+{
+  "generated_at": "2026-09-17T15:35:11.123Z",
+  "registry_sha256": "ffbec5b512cf33f924b08d5de01277350f1106fb4c50179317c551f06b399b75",
+  "runs": {
+    "runs-prod-2026-08-27/falafel-etc-fremont": {
+      "asset": "applied-logo.tinified.png",
+      "asset_sha256": "3323678d4238a7669722f5c84bea36abdeb43ccc5a6272d7117b405047d8a072",
+      "resolution_source": "run.json:write",
+      "primary": "#3F4F44",
+      "expected": "Falafel, etc.",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": false,
+          "verdict": "FAIL: baked-in glow/shadow — run deglow before knockout"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": false,
+          "verdict": "upload_over_byte_cap"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-08-31/fahrenheit-charlotte-rooftop": {
+      "asset": "fix/card-final.png",
+      "asset_sha256": "1ff9c5f4dab02aa01f5dc9aefc1dcae5cbafa306f414489b9d2dff407b7dc436",
+      "resolution_source": "run.json:write",
+      "primary": "#171313",
+      "expected": "Fahrenheit",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-08-31/palios-pizza-cafe-roanoke": {
+      "asset": "exp/knockout/ko-1768-bin.png",
+      "asset_sha256": "ae4972eebbb19bc2a1b909e68ba2e7512787a87be387f3247f6540aecbeea751",
+      "resolution_source": "run.json:write",
+      "primary": "#361a0c",
+      "expected": "Palio's Pizza Cafe",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": false,
+          "verdict": "too-faint: extract wordmark or use bolder variant"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": false,
+          "verdict": "excess_canvas_padding"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-08-31/tony-and-tinas-deli": {
+      "asset": "fix/card-white-knockout.png",
+      "asset_sha256": "662d6e29ca69bb2e988bdac34c92b1822f2fc8bbf0f0416e8e0fdb8b5ec383cf",
+      "resolution_source": "run.json:write",
+      "primary": "#000000",
+      "expected": "Tony and Tina's Deli",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-02/midnight-munchie-poughkeepsie": {
+      "asset": "exp/sign-wordmark/photo-trace-stacked-white.png",
+      "asset_sha256": "1d2f01466d12ab0b360491b8f81b07e4cbf3e362dbecae72a35e2975a1ca702b",
+      "resolution_source": "run.json:write",
+      "primary": "#408BF1",
+      "expected": "Midnight Munchie Company",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "stylized_script_informational"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": false,
+          "verdict": "excess_canvas_padding"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-03/jjs-cuisine-homestead": {
+      "asset": "fix/card-final-hires.png",
+      "asset_sha256": "bd2792f4941b318bb92a8c6838fc48381e2b951b528b2c360222b14eddcc3f85",
+      "resolution_source": "run.json:write",
+      "primary": "#000000",
+      "expected": "JJ's Cuisine",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": false,
+          "verdict": "indexed_png_not_supported"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "stylized_script_informational"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": false,
+          "verdict": "excess_canvas_padding"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-04/astoria-pizza-factory": {
+      "asset": "fix/words/card-words-3200-aa-q8.png",
+      "asset_sha256": "540159749eda3f1d4306729f0e73113fd99119579af292c3cce310d389d7039f",
+      "resolution_source": "run.json:write",
+      "primary": "#A10000",
+      "expected": "Astoria Pizza Factory",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-04/foxs-pizza-den-chicora": {
+      "asset": "fix/red/applied-logo.png",
+      "asset_sha256": "d60ca01031f284d5853e31d9c0392432fbb6c6fc3014e0d89ce7ac0a3c35b316",
+      "resolution_source": "run.json:write",
+      "primary": "#C70A10",
+      "expected": "Fox's Pizza Den",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": false,
+          "verdict": "upload_over_byte_cap"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-08/denises-delicacies-philadelphia": {
+      "asset": "fix/card-notagline-1600.png",
+      "asset_sha256": "d50300e6ac510cfd41b362022c8f6a1db786a8155d9aff2fce08a1c7143ed544",
+      "resolution_source": "run.json:write",
+      "primary": "#8D4CED",
+      "expected": "Denise's Delicacies",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-08/park-avenue-bbq-grille-wellington": {
+      "asset": "fix/card-final.png",
+      "asset_sha256": "16891b4685bac0d960a5e218fa795a82e6a487bf4b8acff62e33db50135d8264",
+      "resolution_source": "run.json:write",
+      "primary": "#2F5E3F",
+      "expected": "Park Avenue BBQ Grille",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": false,
+          "verdict": "no_enclosed_counters"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-08/swine-dining-bbq-omaha": {
+      "asset": "fix/logo-truecolor/card-color-truecolor.png",
+      "asset_sha256": "43ced60c01db2de48eff06bb81e62236b04c8fbdb0df35005e10c9326a4abf46",
+      "resolution_source": "run.json:write",
+      "primary": "#B23311",
+      "expected": "Swine Dining BBQ",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": false,
+          "verdict": "component_invisible_on_primary"
+        },
+        "whiteblob": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": false,
+          "verdict": "upload_over_byte_cap"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-09/206-burger-co-seattle": {
+      "asset": "fix/card-final.png",
+      "asset_sha256": "78fb6ff466d02aec326aff1af3af4849b5c69782354d31688ed752ba1d3f47ee",
+      "resolution_source": "run.json:write",
+      "primary": "#58B241",
+      "expected": "206 Burger Co. & Bar",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": false,
+          "verdict": "no_enclosed_counters"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-09/faith-hope-charity-terrebonne": {
+      "asset": "fix/live-j/applied-logo.png",
+      "asset_sha256": "a7bff0c34a67a6bdee37c3cdb2b826ad2a8d071a6f4edb02a1a60c9dcbec51ba",
+      "resolution_source": "run.json:write",
+      "primary": "#6B0329",
+      "expected": "Faith Hope & Charity Vineyards",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-10/coriander-boynton-beach": {
+      "asset": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-10/coriander-denver/fix/card-final-blkD.png",
+      "asset_sha256": "9ff7b79907ab8465181e8f6ac0b3f0546b6be69b5a59943d02266a5641da6748",
+      "resolution_source": "manifest:logo_filename",
+      "primary": "#0A0A0A",
+      "expected": "Coriander",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-10/coriander-denver": {
+      "asset": "fix/card-final-blkD.png",
+      "asset_sha256": "9ff7b79907ab8465181e8f6ac0b3f0546b6be69b5a59943d02266a5641da6748",
+      "resolution_source": "manifest:logo_filename",
+      "primary": "#0A0A0A",
+      "expected": "Coriander",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-10/coriander-golden": {
+      "asset": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-10/coriander-denver/fix/card-final-blkD.png",
+      "asset_sha256": "9ff7b79907ab8465181e8f6ac0b3f0546b6be69b5a59943d02266a5641da6748",
+      "resolution_source": "manifest:logo_filename",
+      "primary": "#0A0A0A",
+      "expected": "Coriander",
+      "applied_at": null,
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    },
+    "runs-prod-2026-09-10/olympus-pizza-manchester": {
+      "asset": "fix/live-I/card-color.png",
+      "asset_sha256": "68a313afc752e564ad1fd64cd6a010c44353fcdf7dc429e50702be28cf7c5177",
+      "resolution_source": "run.json:write",
+      "primary": "#09609F",
+      "expected": "Olympus Pizza",
+      "applied_at": "2026-09-11",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": false,
+          "verdict": "excess_canvas_padding"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-14/gregorios-trattoria-bethesda": {
+      "asset": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-14/gregorios-trattoria-reston/fix/card/card-full-tight.png",
+      "asset_sha256": "f199b0dc9757046b4b31146a76939fb63af9dd50a488dc1a2588a616110ce5a0",
+      "resolution_source": "run.json:write",
+      "primary": "#C93B18",
+      "expected": "Gregorio's Trattoria",
+      "applied_at": "2026-09-15",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": false,
+          "verdict": "too-faint: extract wordmark or use bolder variant"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-14/gregorios-trattoria-potomac": {
+      "asset": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-14/gregorios-trattoria-reston/fix/card/card-full-tight.png",
+      "asset_sha256": "f199b0dc9757046b4b31146a76939fb63af9dd50a488dc1a2588a616110ce5a0",
+      "resolution_source": "run.json:write",
+      "primary": "#C93B18",
+      "expected": "Gregorio's Trattoria",
+      "applied_at": "2026-09-15",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": false,
+          "verdict": "too-faint: extract wordmark or use bolder variant"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-14/gregorios-trattoria-potomac-2": {
+      "asset": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-14/gregorios-trattoria-reston/fix/card/card-full-tight.png",
+      "asset_sha256": "f199b0dc9757046b4b31146a76939fb63af9dd50a488dc1a2588a616110ce5a0",
+      "resolution_source": "run.json:write",
+      "primary": "#C93B18",
+      "expected": "Gregorio's Trattoria",
+      "applied_at": "2026-09-15",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": false,
+          "verdict": "too-faint: extract wordmark or use bolder variant"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-14/gregorios-trattoria-reston": {
+      "asset": "fix/card/card-full-tight.png",
+      "asset_sha256": "f199b0dc9757046b4b31146a76939fb63af9dd50a488dc1a2588a616110ce5a0",
+      "resolution_source": "run.json:write",
+      "primary": "#C93B18",
+      "expected": "Gregorio's Trattoria",
+      "applied_at": "2026-09-15",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": false,
+          "verdict": "too-faint: extract wordmark or use bolder variant"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": false,
+          "verdict": "illegible_at_product_size"
+        },
+        "text-legibility": {
+          "pass": false,
+          "verdict": "business_name_unreadable_at_product_size"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP-WITH-OVERRIDE"
+    },
+    "runs-prod-2026-09-15/toscanos-winchester": {
+      "asset": "fix/tight/05-name-only-white.png",
+      "asset_sha256": "6dcc9e8418c62f5955d4223f865a90c8d0d69e859db1fcc5a1c217b7706019f5",
+      "resolution_source": "run.json:write",
+      "primary": "#8B2C1D",
+      "expected": "TOSCANO'S",
+      "applied_at": "2026-09-15",
+      "gates": {
+        "ship-gate": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "border-dust": {
+          "pass": true,
+          "verdict": "clean"
+        },
+        "soft-fringe": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "holes": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "interior": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "component-contrast": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "whiteblob": {
+          "pass": false,
+          "verdict": "opaque near-white region(s) facing transparency — likely leftover background or half-keyed interior; fix before rendering"
+        },
+        "stroke": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "edge": {
+          "pass": null,
+          "verdict": null
+        },
+        "png-color-type": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "render-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "text-legibility": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "validate-logo-surface": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "logo-crop": {
+          "pass": true,
+          "verdict": "ok"
+        },
+        "upload-size": {
+          "pass": true,
+          "verdict": "ok"
+        }
+      },
+      "verdict": "SHIP"
+    }
+  }
+}

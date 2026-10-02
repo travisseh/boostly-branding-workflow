@@ -1,0 +1,68 @@
+{
+  "input_url": "https://www.firehousepizza.net/about-us/",
+  "kind": "website",
+  "recorded_at": "2026-07-01T23:55:31.509Z",
+  "evidence": {
+    "input_url": "https://www.firehousepizza.net/about-us/",
+    "final_url": "https://www.firehousepizza.net/about-us/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "About Firehouse Pizza",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "description": "Discover the story behind Firehouse Pizza, a family-owned local favorite serving handcrafted pizzas across Kentucky since 2003. Proudly rooted in community and quality.",
+      "og:locale": "en_US",
+      "og:type": "article",
+      "og:title": "About Us",
+      "og:description": "Discover the story behind Firehouse Pizza, a family-owned local favorite serving handcrafted pizzas across Kentucky since 2003. Proudly rooted in community and quality.",
+      "og:url": "https://www.firehousepizza.net/about-us/",
+      "og:site_name": "Firehouse Pizza",
+      "article:publisher": "https://www.facebook.com/profile.php?id=61566735130949",
+      "article:modified_time": "2026-06-05T19:18:54+00:00",
+      "og:image": "https://www.firehousepizza.net/wp-content/uploads/2025/12/FH_Pizza_Logo_square.jpg",
+      "og:image:width": "1024",
+      "og:image:height": "1024",
+      "og:image:type": "image/jpeg",
+      "twitter:card": "summary_large_image",
+      "twitter:label1": "Est. reading time",
+      "twitter:data1": "2 minutes",
+      "generator": "Site Kit by Google 1.182.0",
+      "ti-site-data": "eyJyIjoiMTowITc6MCEzMDoyIiwibyI6Imh0dHBzOlwvXC93d3cuZmlyZWhvdXNlcGl6emEubmV0P3RpLW9ubGluZS11c2Vycy1nb29nbGU9MSZhbXA7cD0lMkZhYm91dC11cyUyRiZhbXA7X3dwbm9uY2U9NTU3NjgwY2YzZSJ9",
+      "msapplication-TileImage": "https://www.firehousepizza.net/wp-content/uploads/2025/11/cropped-66821cf3255daf-270x270.png"
+    },
+    "h1": [
+      "About Us"
+    ],
+    "h2": [
+      "World-Class Pizza",
+      "with a Hometown Feel.",
+      "We are locally owned and operated.",
+      " Hot Pizza. &nbsp;Cool Vibes. Smokin’ Investment.",
+      "Quick Links"
+    ],
+    "text": " About Firehouse Pizza Skip to content About Us Franchising Locations Bowling Green Firehouse Pizza Morgantown Order Contact Us About Us World-Class Pizza with a Hometown Feel. Our Story Founded by Eric and Tosha Sublett, Firehouse Pizza first opened our doors on March 10, 2003, in Bowling Green, Kentucky. Three years later, we opened a second location in Morgantown. In the 20+ years since starting, Firehouse Pizza has grown and evolved into a local favorite, a true mom-and-pop shop that draws an enthusiastic and loyal clientele.​ Taking a Three Generation approach, Firehouse Pizza offers something for everyone, whether they’re 9 or 90. We’re dedicated to providing an experience that’s fun and delicious for the whole family. With customer favorites including freshly prepared pizza, salads, sandwiches and wings, a bourbon bar, self-pour beer, homemade ice cream and multiple indoor and outdoor dining areas that encourage kicking back and relaxing, Firehouse Pizza is a destination restaurant that keeps people coming back. Drawing on our extensive and invaluable experience in the pizza restaurant space, the Firehouse Pizza management team is ready to bring this beloved brand to new markets through franchise offerings. We are locally owned and operated. We buy our groceries and specialty items where you buy them. Why? Well, we believe that a business that spends its money in the community helps to keep that money in the community. Contact Us Hot Pizza. &nbsp;Cool Vibes. Smokin’ Investment. Hungry for a&nbsp; Great Deal? &nbsp;Learn more about our Franchise Opportunities. Request a Brochure Today! Request Brochure Quick Links About Us Franchising Order Locations Contact Us Receive birthday treats and be among the first to receive the latest news on events and special offers! Join Firehouse club » © 2025 Firehouse Pizza. All Rights Reserved. ",
+    "links": [
+      "https://www.firehousepizza.net/about-us/#wp--skip-link--target",
+      "https://www.firehousepizza.net/about-us/",
+      "https://www.firehousepizza.net/franchising/",
+      "https://www.firehousepizza.net/locations/",
+      "https://www.firehousepizza.net/locations/bowling-green/",
+      "https://www.firehousepizza.net/locations/morgantown/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/about-us/",
+      "https://firehousepizza.net/franchising/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/locations/",
+      "https://firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/"
+    ],
+    "error": null
+  }
+}

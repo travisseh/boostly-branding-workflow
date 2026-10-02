@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apple Notes Decision Brief"
+  short_description: "Create concise, formatted decision briefs"
+  default_prompt: "Use $apple-notes-decision-brief to create a concise, evidence-backed decision brief in Apple Notes."

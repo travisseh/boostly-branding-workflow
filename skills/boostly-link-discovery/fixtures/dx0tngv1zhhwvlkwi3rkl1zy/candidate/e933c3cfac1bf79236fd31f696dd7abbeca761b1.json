@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/mojos_east_coast_eats/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:57:06.891Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/mojos_east_coast_eats/",
+    "final_url": "https://www.instagram.com/mojos_east_coast_eats/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Mojo,s East Coast Eats (@mojos_east_coast_eats) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/367520163_2015349635471358_1417524993502092543_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=110&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy44MzQuQzMifQ%3D%3D&_nc_ohc=pIEsYoWu8bkQ7kNvwGv7hoh&_nc_oc=AdoX793EpgqjSxxF26xZIWD0E6McbuWEsWPK1hBwLbZ4v2nDQryaEHpJMHVfuQGTjTc&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQADnzqXAIGYf6wyHkr3o5M6ocVdiMGdjoARIQFxbiL2ug&oe=6A4B6EE3",
+      "og:title": "Mojo,s East Coast Eats (@mojos_east_coast_eats) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/mojos_east_coast_eats/",
+      "og:description": "748 Followers, 110 Following, 366 Posts - See Instagram photos and videos from Mojo,s East Coast Eats (@mojos_east_coast_eats)",
+      "description": "748 Followers, 110 Following, 366 Posts - Mojo,s East Coast Eats (@mojos_east_coast_eats) on Instagram: \"Serving authentic Philadelphia Cheesesteaks, East Coast Hoagies, Boardwalk-style fresh-cut fries...and so much more in Downers Grove, IL.\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=mojos_east_coast_eats",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/mojos_east_coast_eats/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

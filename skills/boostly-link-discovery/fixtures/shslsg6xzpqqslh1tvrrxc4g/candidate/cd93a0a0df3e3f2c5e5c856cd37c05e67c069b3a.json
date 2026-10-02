@@ -1,0 +1,68 @@
+{
+  "input_url": "https://www.tiktok.com/@the.brasstap?_t=ZT-8ya05d4xwM9&_r=1",
+  "kind": "candidate",
+  "recorded_at": "2026-07-02T00:00:14.228Z",
+  "evidence": {
+    "input_url": "https://www.tiktok.com/@the.brasstap?_t=ZT-8ya05d4xwM9&_r=1",
+    "final_url": "https://www.tiktok.com/@the.brasstap?_t=ZT-8ya05d4xwM9&_r=1",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "The Brass Tap (@the.brasstap) | TikTok",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1.0",
+      "pumbaa-ctx": "login=0,ftc=0",
+      "google": "notranslate",
+      "format-detection": "telephone=no",
+      "description": "The Brass Tap (@the.brasstap) on TikTok | 1862 Likes. 179 Followers. Craft Beer Bar🍻.Watch the latest video from The Brass Tap (@the.brasstap).",
+      "robots": "index, follow, max-image-preview:large",
+      "applicable-device": "pc, mobile",
+      "al:ios:url": "snssdk1233://user/profile/",
+      "al:android:url": "snssdk1233://user/profile/",
+      "al:ios:app_store_id": "835599320",
+      "al:ios:app_name": "musical.ly",
+      "al:android:app_name": "musical.ly",
+      "al:android:package": "com.zhiliaoapp.musically",
+      "og:site_name": "TikTok",
+      "og:type": "website",
+      "og:title": "The Brass Tap (@the.brasstap) | TikTok",
+      "og:description": "The Brass Tap (@the.brasstap) on TikTok | 1862 Likes. 179 Followers. Craft Beer Bar🍻.Watch the latest video from The Brass Tap (@the.brasstap).",
+      "fb:app_id": "597615686992125",
+      "twitter:app:id:iphone": "835599320",
+      "twitter:app:id:googleplay": "com.zhiliaoapp.musically",
+      "twitter:card": "summary",
+      "twitter:site": "TikTok",
+      "twitter:title": "The Brass Tap (@the.brasstap) | TikTok",
+      "twitter:description": "The Brass Tap (@the.brasstap) on TikTok | 1862 Likes. 179 Followers. Craft Beer Bar🍻.Watch the latest video from The Brass Tap (@the.brasstap).",
+      "og:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/eabc186dcc92392b37dfadb1111d0de4~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=eb2328f5&x-expires=1783123200&x-signature=wwtQ98aUXLBTjeNnPpSZ1YGtoP8%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "twitter:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/eabc186dcc92392b37dfadb1111d0de4~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=eb2328f5&x-expires=1783123200&x-signature=wwtQ98aUXLBTjeNnPpSZ1YGtoP8%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "og:image:width": "360",
+      "og:image:height": "360",
+      "og:image:alt": "The Brass Tap (@the.brasstap) | TikTok",
+      "og:url": "https://www.tiktok.com/@the.brasstap?_r=1&_t=ZT-8ya05d4xwM9"
+    },
+    "h1": [
+      "The Brass Tap"
+    ],
+    "h2": [
+      "the.brasstap",
+      "Craft Beer Bar🍻"
+    ],
+    "text": "TikTok Shop is now available on web! Browse your favorite items. TikTok Search For You Shop Explore Following LIVE Upload Profile More Log in © 2026 TikTok The Brass Tap the.brasstap 7 Following 179 Followers 1862 Likes Follow Message Craft Beer Bar🍻 Suggested accounts View all Videos Liked Latest Popular Oldest Something went wrong Sorry about that! Please try again later. Refresh Log in",
+    "links": [
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/shop",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/following",
+      "https://www.tiktok.com/live",
+      "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video",
+      "https://www.tiktok.com/@",
+      "https://www.tiktok.com/@the.brasstap"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

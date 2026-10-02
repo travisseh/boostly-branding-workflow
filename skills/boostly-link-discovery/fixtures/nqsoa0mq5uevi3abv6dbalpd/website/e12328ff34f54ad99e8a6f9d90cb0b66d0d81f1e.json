@@ -1,0 +1,58 @@
+{
+  "input_url": "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+  "kind": "website",
+  "recorded_at": "2026-07-01T23:58:32.549Z",
+  "evidence": {
+    "input_url": "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+    "final_url": "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Emilio&#x27;s Mexican Restaurant & Cantina | Menu",
+    "meta": {
+      "description": "We invite you to take a look at our menu to enjoy a vibrant and unique Mexican experience at Emilio&#x27;s Mexican Restaurant & Cantina, not to be missed!",
+      "og:title": "Emilio&#x27;s Mexican Restaurant & Cantina | Menu",
+      "og:description": "We invite you to take a look at our menu to enjoy a vibrant and unique Mexican experience at Emilio&#x27;s Mexican Restaurant & Cantina, not to be missed!",
+      "og:image": "https://cdn.prod.website-files.com/65ccd6d571f9857100818be4/65cfb8b2297653b650915425_SEO2.jpg",
+      "twitter:title": "Emilio&#x27;s Mexican Restaurant & Cantina | Menu",
+      "twitter:description": "We invite you to take a look at our menu to enjoy a vibrant and unique Mexican experience at Emilio&#x27;s Mexican Restaurant & Cantina, not to be missed!",
+      "twitter:image": "https://cdn.prod.website-files.com/65ccd6d571f9857100818be4/65cfb8b2297653b650915425_SEO2.jpg",
+      "og:type": "website",
+      "twitter:card": "summary_large_image",
+      "viewport": "width=device-width, initial-scale=1"
+    },
+    "h1": [
+      "our menu"
+    ],
+    "h2": [],
+    "text": " Emilio&#x27;s Mexican Restaurant & Cantina | Menu order now home ABOUT Menu CATERING contact Specials Order now our menu Subscribe Newsletters Thank you! Your submission has been received! Oops! Something went wrong while submitting the form. HOME ABOUT MENU CATERING CONTACT US SPECIALS Designed & built with ❤️ by SpotOn ©2024 ",
+    "links": [
+      "https://order.spoton.com/so-la-casita-restaurante-and-taqueria-16687/pasadena-tx/655e47f8c73396003f946c7d",
+      "https://www.emiliosmexicanrestaurantandcantina.net/",
+      "https://www.emiliosmexicanrestaurantandcantina.net/",
+      "https://www.emiliosmexicanrestaurantandcantina.net/about-us",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+      "https://www.emiliosmexicanrestaurantandcantina.net/catering",
+      "https://www.emiliosmexicanrestaurantandcantina.net/contact-us",
+      "https://www.emiliosmexicanrestaurantandcantina.net/specials",
+      "https://order.spoton.com/so-emilios-mexican-restaurant-and-cantina-17709/san-jacinto-ca/65c176afa099b0003d63287f",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu#",
+      "https://www.emiliosmexicanrestaurantandcantina.net/",
+      "https://www.emiliosmexicanrestaurantandcantina.net/about-us",
+      "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+      "https://www.emiliosmexicanrestaurantandcantina.net/catering",
+      "https://www.emiliosmexicanrestaurantandcantina.net/contact-us",
+      "https://www.emiliosmexicanrestaurantandcantina.net/specials",
+      "https://www.facebook.com/Emiliosmexicanrestaurantandcantina?ref=profile",
+      "https://www.instagram.com/emilios_mexican_restaurant_/",
+      "https://www.yelp.com/biz/emilios-mexican-restaurant-and-cantina-san-jacinto",
+      "https://www.spoton.com/"
+    ],
+    "error": null
+  }
+}

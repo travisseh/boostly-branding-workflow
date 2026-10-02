@@ -1,0 +1,71 @@
+{
+  "input_url": "https://firehousepizza.net/order/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:55:32.591Z",
+  "evidence": {
+    "input_url": "https://firehousepizza.net/order/",
+    "final_url": "https://www.firehousepizza.net/order/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Firehouse Pizza – Order Online for Fast Delivery in KY",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "description": "Order handcrafted Firehouse Pizza online for fast delivery in Bowling Green & Morgantown, KY. Fresh, local, and made to satisfy — order now and enjoy hot, delicious pizza at your doorstep.",
+      "og:locale": "en_US",
+      "og:type": "article",
+      "og:title": "Order",
+      "og:description": "Order handcrafted Firehouse Pizza online for fast delivery in Bowling Green & Morgantown, KY. Fresh, local, and made to satisfy — order now and enjoy hot, delicious pizza at your doorstep.",
+      "og:url": "https://www.firehousepizza.net/order/",
+      "og:site_name": "Firehouse Pizza",
+      "article:publisher": "https://www.facebook.com/profile.php?id=61566735130949",
+      "article:modified_time": "2025-12-03T19:35:06+00:00",
+      "og:image": "https://www.firehousepizza.net/wp-content/uploads/2025/12/FH_Pizza_Logo_square.jpg",
+      "og:image:width": "1024",
+      "og:image:height": "1024",
+      "og:image:type": "image/jpeg",
+      "twitter:card": "summary_large_image",
+      "twitter:label1": "Est. reading time",
+      "twitter:data1": "2 minutes",
+      "generator": "Site Kit by Google 1.182.0",
+      "ti-site-data": "eyJyIjoiMTowITc6MCEzMDoyIiwibyI6Imh0dHBzOlwvXC93d3cuZmlyZWhvdXNlcGl6emEubmV0P3RpLW9ubGluZS11c2Vycy1nb29nbGU9MSZhbXA7cD0lMkZvcmRlciUyRiZhbXA7X3dwbm9uY2U9NTU3NjgwY2YzZSJ9",
+      "msapplication-TileImage": "https://www.firehousepizza.net/wp-content/uploads/2025/11/cropped-66821cf3255daf-270x270.png"
+    },
+    "h1": [
+      "Order",
+      "Order Pizza Online in Bowling Green and Morgantown, KY – Firehouse Pizza"
+    ],
+    "h2": [
+      "FAQS",
+      "Quick Links"
+    ],
+    "text": " Firehouse Pizza – Order Online for Fast Delivery in KY Skip to content About Us Franchising Locations Bowling Green Firehouse Pizza Morgantown Order Contact Us Order Order Pizza Online in Bowling Green and Morgantown, KY – Firehouse Pizza Craving fresh, handcrafted pizza? Firehouse Pizza makes it easy to order online and enjoy your favorite meals from the comfort of home. Whether you’re in Bowling Green, KY or Morgantown, KY, our menu is packed with delicious options — from thin-crust pizzas loaded with toppings to hearty sandwiches, crispy wings, fresh salads, and homemade desserts. Choose what works best for you: dine in, carryout, curbside pickup, or delivery. Our team prepares every order with care, so you can count on hot, fresh flavors every time. Ordering online is simple — just select your location, browse the menu, and we’ll have your order ready in no time. Firehouse Pizza is proud to be a local favorite, serving our community with great food and friendly service since day one. Order online today and let us take care of dinner tonight! SELECT LOCATION TO ORDER Morgantown Bowling Green FAQS How can I place an order online at Firehouse Pizza? You can easily place your order online by selecting your nearest location — Bowling Green or Morgantown — from our website. Browse the menu, choose your favorite pizzas and sides, and confirm your order for delivery, carryout, or curbside pickup. Does Firehouse Pizza offer delivery in Bowling Green and Morgantown? Yes! Firehouse Pizza provides fast and reliable delivery service in both Bowling Green and Morgantown, KY. Simply select “Delivery” when placing your online order, and we’ll bring your meal straight to your door. Can I customize my pizza when ordering online? Absolutely! You can customize your pizza with your favorite crust, sauces, toppings, and cheese options when placing your order online. We prepare every pizza fresh to your preferences. What are the ordering options available at Firehouse Pizza? We offer multiple ways to enjoy your meal — dine in, carryout, and delivery. Whether you’re eating out or staying in, Firehouse Pizza makes it easy to enjoy handcrafted pizza your way. Do you offer any specials or discounts for online orders? Yes, we occasionally feature online-only specials and seasonal deals. Keep an eye on our website or social media pages for updates on current promotions and discounts. Quick Links About Us Franchising Order Locations Contact Us Receive birthday treats and be among the first to receive the latest news on events and special offers! Join Firehouse club » © 2025 Firehouse Pizza. All Rights Reserved. ",
+    "links": [
+      "https://www.firehousepizza.net/order/#wp--skip-link--target",
+      "https://www.firehousepizza.net/about-us/",
+      "https://www.firehousepizza.net/franchising/",
+      "https://www.firehousepizza.net/locations/",
+      "https://www.firehousepizza.net/locations/bowling-green/",
+      "https://www.firehousepizza.net/locations/morgantown/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/contact-us/",
+      "https://order.toasttab.com/online/the-firehouse-pizza-of-kentucky-morgantown#!/",
+      "https://order.toasttab.com/online/firehouse-pizza-bg-1703-u-s-31-west-bypass",
+      "https://www.firehousepizza.net/",
+      "https://www.firehousepizza.net/",
+      "https://www.firehousepizza.net/",
+      "https://www.firehousepizza.net/",
+      "https://www.firehousepizza.net/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/about-us/",
+      "https://firehousepizza.net/franchising/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/locations/",
+      "https://firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/"
+    ],
+    "error": null
+  }
+}

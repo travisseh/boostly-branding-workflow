@@ -1,0 +1,45 @@
+{
+  "input_url": "https://the-brass-tap-careers.careerplug.com/jobs?z=30354&d=25&n=&t=&locale=en-US#job_filters",
+  "kind": "candidate",
+  "recorded_at": "2026-07-02T00:00:11.366Z",
+  "evidence": {
+    "input_url": "https://the-brass-tap-careers.careerplug.com/jobs?z=30354&d=25&n=&t=&locale=en-US#job_filters",
+    "final_url": "https://the-brass-tap-careers.careerplug.com/jobs?z=30354&d=25&n=&t=&locale=en-US",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "The Brass Tap Careers",
+    "meta": {
+      "msapplication-TileColor": "#ffc40d",
+      "msapplication-TileImage": "https://djwmpmz818tx4.cloudfront.net/assets/cplook/mstile-144x144-244e319cc63ce193bd5006ff55881ca8a5dd5d4fbd46d80ecfc159a6a2454be5.png?v=wAO0rgpB32",
+      "msapplication-config": "none",
+      "theme-color": "#ffffff",
+      "google-site-verification": "21brSvmlpBaoEQ8jLpfktbP9AW8ImWzQl2uzHPjrmAg",
+      "viewport": "width=device-width, initial-scale=1",
+      "csrf-param": "authenticity_token",
+      "csrf-token": "GPa3BXsaNC0hHwTyqjhSjLMwpnQ6knXBim__2a4neu0o_RncJJDjwJUZEKBtc7viWkqRqLRQhefeTki4daM_sA",
+      "transmit-origin": "https://app.careerplug.com",
+      "og:site_name": "CareerPlug",
+      "cpats_job_meta": "{\"source\":529413}",
+      "og:type": "website",
+      "og:updated_time": "2026-07-02T00:00:11Z"
+    },
+    "h1": [
+      "THIS IS YOUR SHOT."
+    ],
+    "h2": [],
+    "text": " The Brass Tap Careers THIS IS YOUR SHOT. View Open Positions It's true The Brass Tap has the best Craft Beer lineup anywhere and chef-inspired food that raises the bar on bar food. But the secret ingredient behind our success isn't beer, it's people! We're a leading craft beer chain with team members who make the magic happen every day ... bringing that special something that keeps guests coming back time and again. This franchise is independently owned and operated by a franchisee. Your application will go directly to the franchise, and all hiring decisions will be made by the management of this franchise. All inquiries about employment at this franchisee should be made directly to the franchise location, and not to FSC Corporate. Flexible part-time or full-time schedule Paid training Meal perks Growth opportunities Safety and sanitation standards Fun environment and team culture ZIP Code 1 mi. 5 mi. 10 mi. 25 mi. 50 mi. 100 mi. Position Assistant Manager Bartender Bartender/Server Cook Dishwasher Expo / Foodrunner / Barback Food Runner/Bussr General Manager Host Hourly Assistant Manager Line Cook Prep Cook Server Server / Bartender Server/Bartender Type Full Time Part Time Show Me All Jobs Your search returned 3 jobs. Reset Search Bartender Location: GA-Marietta-30067 Post Date: 06-23-26 Server Location: GA-Marietta-30067 Post Date: 06-23-26 Cook Location: GA-Marietta-30067 Post Date: 06-21-26 Powered by Privacy Policy ",
+    "links": [
+      "https://the-brass-tap-careers.careerplug.com/account",
+      "https://the-brass-tap-careers.careerplug.com/jobs?z=30354&d=25&n=&t=&locale=en-US#job_filters",
+      "https://the-brass-tap-careers.careerplug.com/jobs?locale=en-US",
+      "https://the-brass-tap-careers.careerplug.com/jobs",
+      "https://the-brass-tap-careers.careerplug.com/jobs/2869247",
+      "https://the-brass-tap-careers.careerplug.com/jobs/2863709",
+      "https://the-brass-tap-careers.careerplug.com/jobs/2838918",
+      "https://www.careerplug.com/",
+      "https://www.careerplug.com/privacy/"
+    ],
+    "error": null
+  }
+}

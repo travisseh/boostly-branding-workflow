@@ -1,0 +1,156 @@
+{
+  "location_context": {
+    "location_id": "agt5owqkftvge95gj2q0e9sq",
+    "location_name": "Pizzati - Pizza . Pasta . Wings",
+    "location_status": "enabled",
+    "account_id": "c75b5bsjzt4vm163qr6tp69a",
+    "account_name": "Pizzati",
+    "account_status": "enabled",
+    "address": "4032 Cedar Springs Rd, Dallas, TX 75219, USA",
+    "shipping_address_line1": null,
+    "shipping_city": null,
+    "shipping_state": null,
+    "shipping_zip": null,
+    "ordering_phone_number": "+19728638603",
+    "google_place_id": "ChIJQ-IMvRKfToYRtVIAWXhyhaM",
+    "website_url": "https://pizzatiusa.com/",
+    "ordering_url": "https://pizzatiusa.com/order/",
+    "facebook_url": "https://www.facebook.com/pizzati.usa/",
+    "instagram_url": "https://www.instagram.com/pizzati_dallas/",
+    "x_url": null,
+    "tiktok_url": null,
+    "youtube_url": null,
+    "apple_app_url": null,
+    "google_app_url": null
+  },
+  "touchpoint_events": [
+    {
+      "id": "r3odplyyfininykzyfjg02ed",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 0,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "uluipcrlaqwlz2he5jr99g0o"
+      },
+      "link": null,
+      "updated_at": "2026-06-24T17:40:47.872"
+    },
+    {
+      "id": "i54h1kg19ylrxubxeo9qv0qu",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_review",
+      "title": "Reviews",
+      "display_title": "Feedback",
+      "description": "How's your experience?",
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-24T17:40:47.702"
+    },
+    {
+      "id": "fblfv86ngzkqwmea5qld52lj",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "uluipcrlaqwlz2he5jr99g0o"
+      },
+      "link": null,
+      "updated_at": "2026-06-15T22:26:44.559"
+    },
+    {
+      "id": "ftkxdoythb0cv0yuu28nxwsz",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "uluipcrlaqwlz2he5jr99g0o"
+      },
+      "link": null,
+      "updated_at": "2026-06-15T22:26:44.314"
+    },
+    {
+      "id": "zs27rxxu4fid27wvqxk2692i",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "uluipcrlaqwlz2he5jr99g0o"
+      },
+      "link": null,
+      "updated_at": "2026-06-15T22:26:44.427"
+    },
+    {
+      "id": "ymz8df452ytkgcfmf3m8ybs0",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Menu",
+      "display_title": "Menu",
+      "description": "View our menu",
+      "primary_button_text": "View Menu",
+      "sort_order": 2,
+      "is_active": true,
+      "config": null,
+      "link": "https://pizzatiusa.com/menu/",
+      "updated_at": "2026-06-24T17:40:47.783"
+    },
+    {
+      "id": "a5p07hb6a6yypezjldejzr8k",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Order",
+      "display_title": "Order",
+      "description": "Pickup or delivery",
+      "primary_button_text": "Order Now",
+      "sort_order": 3,
+      "is_active": true,
+      "config": null,
+      "link": "https://pizzati.zenpepper.com/ui/newmenu",
+      "updated_at": "2026-06-24T17:40:47.753"
+    },
+    {
+      "id": "llj2mmzcary5j9jd3ckaa6ix",
+      "account_id": "c75b5bsjzt4vm163qr6tp69a",
+      "location_id": "agt5owqkftvge95gj2q0e9sq",
+      "touchpoint_event_default_id": "tid_socials",
+      "title": "Socials",
+      "display_title": "Follow Us",
+      "description": "Stay up to date",
+      "primary_button_text": null,
+      "sort_order": 4,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-24T17:40:47.718"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "input_url": "https://www.tiktok.com/@healthy.bistro",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:00.334Z",
+  "evidence": {
+    "input_url": "https://www.tiktok.com/@healthy.bistro",
+    "final_url": "https://www.tiktok.com/@healthy.bistro",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Healthy Bistro (@healthy.bistro) | TikTok",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1.0",
+      "pumbaa-ctx": "login=0,ftc=0",
+      "google": "notranslate",
+      "format-detection": "telephone=no",
+      "description": "Healthy Bistro (@healthy.bistro) on TikTok | 105 Likes. 1093 Baker St Ste. B Costa Mesa, CA, 92626  https://www.healthy-bistro.com.Watch the latest video from Healthy Bistro (@healthy.bistro).",
+      "robots": "index, follow, max-image-preview:large",
+      "applicable-device": "pc, mobile",
+      "al:ios:url": "snssdk1233://user/profile/",
+      "al:android:url": "snssdk1233://user/profile/",
+      "al:ios:app_store_id": "835599320",
+      "al:ios:app_name": "musical.ly",
+      "al:android:app_name": "musical.ly",
+      "al:android:package": "com.zhiliaoapp.musically",
+      "og:site_name": "TikTok",
+      "og:type": "website",
+      "og:title": "Healthy Bistro (@healthy.bistro) | TikTok",
+      "og:description": "Healthy Bistro (@healthy.bistro) on TikTok | 105 Likes. 1093 Baker St Ste. B Costa Mesa, CA, 92626  https://www.healthy-bistro.com.Watch the latest video from Healthy Bistro (@healthy.bistro).",
+      "fb:app_id": "597615686992125",
+      "twitter:app:id:iphone": "835599320",
+      "twitter:app:id:googleplay": "com.zhiliaoapp.musically",
+      "twitter:card": "summary",
+      "twitter:site": "TikTok",
+      "twitter:title": "Healthy Bistro (@healthy.bistro) | TikTok",
+      "twitter:description": "Healthy Bistro (@healthy.bistro) on TikTok | 105 Likes. 1093 Baker St Ste. B Costa Mesa, CA, 92626  https://www.healthy-bistro.com.Watch the latest video from Healthy Bistro (@healthy.bistro).",
+      "og:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/6e4e010fa73511c3758da863249c66e3~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=3a15fb96&x-expires=1783119600&x-signature=smYAdoKGZTbEjc%2FB3SsSMsC90RA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "twitter:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/6e4e010fa73511c3758da863249c66e3~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=3a15fb96&x-expires=1783119600&x-signature=smYAdoKGZTbEjc%2FB3SsSMsC90RA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "og:image:width": "360",
+      "og:image:height": "360",
+      "og:image:alt": "Healthy Bistro (@healthy.bistro) | TikTok",
+      "og:url": "https://www.tiktok.com/@healthy.bistro"
+    },
+    "h1": [
+      "Healthy Bistro"
+    ],
+    "h2": [
+      "healthy.bistro",
+      "1093 Baker St Ste. B Costa Mesa, CA, 92626\n\nhttps://www.healthy-bistro.com"
+    ],
+    "text": "TikTok Shop is now available on web! Browse your favorite items. TikTok Search For You Shop Explore Following LIVE Upload Profile More Log in Company Program Terms & Policies © 2026 TikTok Healthy Bistro healthy.bistro 9 Following 2 Followers 105 Likes Follow Message 1093 Baker St Ste. B Costa Mesa, CA, 92626 https://www.healthy-bistro.com Suggested accounts View all Videos Liked Latest Popular Oldest Something went wrong Sorry about that! Please try again later. Refresh Log in",
+    "links": [
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/shop",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/following",
+      "https://www.tiktok.com/live",
+      "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video",
+      "https://www.tiktok.com/@",
+      "https://www.tiktok.com/@healthy.bistro"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

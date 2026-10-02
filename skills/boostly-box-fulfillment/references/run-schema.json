@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "boostly-fulfillment-run.schema.json",
+  "title": "Boostly fulfillment run file (run.json)",
+  "description": "One file per location run. Every pipeline stage reads it and writes exactly one block; Notion, Slack, Figma, proofs, and the review ledger are renderers of it. Block names are fixed. Inside a block additional properties are allowed so older runs migrate losslessly. Ownership: request=list-branding-requests.ts, plan=prepare-fulfillment-plan.ts, links=execute-fulfillment-plan.ts, evidence=build-branding-evidence.ts, decision=validate-fable-decision.ts (Fable's six keys verbatim, never retyped), variants=variant-sheet.mjs (applied_letter via `run-file select`), gates=logo-quality-gates.ts / harness gate runner, overrides=human via `run-file override` (append-only), write=production write stage (execute-fulfillment-plan.ts for typed branding ops, or the boostly-links dry/apply/readback receipts recorded with `run-file set write`), proofs=render-effective-proof.ts + validate-effective-proof.ts, figma=boostly-signage-sheets (plan.mjs + use_figma), notion=boostly-review-queue review-queue.mjs, slack=post-review.mjs, state=persist-fulfillment-state.ts (run-file itself keeps state.cursor and state.stages bookkeeping), legacy=run-file migrate only.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "created_at", "request", "state"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "run_id": { "type": "string", "description": "Stable id, e.g. runs-prod-2026-09-14/gregorios-trattoria-reston." },
+    "run_dir": { "type": "string", "description": "Absolute path of the run directory when the file was created." },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" },
+
+    "request": {
+      "type": "object",
+      "description": "Owner: list-branding-requests.ts (intake). The V2 fulfillment request and its resolved location.",
+      "required": ["request_id", "location_id", "account_id", "location_name"],
+      "additionalProperties": true,
+      "properties": {
+        "source": { "type": "string", "description": "v2-db, or migrated:manifest for runs older than run.json." },
+        "request_id": { "type": "string", "description": "fulfillment_requests.id" },
+        "request_key": { "type": "string", "description": "v2:<request_id>; legacy Slack keys allowed." },
+        "location_id": { "type": "string" },
+        "account_id": { "type": "string" },
+        "location_name": { "type": "string" },
+        "account_name": { "type": ["string", "null"] },
+        "order_type": { "type": ["string", "null"] },
+        "status": { "type": ["string", "null"], "description": "Admin lane at intake (digital_fulfillment = Branding)." },
+        "created_at": { "type": ["string", "null"] },
+        "offer_text": { "type": ["string", "null"] },
+        "offer_promotion_id": { "type": ["string", "null"] },
+        "onboarding_session_id": { "type": ["string", "null"] },
+        "slack_thread_ts": { "type": ["string", "null"], "pattern": "^[0-9]+\\.[0-9]+$" },
+        "slack_channel": { "type": ["string", "null"] },
+        "csm": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": { "name": { "type": ["string", "null"] }, "email": { "type": ["string", "null"] } }
+        },
+        "requested_by": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": { "name": { "type": ["string", "null"] }, "email": { "type": ["string", "null"] } }
+        },
+        "quantities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "tap_cards": { "type": ["integer", "null"] },
+            "tables": { "type": ["integer", "null"] },
+            "bathroom_stalls": { "type": ["integer", "null"] },
+            "signage": { "type": ["integer", "null"] },
+            "to_go_rolls": { "type": ["integer", "null"] }
+          }
+        },
+        "quantities_source": { "type": ["string", "null"] },
+        "shipping": { "type": ["object", "null"], "additionalProperties": true },
+        "address": { "type": ["string", "null"] },
+        "website_url": { "type": ["string", "null"] },
+        "ordering_url": { "type": ["string", "null"] },
+        "google_place_id": { "type": ["string", "null"] },
+        "timezone": { "type": ["string", "null"] },
+        "identity": { "type": ["object", "null"], "additionalProperties": true, "description": "FulfillmentRequestIdentity fields (account_name, location_name, street_address, city, state, postal_code) for prepare-fulfillment-plan." },
+        "location_candidates": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "account_locations": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "canonical_request": { "type": ["object", "null"], "additionalProperties": true, "description": "The full CanonicalRequest as emitted by list-branding-requests.ts." }
+      }
+    },
+
+    "plan": {
+      "type": "object",
+      "description": "Owner: prepare-fulfillment-plan.ts. The PreparationResult exactly as written to --out: {status, plan, dedupe} or {status: needs_model_review, exception, candidates, metrics}.",
+      "required": ["status"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "type": "string", "enum": ["ready", "needs_model_review", "migrated"] },
+        "plan": { "type": ["object", "null"], "additionalProperties": true },
+        "dedupe": { "type": ["object", "null"], "additionalProperties": true },
+        "exception": { "type": ["object", "null"], "additionalProperties": true }
+      }
+    },
+
+    "links": {
+      "type": "object",
+      "description": "Owner: execute-fulfillment-plan.ts. Execution records (dry run or apply) for every planned write, plus receipts.",
+      "additionalProperties": true,
+      "properties": {
+        "plan_id": { "type": ["string", "null"] },
+        "applied": { "type": "boolean" },
+        "executed_at": { "type": ["string", "null"] },
+        "execution": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["operation", "outcome"],
+            "additionalProperties": true,
+            "properties": {
+              "operation": { "type": "object", "additionalProperties": true },
+              "outcome": { "type": "string", "enum": ["applied", "dry_run", "skipped_existing", "held", "error"] },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "stage_metrics": { "type": ["object", "array", "null"] },
+        "receipts": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
+
+    "evidence": {
+      "type": "object",
+      "description": "Owner: build-branding-evidence.ts. Fingerprint, packet path, logo candidates with measured colors.",
+      "required": ["evidence_fingerprint", "packet_path"],
+      "additionalProperties": true,
+      "properties": {
+        "evidence_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "packet_path": { "type": "string" },
+        "packet_sha256": { "type": ["string", "null"] },
+        "generated_at": { "type": ["string", "null"] },
+        "reuse": { "type": ["object", "null"], "additionalProperties": true },
+        "website": { "type": ["object", "null"], "additionalProperties": true },
+        "logo_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["local_path"],
+            "additionalProperties": true,
+            "properties": {
+              "local_path": { "type": "string" },
+              "sha256": { "type": ["string", "null"] },
+              "provenance": { "type": ["string", "null"] },
+              "source": { "type": ["string", "null"] },
+              "width": { "type": ["integer", "null"] },
+              "height": { "type": ["integer", "null"] },
+              "measured_colors": { "type": ["array", "object", "null"] },
+              "sharpness": { "type": ["object", "null"], "additionalProperties": true },
+              "rank_score": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    },
+
+    "decision": {
+      "type": "object",
+      "description": "Owner: validate-fable-decision.ts. Fable's six keys copied verbatim from <run_dir>/decision.json after validation, plus the file hash. Never hand-typed, never edited; an override of the letter or a gate is a record in `overrides`, not a change here.",
+      "required": ["logo_choice", "palette", "composition", "confidence", "flags", "rationale", "decision_sha256"],
+      "additionalProperties": true,
+      "properties": {
+        "logo_choice": { "type": ["string", "null"] },
+        "palette": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" } },
+        "composition": { "type": "string" },
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+        "flags": { "type": "array", "items": { "type": "string" } },
+        "rationale": { "type": "string" },
+        "decision_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "source_path": { "type": ["string", "null"] },
+        "validated_at": { "type": ["string", "null"] },
+        "evidence_fingerprint": { "type": ["string", "null"] }
+      }
+    },
+
+    "variants": {
+      "type": "object",
+      "description": "Owner: variant-sheet.mjs. Sheet paths and the lettered cells; applied_letter and selection are set by `run-file select` (the human choice, recorded as data).",
+      "additionalProperties": true,
+      "properties": {
+        "sheet_png": { "type": ["string", "null"] },
+        "sheet_json": { "type": ["string", "null"] },
+        "sheets": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "generated_at": { "type": ["string", "null"] },
+        "primary": { "type": ["string", "null"] },
+        "chosen_secondary": { "type": ["string", "null"] },
+        "fable_default_letter": { "type": ["string", "null"] },
+        "applied_letter": { "type": ["string", "null"] },
+        "selection": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": {
+            "letter": { "type": "string" },
+            "decided_by": { "type": "string" },
+            "reason": { "type": ["string", "null"] },
+            "at": { "type": "string" }
+          }
+        },
+        "cells": { "type": "object", "additionalProperties": { "type": "object", "additionalProperties": true } }
+      }
+    },
+
+    "gates": {
+      "type": "object",
+      "description": "Owner: the gate runner (logo-quality-gates.ts and harness/iterate-logo-rules.mjs). One result per (gate, asset).",
+      "additionalProperties": true,
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["gate", "asset", "pass"],
+            "additionalProperties": true,
+            "properties": {
+              "gate": { "type": "string" },
+              "asset": { "type": "string" },
+              "pass": { "type": ["boolean", "null"] },
+              "verdict": { "type": ["string", "null"] },
+              "file": { "type": ["string", "null"] },
+              "result": { "type": ["object", "string", "null"] },
+              "at": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+
+    "overrides": {
+      "type": "array",
+      "description": "Append-only. A human decision that a gate result or Fable's default does not block. Recorded, never auto-applied; rules and gates are never edited to make a run pass.",
+      "items": {
+        "type": "object",
+        "required": ["gate", "asset", "decided_by", "reason", "at"],
+        "additionalProperties": true,
+        "properties": {
+          "gate": { "type": "string" },
+          "asset": { "type": "string" },
+          "decided_by": { "type": "string" },
+          "reason": { "type": "string" },
+          "at": { "type": "string" }
+        }
+      }
+    },
+
+    "write": {
+      "type": "object",
+      "description": "Owner: production write stage. Branding dry/apply/readback receipts, logo hash, and whether the write went through under a recorded gate override.",
+      "additionalProperties": true,
+      "properties": {
+        "status": { "type": "string", "enum": ["not_written", "dry_run", "held", "applied"] },
+        "scope": { "type": ["string", "null"] },
+        "applied_at": { "type": ["string", "null"] },
+        "colors_after": { "type": ["object", "null"], "additionalProperties": { "type": ["string", "null"] } },
+        "logo_file": { "type": ["string", "null"] },
+        "logo_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "logo_attachment_id": { "type": ["string", "null"] },
+        "gate_override": { "type": "boolean" },
+        "receipts": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "readback_before": { "type": ["object", "null"], "additionalProperties": true },
+            "dry": { "type": ["object", "null"], "additionalProperties": true },
+            "apply": { "type": ["object", "null"], "additionalProperties": true },
+            "readback_after": { "type": ["object", "null"], "additionalProperties": true }
+          }
+        }
+      }
+    },
+
+    "proofs": {
+      "type": "object",
+      "description": "Owner: render-effective-proof.ts (render) and validate-effective-proof.ts (validated). Proof PNG, badge PDF, and their hashes.",
+      "additionalProperties": true,
+      "properties": {
+        "proof_png": { "type": ["string", "null"] },
+        "proof_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "proof_branding_json": { "type": ["string", "null"] },
+        "logo_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "badge_pdf": { "type": ["string", "null"] },
+        "badge_png": { "type": ["string", "null"] },
+        "badge_pdf_sha256": { "type": ["string", "null"] },
+        "rendered_at": { "type": ["string", "null"] },
+        "validated": { "type": ["object", "null"], "additionalProperties": true, "properties": { "ok": { "type": "boolean" }, "at": { "type": ["string", "null"] } } }
+      }
+    },
+
+    "figma": {
+      "type": "object",
+      "description": "Owner: boostly-signage-sheets (plan.mjs + use_figma). Section node id, sheet ids, shots, band color, logo hashes.",
+      "additionalProperties": true,
+      "properties": {
+        "file": { "type": ["string", "null"] },
+        "section_node_id": { "type": ["string", "null"] },
+        "section_url": { "type": ["string", "null"] },
+        "band": { "type": ["string", "null"] },
+        "sheet_ids": { "type": ["object", "null"], "additionalProperties": true },
+        "shots": { "type": ["array", "string", "null"] },
+        "logo_hashes": { "type": ["object", "null"], "additionalProperties": true },
+        "plan_json": { "type": ["string", "null"] }
+      }
+    },
+
+    "notion": {
+      "type": "object",
+      "description": "Owner: boostly-review-queue review-queue.mjs. Page and block ids; patched in place, never rebuilt.",
+      "additionalProperties": true,
+      "properties": {
+        "page_id": { "type": ["string", "null"] },
+        "entry": { "type": ["integer", "string", "null"] },
+        "block_id": { "type": ["string", "null"] },
+        "heading_block_id": { "type": ["string", "null"] },
+        "section": { "type": ["string", "null"] },
+        "last_patched_at": { "type": ["string", "null"] }
+      }
+    },
+
+    "slack": {
+      "type": "object",
+      "description": "Owner: post-review.mjs. Only into an existing thread and only on an explicit go; posted_at stays null until then.",
+      "additionalProperties": true,
+      "properties": {
+        "thread_ts": { "type": ["string", "null"] },
+        "channel": { "type": ["string", "null"] },
+        "draft_path": { "type": ["string", "null"] },
+        "posted_at": { "type": ["string", "null"] },
+        "message_ts": { "type": ["string", "null"] }
+      }
+    },
+
+    "state": {
+      "type": "object",
+      "description": "Owner: persist-fulfillment-state.ts for audit/state receipts; run-file keeps cursor and stages bookkeeping on every set.",
+      "additionalProperties": true,
+      "properties": {
+        "cursor": { "type": ["string", "null"], "description": "Name of the last block written." },
+        "stages": { "type": "object", "additionalProperties": { "type": "object", "additionalProperties": true } },
+        "forces": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "audit_row_ids": { "type": "array", "items": { "type": "string" } },
+        "persisted_at": { "type": ["string", "null"] },
+        "state_file": { "type": ["string", "null"] },
+        "audit_log": { "type": ["string", "null"] }
+      }
+    },
+
+    "legacy": {
+      "type": "object",
+      "description": "Written only by `run-file migrate`: everything from manifest.json, STATE, ledger.json, and hand-written plan files that has no typed home, kept verbatim so nothing is lost.",
+      "additionalProperties": true
+    }
+  }
+}

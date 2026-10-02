@@ -1,0 +1,29 @@
+{
+  "input_url": "https://order.ubereats.com/columbus/food-delivery/Hofbrauhaus/hkA-JQ5RQQOobZmySOonqQ/?utm_source=web-restaurant-manager",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:20.852Z",
+  "evidence": {
+    "input_url": "https://order.ubereats.com/columbus/food-delivery/Hofbrauhaus/hkA-JQ5RQQOobZmySOonqQ/?utm_source=web-restaurant-manager",
+    "final_url": "https://def.uber.com/en/challenge?from_service=d2ViLWVhdHMtdjI%3D&q=MWMwOTJmYmE1ZDViNTVlMTFlNDY4MzYyY2M1ZjAxZGM6RDJMRzdmWVhpWFNHb2s1dTpaUW5hUVRMZVRYS2ZpWk9objA3R1BUdTc5eSs4akI1UFR2N3BUMm1qalJFTnRUa25LTjUzNmRnWFhDMnVDZ2VuSU9mQUtqdVdFanpXbFhGaERIdTZLM0FFd1V6eDZNQjEyWVpxYkRMdDlWbG5hdERHV0p5NGJrZ096Vmd6cDJzQStlMHBDcFg1QnQzZjhmSjVqNWROUStLRy9WbWVQdk82aGcyNnVScjIxMm56V2JEa3lDVm9XelVtdzl5Q1FNeXVSbEx0c1RHWEFVUkliYzhzd0VpUUZLNHlsVFZXelhBc1lxeTg3VjIzYzU2WU1ZQ0RNdlRSM1hacVU0M1JwbWNzRkRnTXp1TktaVVVmdDFXWTpDQTJyWXZXMWo5U21jYmtXcVRXRk9BPT0%3D",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Uber",
+    "meta": {
+      "botdefense-enabled": "false",
+      "botdefense--uber-runtime-environment": "production",
+      "viewport": "width=device-width, initial-scale=1"
+    },
+    "h1": [
+      "One more step"
+    ],
+    "h2": [],
+    "text": "Uber One more step Please wait while we complete an automated security check.",
+    "links": [
+      "https://www.uber.com/"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

@@ -1,0 +1,773 @@
+{
+  "schema_version": 1,
+  "title": "Boostly brand-design gate registry",
+  "description": "Every mechanical logo gate as data. The harness (harness/iterate-logo-rules.mjs), scripts/logo-quality-gates.ts, scripts/validate-logo-surface.ts, scripts/logo-crop.ts and scripts/gates.ts read thresholds and severities from this file; the code carries no threshold of its own. Rules change ONLY by a deliberate human edit of this file followed by `gates replay`. Overrides (run-file override) are recorded data and never change an entry here. Threshold keys are the option names the implementing function accepts, so an entry can be spread straight into the call.",
+  "rules": {
+    "overrides_never_change_rules": "An override record in run.json lives next to the gate result it waives. It is matched by gate id (or alias) and asset. It does not edit, auto-tune, or learn a threshold. No code path writes this file.",
+    "how_to_change_a_rule": "Edit the gate entry here, run `node --experimental-strip-types scripts/gates.ts replay`, resolve any BLOCK by recording an explicit override on the affected shipped asset or by reverting the edit, then `gates replay --baseline`.",
+    "severity": {
+      "block": "A failing or unassessable result HOLDs the write unless an override record covers it (and the gate allows overrides).",
+      "warn": "Reported in the verdict reason list; never holds the write.",
+      "info": "Measurement only; recorded, no pass/fail."
+    },
+    "override_allowed": "true for judgment-type gates where a human looking at the proof can legitimately disagree with the proxy; false for hard technical gates whose failure is a defect regardless of taste. An override on a gate with override_allowed=false is refused at record time and again at verdict time; the only path is a deliberate edit of that entry.",
+    "override_allowed_verdicts": "Optional list. When present, only results with one of these verdicts may be overridden; every other verdict of the gate stays hard.",
+    "override_allowed_for_shipped": "Deliberate rule (2026-09-17): a gate with override_allowed_for_shipped=true accepts an override ONLY on an asset that is already live in production (the run's write block says applied, or an apply receipt under fix/ proves it) and only when the record is made with `run-file override --shipped` (recorded as shipped_asset=true). New uploads stay hard-blocked on these gates. This exists so a replay BLOCK on a live asset is resolvable by a human decision without weakening the gate for the next upload.",
+    "severity_by_verdict": "Optional per-gate map verdict -> severity that overrides `severity` for that verdict only (text-legibility: the OCR read is warn, filled counters stay block).",
+    "changelog_required": "Every edit to a gate entry (threshold, severity, override flags, scoping) gets a `changelog` entry: date, gate, change, reason, decided_by. No entry, no edit."
+  },
+  "aliases": {
+    "ocr": "text-legibility",
+    "text_legibility": "text-legibility",
+    "text_legibility_ocr": "text-legibility",
+    "text-legibility-ocr": "text-legibility",
+    "render_legibility": "render-legibility",
+    "tiny_text": "render-legibility",
+    "tiny-text": "render-legibility",
+    "ship_gate": "ship-gate",
+    "ship": "ship-gate",
+    "border_dust": "border-dust",
+    "dust": "border-dust",
+    "soft_fringe": "soft-fringe",
+    "fringe": "soft-fringe",
+    "component_contrast": "component-contrast",
+    "component": "component-contrast",
+    "png_color_type": "png-color-type",
+    "png": "png-color-type",
+    "crop": "logo-crop",
+    "logo_crop": "logo-crop",
+    "surface": "validate-logo-surface",
+    "validate_logo_surface": "validate-logo-surface",
+    "logo_surface": "validate-logo-surface",
+    "ink_retention": "ink-retention",
+    "ink": "ink-retention",
+    "authored_color_retention": "authored-color-retention",
+    "source_overlay": "source-overlay",
+    "verify_erase": "verify-erase",
+    "bytes": "upload-size",
+    "upload_bytes": "upload-size",
+    "upload_size": "upload-size",
+    "ladder_floor": "ladder-floor",
+    "byte_ladder_floor": "ladder-floor",
+    "edge_quality": "edge-quality",
+    "edgequality": "edge-quality",
+    "stairs": "edge-quality",
+    "effective_resolution": "edge-quality",
+    "sticker_ground": "sticker-ground",
+    "opaque_panel": "sticker-ground",
+    "primary_too_light": "primary-too-light",
+    "white_primary": "primary-too-light",
+    "sheet_viability": "sheet-viability",
+    "viability": "sheet-viability",
+    "not_viable": "sheet-viability"
+  },
+  "gates": [
+    {
+      "id": "ship-gate",
+      "name": "Shipped resolution floor",
+      "tool": "harness",
+      "command": "ship-gate <logo>",
+      "measures": "Longest side of the exact final upload in pixels.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "minLongest": 700
+      },
+      "pass_rule": "longest >= minLongest",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "Hard technical floor: a mark under 700px renders visibly low-res on the card (River Grille). Upscale or find a bigger source; there is no taste call.",
+      "case_study": "River Grille 2026-07-09 (case-studies.md #2): a 221px mark shipped native and rendered low-res.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "border-dust",
+      "name": "Border white dust",
+      "tool": "harness",
+      "command": "border-dust <logo>",
+      "measures": "Small, thin, near-white opaque regions touching the canvas border (background-removal crumbs that become bright ticks on a dark card).",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "minShare": 0.00005,
+        "maxShare": 0.005,
+        "whiteTol": 220,
+        "maxThicknessShare": 0.08
+      },
+      "pass_rule": "no region touches the border, is thin (min bbox side <= maxThicknessShare of the short image side), and holds between minShare and maxShare of opaque ink",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "Flagged regions are usually crumbs, but an authored keyline fragment can match the same signature (Small Town Tavern lost its keyline to cleanup). A human inspecting the dark matte decides authored vs dust; above the 2% cleanup cap the documented path is a human hold, not deletion.",
+      "case_study": "Small Town Tavern 2026-07-13 (#7) and Piloni's 2026-07-13 (#9).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "soft-fringe",
+      "name": "Baked-in glow/shadow (knockout input)",
+      "tool": "harness",
+      "command": "soft-fringe <img>",
+      "measures": "Share of nonzero-alpha pixels with alpha < 128 (a wide low-alpha band means a baked-in outer glow or drop shadow).",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "maxSoftShare": 0.3
+      },
+      "pass_rule": "softShare <= maxSoftShare",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "A knockout-INPUT gate that false-fails color marks whose soft edges blend toward an authored dark ground (River Grille 0.419 on a mark that was never knocked out). The audit named it a false-failure candidate; severity left as shipped for Travisse to decide.",
+      "case_study": "Paolo's 2026-07-09 (#1): white outer glow + black drop shadow became a white emboss after knockout. False positive documented in #2 (River Grille).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "holes",
+      "name": "Counter (enclosed hole) census",
+      "tool": "harness",
+      "command": "holes <img>",
+      "measures": "Enclosed transparent regions (letter counters) of at least minHolePx pixels not touching the image border.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "minHolePx": 4,
+        "minHoles": 1
+      },
+      "pass_rule": "holes >= minHoles. Interpretation depends on the mark: only a knockout containing counter-bearing letterforms must have holes, which the tool cannot know, so this stays a warning; the hard version is text-legibility's counter topology (glyph_counters_filled).",
+      "severity": "warn",
+      "override_allowed": false,
+      "override_rationale": "Not blocking; nothing to override.",
+      "case_study": "Mozzarella (#3): D/B/A counters filled through upscale-then-binarize; Pariwaar / Fat Cat (#4) stencil-blob knockouts.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "interior",
+      "name": "Interior fill legibility",
+      "tool": "harness",
+      "command": "interior <logo> <primaryHex>",
+      "measures": "Share of opaque pixels outside the 3px edge band whose contrast against the card primary is under minContrast.",
+      "inputs": [
+        "logo",
+        "primary"
+      ],
+      "thresholds": {
+        "band": 3,
+        "minContrast": 1.5,
+        "maxLowContrastShare": 0.35,
+        "darkPanelMaxChannel": 40,
+        "darkPanelMinShare": 0.95,
+        "darkPanelMergeMaxContrast": 1.5
+      },
+      "pass_rule": "interiorLowContrastShare <= maxLowContrastShare (verdict ok). Over it: verdict authored_dark_panel_on_dark_card (warn) when lowContrastDarkShare (share of the colliding interior pixels whose every channel <= darkPanelMaxChannel) >= darkPanelMinShare and contrast(primary, #000000) < darkPanelMergeMaxContrast, i.e. the collision is the mark's own authored near-black panel merging into a near-black card; otherwise fill-collision (block).",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "On the card asset the rule is 'full knockout or hold', but the aggregate cannot model enclosure: an emblem whose fill is enclosed by a contrasting ring reads fine at 0.40 (Toscano's and Olympus sticker waivers, the audit's fourth false-failure candidate). A human looking at the proof may waive it; the write path still needs the record. The authored near-black panel on a near-black card (Cellblock Sips & Bakery 2026-09-21) is a warn by verdict, not an override: the panel is meant to vanish into the brand's own dark ground and the visible ink is measured by component-contrast and ink-retention.",
+      "case_study": "Great Sage 2026-07-15 (case-studies.md): crimson/olive wordmark on dark green, interior share 0.9138, shipped. MCHC outline-only and Pizzati red-on-red before it. Cellblock Sips & Bakery Huntsville 2026-09-21 (authored_dark_panel_on_dark_card: 79% of the interior is the kit's #161819 panel on the kit's #030607 card, warn).",
+      "battery": true,
+      "override_allowed_for_shipped": false,
+      "severity_by_verdict": {
+        "authored_dark_panel_on_dark_card": "warn"
+      }
+    },
+    {
+      "id": "component-contrast",
+      "name": "Per-component contrast on the primary",
+      "tool": "harness",
+      "command": "component-contrast <logo> <primaryHex>",
+      "measures": "For each connected component holding at least minAreaShare of ink, the share of its pixels under minContrast against the primary.",
+      "inputs": [
+        "logo",
+        "primary"
+      ],
+      "thresholds": {
+        "minContrast": 3,
+        "minAreaShare": 0.005,
+        "lowShareFail": 0.9
+      },
+      "pass_rule": "no component with areaShare >= minAreaShare has lowContrastShare >= lowShareFail",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "A component that is 90% invisible on the card is invisible, full stop. The SKILL rule is strip it or knock the lockup out, never waive. The sticker context relaxes decorative components to 1.8, which is a different rule (different primary), not an override. 2026-09-17: overridable only on an already-live asset (Swine Dining Omaha, known defect deferred). 2026-09-23: one narrow exception. When the check is run with an explicit --treatment fullcolor (a human saying this file is the brand's own untouched full-color lockup) and it fails, the verdict is authored_lockup_low_contrast, which Travisse may override as his pick; the plain component_invisible_on_primary verdict (knockouts, stripped descriptors, detected treatment) stays non-overridable.",
+      "case_study": "Hooligan's 2026-08-11: black SPORTS BAR & GRILL descriptor at 1.79:1 on navy while the aggregate interior passed at 2.8%.",
+      "battery": true,
+      "override_allowed_for_shipped": true,
+      "override_allowed_verdicts": [
+        "authored_lockup_low_contrast"
+      ]
+    },
+    {
+      "id": "whiteblob",
+      "name": "Stray near-white blob",
+      "tool": "harness",
+      "command": "whiteblob <logo>",
+      "measures": "Opaque near-white regions whose boundary mostly faces transparency (leftover background or half-keyed interior).",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "minShare": 0.005,
+        "whiteTol": 215,
+        "transThreshold": 0.35,
+        "bigRegionShare": 0.05,
+        "bigRegionTransThreshold": 0.15
+      },
+      "pass_rule": "no near-white region with boundaryTransparentShare > transThreshold, or (areaShare > bigRegionShare and boundaryTransparentShare > bigRegionTransThreshold)",
+      "severity": "warn",
+      "override_allowed": false,
+      "override_rationale": "Not blocking; the tool self-describes as 'WARNs for eyeballing' because enclosed whites are expected.",
+      "case_study": "Healthy Bistro: one wedge of the disc interior stayed opaque white.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "stroke",
+      "name": "Median stroke weight at render width",
+      "tool": "harness",
+      "command": "stroke <logo>",
+      "measures": "Median stroke thickness in px when the mark is rendered at renderWidth (erosion rounds), plus ink coverage and component count. Native resolution only; upscale blur inflates it.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "renderWidth": 380,
+        "minStrokePx": 3
+      },
+      "pass_rule": "medianStrokePx >= minStrokePx (verdict ok)",
+      "severity": "warn",
+      "override_allowed": false,
+      "override_rationale": "Not blocking; a too-faint verdict points at extracting the wordmark or a bolder variant.",
+      "case_study": "Early spike (thin script wordmarks vanishing at card size).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "edge",
+      "name": "Edge-band low-contrast share",
+      "tool": "harness",
+      "command": "edge <logo> <primaryHex>",
+      "measures": "Share of the 3px silhouette edge band under minContrast against the primary. Measurement only; the interior gate is the pass/fail sibling.",
+      "inputs": [
+        "logo",
+        "primary"
+      ],
+      "thresholds": {
+        "band": 3,
+        "minContrast": 1.5
+      },
+      "pass_rule": "none (info)",
+      "severity": "info",
+      "override_allowed": false,
+      "override_rationale": "Measurement only.",
+      "case_study": "Original spike metric (silhouette must read against the card).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "verify-erase",
+      "name": "Repaint-region proof",
+      "tool": "harness",
+      "command": "verify-erase <original> <edited> <x0> <y0> <x1> <y1>",
+      "measures": "Every pixel outside the rect is byte-identical between original and edited, and no glyph ink in the original crosses the rect boundary for a run of minCrossingRunPx or more (ink = alpha > minAlpha and luma differs from the fill by more than lumaDelta).",
+      "inputs": [
+        "original",
+        "edited",
+        "rect"
+      ],
+      "thresholds": {
+        "minAlpha": 64,
+        "lumaDelta": 60,
+        "minCrossingRunPx": 6
+      },
+      "pass_rule": "outside_pixels_modified == 0 and no edge crossing run >= minCrossingRunPx",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "Mechanical proof that a fill did not amputate a neighboring glyph; the Mad Claw clip survived two human reviews, so a human waiver is exactly what it exists to prevent.",
+      "case_study": "Mad Claw r4 2026-08-24: a guessed fill rect ate 43 rows of the Claw bottoms (175px top-edge crossing run).",
+      "battery": false,
+      "when": "after every in-mark region repaint or fill",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "png-color-type",
+      "name": "PNG color type",
+      "tool": "logo-quality-gates",
+      "command": "png-color-type --logo <file>",
+      "measures": "IHDR color type of the exact final upload.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "allowed_color_types": [
+          2,
+          6
+        ]
+      },
+      "pass_rule": "color_type in allowed_color_types (truecolor RGB or RGBA; never indexed 3, grayscale 0, grayscale+alpha 4)",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "Transport defect: React-PDF garbles indexed/palette PNGs in downloadable badge files regardless of how the logo looks on screen. 2026-09-17: overridable only on an already-live asset (JJ's Cuisine shipped a palette PNG before the registry).",
+      "case_study": "Swine Dining and Wok the Line 2026-09-10: 4-bit palette PNGs printed gray smears and doubled glyphs.",
+      "battery": true,
+      "override_allowed_for_shipped": true
+    },
+    {
+      "id": "render-legibility",
+      "name": "Product-box render legibility (tiny text)",
+      "tool": "logo-quality-gates",
+      "command": "render-legibility --logo <file> [--background <hex>] [--crop-out <png>]",
+      "measures": "Ink that lands under min_component_height_px once the mark is fitted into the 126x56 badge logo box: tiny_text_ink_share (native-resolution components sitting in a horizontal line of >= tiny_line_min_members comparable-height members, line >= tiny_line_min_aspect times wider than tall), small_component_ink_share (all sub-floor ink at product size), Laplacian edge energy, rendered ink pixels.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "product_logo_box": {
+          "width": 126,
+          "height": 56
+        },
+        "min_component_height_px": 7,
+        "max_tiny_text_ink_share": 0.08,
+        "max_small_component_ink_share": 0.08,
+        "min_edge_energy": 18,
+        "min_rendered_ink_px": 12,
+        "substantial_component_min_ink_share": 0.005,
+        "tiny_line_min_members": 3,
+        "tiny_line_min_aspect": 4,
+        "tiny_line_height_ratio": 2.5
+      },
+      "pass_rule": "tiny_text_ink_share <= max_tiny_text_ink_share and edge_energy >= min_edge_energy and rendered ink >= min_rendered_ink_px (verdict illegible_at_product_size otherwise). small_component_ink_share > max_small_component_ink_share alone is informational (stylized_script_informational, pass true, attach the 4x crop).",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "A proxy that 'cannot identify which words are essential' (its own limitation string). When a human has named the words that must stay (Gregorio's TRATTORIA, 2026-09-15), the tiny-text failure is a recorded judgment, not a defect. Audit false-failure candidate #1; severity left as shipped.",
+      "case_study": "Luna Pizza full lockup (fixture); 2026-09-08 recalibration after four of four holds were cleared by a 4x look; Gregorio's Reston 1B shipped with override.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "text-legibility",
+      "name": "Product-size OCR and glyph counters",
+      "tool": "logo-quality-gates",
+      "command": "text-legibility --logo <file> --expected <business-name> [--background <hex>] [--source <verified-source>]",
+      "measures": "Tesseract recognition of the expected business name on the 126x56 render (edit distance vs a bounded maximum), plus counter topology: enclosed negative-space count on the native final vs the count the expected letters imply (or vs the verified source's own count). Counter topology runs only on single-ink knockout assets (alpha-keyed, >= knockout_single_ink_min_share of opaque pixels within knockout_single_ink_max_rgb_distance of the median ink color, or an explicit treatment=knockout from the run); full-color art reports counter_topology.verdict=not_applicable_fullcolor.",
+      "inputs": [
+        "logo",
+        "expected",
+        "primary",
+        "source?"
+      ],
+      "thresholds": {
+        "max_edit_distance_ratio": 0.15,
+        "min_max_edit_distance": 1,
+        "counter_expected_min_ratio": 0.5,
+        "counter_min_hole_area_px": 4,
+        "counter_min_hole_area_share": 0.00005,
+        "render_inset_px": 10,
+        "knockout_single_ink_max_rgb_distance": 40,
+        "knockout_single_ink_min_share": 0.95
+      },
+      "pass_rule": "OCR: edit_distance <= max(min_max_edit_distance, floor(len(expected) * max_edit_distance_ratio)) unless the verified source is equally unreadable; verdict business_name_unreadable_at_product_size is WARN (severity_by_verdict). Counters (single-ink knockouts only): detected >= max(1, ceil(expected * counter_expected_min_ratio)) or >= the source's count; glyph_counters_filled is BLOCK and never overridable on a new upload.",
+      "severity": "block",
+      "override_allowed": true,
+      "override_allowed_verdicts": [
+        "business_name_unreadable_at_product_size"
+      ],
+      "override_rationale": "OCR on stylized, inline-serif or small-caps type is a proxy for human readability; an explicit reviewer directive backed by signage or the variant sheet supersedes it (SKILL: REVIEWER OCR OVERRIDE, Gregorio's GE°B0TIO§). Filled counters (glyph_counters_filled) are a real pixel defect and stay non-overridable. Audit false-failure candidate #2; severity left as shipped. 2026-09-17: the OCR read became warn (see changelog); the override path on it is now moot but kept for the record.",
+      "case_study": "State Fare 2026-08-11 (stacked two-line psm), um.ma 2026-08-11 (hand-brush script), Papa's Raw Bar 2026-08-11 (4-connectivity census), Vino 2026-08-18 (flatten on the source ground), Mad Claw 2026-08-24 (reviewer OCR override), Gregorio's Reston 2026-09-15.",
+      "battery": true,
+      "override_allowed_for_shipped": false,
+      "severity_by_verdict": {
+        "business_name_unreadable_at_product_size": "warn"
+      }
+    },
+    {
+      "id": "ink-retention",
+      "name": "Authored ink retention vs verified source",
+      "tool": "logo-quality-gates",
+      "command": "ink-retention --source <verified-source> --final <final-logo> [--primary <card hex>]",
+      "measures": "Coverage recall of the source ink mask by the (1px-dilated) final mask after bbox alignment at normalize_px, and any source component over maximum_vanished_component_ink_share of ink whose overlap recall is under vanished_overlap_recall_below. When recall is short, dropped_ink_white_share = the fraction of uncovered source-ink pixels whose authored RGB is near-white (every channel >= near_white_min_channel); the classification (never the recall) ignores edge drift within one SOURCE pixel (dropped_ink_edge_radius_px = ceil(source scale into normalize_px)) and gives the white sub-mask the same rim; dropped_ink_white_share_strict is the share at the recall's own 1px tolerance. dropped_ink_dark_share = the same fraction whose authored RGB is near-black (every channel <= near_black_max_channel); dark_ground = the card primary's contrast against the mean near-black ink color and whether it merges (< dark_ground_merge_max_contrast).",
+      "inputs": [
+        "source",
+        "logo",
+        "primary"
+      ],
+      "thresholds": {
+        "minimum_coverage_recall": 0.97,
+        "maximum_vanished_component_ink_share": 0.02,
+        "vanished_overlap_recall_below": 0.2,
+        "aspect_log_tolerance": 0.05,
+        "normalize_px": 512,
+        "authored_white_dropped_min_share": 0.95,
+        "near_white_min_channel": 225,
+        "authored_dark_dropped_min_share": 0.95,
+        "near_black_max_channel": 40,
+        "dark_ground_merge_max_contrast": 1.5,
+        "low_res_rebuild_min_recall": 0.9,
+        "low_res_rebuild_max_source_ink_px": 300,
+        "low_res_rebuild_min_upscale": 2
+      },
+      "pass_rule": "coverage_recall >= minimum_coverage_recall and no vanished component. Otherwise: verdict authored_white_dropped (block, overridable) when no component vanished and dropped_ink_white_share >= authored_white_dropped_min_share; verdict authored_dark_dropped (block, overridable) when a card primary was given, contrast(primary, mean near-black ink) < dark_ground_merge_max_contrast, dropped_ink_dark_share >= authored_dark_dropped_min_share, and every vanished component is itself >= authored_dark_dropped_min_share near-black; verdict rebuilt_from_low_res_source (block, overridable) when no component vanished, coverage_recall >= low_res_rebuild_min_recall, the source ink box is at most low_res_rebuild_max_source_ink_px on its longest side, and the final ink box is at least low_res_rebuild_min_upscale times wider than the source ink box; verdict authored_ink_lost (block, never overridable) for anything else, including any other vanished component, a dark drop with no primary or a contrasting primary, and aspect drift beyond aspect_log_tolerance.",
+      "severity": "block",
+      "override_allowed": true,
+      "override_allowed_verdicts": [
+        "authored_white_dropped",
+        "authored_dark_dropped",
+        "rebuilt_from_low_res_source"
+      ],
+      "override_rationale": "Vanished authored ink (a keyline, a ring, a word) is a defect the audit says to keep hard; the fix is the preservation path, not a waiver (authored_ink_lost stays non-overridable). Authored WHITE that becomes negative space on a colored card is different: the mark's silhouette is intact and the only question is whether a human still recognizes it, which is a reviewer call, not a pixel defect (Coloradough Pizza 2026-09-18: the open-ridge knockout let the card blue show through the snow caps; the solid-silhouette knockout that kept 100% of the ink was rejected because it made the mountain unreadable). Only authored_white_dropped may be overridden. Authored NEAR-BLACK that is the mark's own ground merging into the brand's near-black card is the mirror case (Cellblock Sips & Bakery 2026-09-21, extend-the-rule decision by Travisse: the kit mark's authored black panel on the kit's own #030607 card): the gold ink is intact and the panel edge is invisible either way, so only authored_dark_dropped may also be overridden. Any dropped dark ink on a card that contrasts with it stays authored_ink_lost. A larger REBUILD of a tiny source is the third case (Toscana Gourmet Pizza 2026-09-29): the only authored mark was a 250 px site header cut, the rebuilt 1542 px wordmark has every letter and every component, and recall 0.9111 measures letter weight against a blurry original, not a missing part; Travisse reviewed the tap card at actual size and approved it, so rebuilt_from_low_res_source may be overridden by a named human decision each time. Under the recall floor, or with any vanished component, it stays authored_ink_lost.",
+      "case_study": "Small Town Tavern 2026-07-13 (#7): the authored white keyline vanished under background removal; Smoke missing-center fixture. Coloradough Pizza Aurora 2026-09-18 (authored_white_dropped: snow caps as negative space, solid silhouette rejected). Cellblock Sips & Bakery Huntsville 2026-09-21 (authored_dark_dropped: authored #161819 panel dropped on the #030607 card, gold ink retained). Toscana Gourmet Pizza Springfield 2026-09-29 (rebuilt_from_low_res_source: 1542 px rebuilt wordmark vs the 250 px site header cut, recall 0.9111, no vanished component).",
+      "battery": "conditional",
+      "when": "whenever a verified source is known (gates run --source)",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "authored-color-retention",
+      "name": "Authored chromatic treatment retained",
+      "tool": "logo-quality-gates",
+      "command": "authored-color-retention --source <verified-source> --final <logo>",
+      "measures": "Share of the source's chromatic ink pixels (channel spread >= source_spread_min) that stay chromatic and within max_rgb_distance in the final, on a 256x256 fill-normalized overlay.",
+      "inputs": [
+        "source",
+        "logo"
+      ],
+      "thresholds": {
+        "minimum_retained_chromatic_share": 0.9,
+        "minimum_source_chromatic_ink_share": 0.1,
+        "source_spread_min": 60,
+        "final_spread_min": 40,
+        "max_rgb_distance": 110,
+        "alpha_min": 64
+      },
+      "pass_rule": "retained_chromatic_share >= minimum_retained_chromatic_share; unassessable when the source has under minimum_source_chromatic_ink_share chromatic ink",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "Only used inside the narrow human-requested preservation exception, where it must fail the rejected treatment and pass the final; a waiver would defeat the exception's own proof.",
+      "case_study": "Preservation-revision rule (SKILL, stylized-mark exception).",
+      "battery": false,
+      "when": "the stylized-mark preservation exception",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "source-overlay",
+      "name": "Generated candidate overlay vs reference",
+      "tool": "logo-quality-gates",
+      "command": "source-overlay --candidate <png> --reference <deterministic-knockout-or-source> [--overlay-out <png>]",
+      "measures": "Bbox-aligned ink-mask IoU at width_px with a small shift search, and 8-connected component-count drift vs the reference.",
+      "inputs": [
+        "candidate",
+        "reference"
+      ],
+      "thresholds": {
+        "minimum_iou": 0.75,
+        "maximum_component_drift": 0.1,
+        "width_px": 800
+      },
+      "pass_rule": "iou >= minimum_iou and component_drift <= maximum_component_drift",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "A generated candidate that redraws the mark 'is never applied, whatever Fable or the other gates say' (SKILL). Substitution is never silent.",
+      "case_study": "imagegen knockout candidates (dropped apostrophes, invented outlines); Midnight Munchie substitute face.",
+      "battery": false,
+      "when": "every generated (imagegen) candidate before Fable sees it",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "validate-logo-surface",
+      "name": "Opaque light panel on colored surface",
+      "tool": "validate-logo-surface",
+      "command": "validate-logo-surface.ts --logo <path> --primary <hex>",
+      "measures": "Transparent share, near-white share, border near-white share of the asset and the white-vs-primary contrast.",
+      "inputs": [
+        "logo",
+        "primary"
+      ],
+      "thresholds": {
+        "near_white_channel_min": 235,
+        "max_transparent_share": 0.01,
+        "near_white_share_fail": 0.5,
+        "border_near_white_share_fail": 0.8,
+        "near_white_share_with_border_fail": 0.25,
+        "min_white_primary_contrast": 1.5
+      },
+      "pass_rule": "not (white_primary_contrast >= min and transparent_share < max and (near_white_share >= near_white_share_fail or (border_near_white_share >= border_near_white_share_fail and near_white_share >= near_white_share_with_border_fail)))",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "An opaque light rectangle on a colored card is almost always a defect, but an authored flag panel or badge plate can be intentional; the documented path is a reviewed revision, which is a human call.",
+      "case_study": "Resolved existing production logos that were opaque white JPG rectangles on colored cards (SKILL surface rule).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "logo-crop",
+      "name": "Excess canvas padding",
+      "tool": "logo-crop",
+      "command": "logo-crop.ts --logo <logo> [--out <tight.png>]",
+      "measures": "Removable uniform outer canvas (transparent or uniform color) per side as a ratio of the image side.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "maxPaddingRatio": 0.015,
+        "safetyRatio": 0.01
+      },
+      "pass_rule": "every side's removable padding ratio <= maxPaddingRatio (verdict excess_canvas_padding otherwise); a nonuniform border is crop_unassessed_nonuniform_border and blocks unattended writes until reviewed",
+      "severity": "block",
+      "override_allowed": true,
+      "override_allowed_verdicts": [
+        "crop_unassessed_nonuniform_border"
+      ],
+      "override_rationale": "excess_canvas_padding has a mechanical fix (--out), so it is never waived; crop_unassessed_nonuniform_border explicitly waits for a human badge-size proof review, which is an override. 2026-09-17: excess_canvas_padding overridable only on an already-live asset.",
+      "case_study": "Leo's Superfood and Southlands Cafe 2026-07-20: complete marks shipped small on oversized canvases.",
+      "battery": true,
+      "override_allowed_for_shipped": true
+    },
+    {
+      "id": "upload-size",
+      "name": "Upload byte cap",
+      "tool": "gates",
+      "command": "gates run (stat of the exact final upload)",
+      "measures": "Byte size of the exact final upload file.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "max_bytes": 70000,
+        "target_bytes_note": "Cam's shipped logos run under 40KB, white knockouts 6-7KB; 70,000 is the hard rail"
+      },
+      "pass_rule": "0 < bytes <= max_bytes",
+      "severity": "block",
+      "override_allowed": true,
+      "override_rationale": "The byte ladder has a documented human exception: at the 1000px floor and still over, write an explicit textured-art exception with edge crops. That exception is an override record.",
+      "case_study": "Travisse 2026-09-08 byte ladder; Olympus 62,425 B textured art.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "ladder-floor",
+      "name": "Byte-ladder resolution floor",
+      "tool": "gates",
+      "command": "gates run --laddered (metadata of the exact final upload)",
+      "measures": "Longest side of a final upload that was stepped down by the byte ladder.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "min_longest_px": 1000
+      },
+      "pass_rule": "longest >= min_longest_px. Applies only to files the byte ladder reduced; a clean first-party source resampled once to its target (normally <= 800px) is governed by ship-gate instead.",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "Hard technical floor of the ladder: below it the documented move is the textured-art exception on upload-size, not a smaller file.",
+      "case_study": "Byte ladder rule (SKILL, 2026-09-08).",
+      "battery": false,
+      "when": "gates run --laddered",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "edge-quality",
+      "name": "Edge quality of the final upload (what prints)",
+      "tool": "logo-quality-gates",
+      "command": "edge-quality --logo <final> [--source-native-px <n>] [--derivation native|vector|trace|upscale]",
+      "measures": "On the exact final upload at native size: (1) soft_edge_share = partial-alpha edge pixels / all edge pixels (an edge pixel has 0 < alpha < 255 or touches a fully transparent 4-neighbour); binary alpha gives 0. (2) stair_step_score = 1 - the share of contour runs (maximal straight top/bottom segments along rows and left/right segments along columns of the alpha >= 128 mask boundary, runs longer than contour_run_cap_px excluded as authored straight edges) that are exactly 1px; a smooth curve is mostly 1px runs, a nearest-neighbour upscale by k has none. (3) effective resolution: source_native_longest_px of the verified source (from logo_sources.ladder, the candidate, or the inferred raw file), source_derivation, and upscale_factor = final longest / source longest.",
+      "inputs": [
+        "logo",
+        "source_native_px",
+        "derivation"
+      ],
+      "thresholds": {
+        "min_soft_edge_share": 0.15,
+        "binary_alpha_min_longest_px": 1000,
+        "max_stair_step_score": 0.65,
+        "min_source_native_px": 700,
+        "contour_run_cap_px": 16
+      },
+      "pass_rule": "verdict binary_alpha when soft_edge_share < min_soft_edge_share AND longest < binary_alpha_min_longest_px (FINALIZE step 3 snaps flat knockouts to binary alpha on purpose; at >= 1000px the stairs sit under the print raster, under it they print); else stair_stepped when stair_step_score > max_stair_step_score with at least 50 contour runs; else traced_from_small_source when the source is known, under min_source_native_px, and the derivation is trace or upscale; else ok. An unknown source records nulls and does not fail.",
+      "severity": "block",
+      "override_allowed": true,
+      "override_allowed_verdicts": [
+        "traced_from_small_source"
+      ],
+      "override_rationale": "binary_alpha and stair_stepped are pixel defects that print regardless of taste: no override. traced_from_small_source is a documented risk (wobble on curves) that a human may accept knowingly after the source ladder is exhausted, so it is the only overridable verdict. Calibration 2026-09-21: the Skyboxx live attachment (800px binary alpha, potrace of a 640px avatar) fails binary_alpha; fix/hq/card-knockout-hq.png (1600px, 8 alpha levels) passes; the fleet shipped since 2026-09-08 passes except Katy Pizza Kitchen (719px binary) and Park Avenue BBQ (724px binary), reported in audits/edge-gate-replay-2026-09-21.md rather than loosened.",
+      "case_study": "Skyboxx Restaurant & Sports Bar (Morrow) 2026-09-21: the printed card logo was low-res with jagged edges; every gate in the battery passed because none measured edge rendering or effective resolution (fix/hq/README.md, sources.md, live-zoom-3x.png).",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "sticker-ground",
+      "name": "Sticker / POP-on-white transparent ground",
+      "tool": "logo-quality-gates",
+      "command": "sticker-ground --logo <sticker_logo>",
+      "measures": "Opaque (alpha >= opaque_alpha) share of the ink bounding box of the sticker asset and how many of its four corners (2% inset) are opaque.",
+      "inputs": [
+        "logo"
+      ],
+      "thresholds": {
+        "min_opaque_bbox_share": 0.9,
+        "opaque_alpha": 250
+      },
+      "pass_rule": "verdict opaque_panel_ground when opaque_bbox_share >= min_opaque_bbox_share and all four corners are opaque; ok otherwise.",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "A sticker prints on a white field; an authored panel is still a panel there (The Place Pizza 2026-09-17: the copper-panel lockup was rejected for the sticker, the same lockup without its ground was the pick). The fix is cutting the mark from its ground, not a waiver.",
+      "case_study": "The Place Pizza (Saratoga Springs) 2026-09-17, Travisse: a version of the logo that is the copper panel but without the background.",
+      "battery": false,
+      "when": "on every sticker_logo and POP-on-white asset before the Figma signage build (gates check --asset <sticker> --color #FFFFFF --surface sticker)",
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "primary-too-light",
+      "name": "Card primary too light for the touchpoint page",
+      "tool": "gates",
+      "command": "gates run --color <web_primary_hex> (any asset)",
+      "measures": "WCAG contrast of web_primary_color against #FFFFFF.",
+      "inputs": [
+        "primary"
+      ],
+      "thresholds": {
+        "min_contrast_vs_white": 1.3
+      },
+      "pass_rule": "contrast(primary, #FFFFFF) >= min_contrast_vs_white. Only white and near-white fail (under about 1.3:1: #FFFFFF, #F5F5F5 at 1.09:1, #EDEDED at 1.18:1). A brand's own authored cream or tan is allowed as the card when text reads black on it: a typical tan #D2B48C is 1.94:1 and passes (Chubby's tan in the reference set); a very pale cream such as Toscano's site body #E8E4DD (1.26:1) is near-white for this purpose and fails (feedback review Q8 = A, 2026-09-22).",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "The primary is also the background of the digital touchpoint page; a white or near-white primary makes the link tree look broken (That's a Wrap 2026-09-17, Travisse: we can't have a primary of white because then the linktree looks really bad; That's a Wrap C white card rejected, K black card picked). A neutral-ink mark defaults to a black card with a white knockout, not a light card. Only white and near-white are banned: a brand's own authored cream or tan is allowed as the card when text reads black on it (Chubby's tan, quality bar rule 1; feedback review Q8 = A, Travisse 2026-09-22).",
+      "case_study": "That's a Wrap (Chippewa Falls) 2026-09-17: Fable proposed a white card; Travisse moved it to black with a white knockout.",
+      "battery": true,
+      "override_allowed_for_shipped": false
+    },
+    {
+      "id": "sheet-viability",
+      "name": "Variant-sheet logo viability pre-check",
+      "tool": "logo-quality-gates",
+      "command": "sheet-viability --logo <file> [--source <wordmark-the-cut-came-from>] [--expected <business-name>] [--label <row-or-cell-label>] [--note <provenance>]",
+      "measures": "Three refusals evaluated on a logo asset BEFORE variant-sheet.mjs renders it into a row, column, or cell. (1) opaque_ground: the sticker-ground measurement (opaque_bbox_share >= sticker-ground.min_opaque_bbox_share with all four bbox corners opaque) on an asset about to sit on a colored card: an opaque panel prints as a white square on the card. (2) wordmark_text_mismatch: for a words-only cut with a known source wordmark, tesseract reads both files as black ink on white at ocr_width_px (psm 7 then 6, the read closer to the expected name wins). When the source reads the expected business name within the text-legibility edit-distance rule, the cut must too. Otherwise (source unreadable, no expected name, or no tesseract) the fallback counts letter-sized components on the tallest text line of each file (height within glyph_min_height_ratio..glyph_max_height_ratio of that line's median, aspect <= glyph_max_aspect); the cut may be short by at most max_missing_glyph_components. (3) rejected_label: the row or cell label / note matches rejected_label_pattern (case-insensitive). (4) ink_vanishes_on_card: evaluated per (row, column) pair inside variant-sheet.mjs before a letter is taken: the row logo is measured against the row primary with the component-contrast rule (harness componentContrastCheck, components at or above component-contrast.minAreaShare, a component fails when at least lowShareFail of its pixels sit under minContrast against the primary); when the failing components hold at least card_vanish_min_ink_share of the logo ink, the cell is not created.",
+      "inputs": [
+        "logo",
+        "source?",
+        "expected?",
+        "label?"
+      ],
+      "thresholds": {
+        "ocr_width_px": 1200,
+        "ocr_pad_px": 40,
+        "max_missing_glyph_components": 0,
+        "glyph_min_height_ratio": 0.5,
+        "glyph_max_height_ratio": 3,
+        "glyph_max_aspect": 2.5,
+        "rejected_label_pattern": "\\brejected\\b",
+        "card_vanish_min_ink_share": 0.5
+      },
+      "pass_rule": "verdict opaque_ground when the sticker-ground measurement says opaque_panel_ground; wordmark_text_mismatch when a words-only cut fails the OCR read its source passes, or drops more than max_missing_glyph_components letter-sized components from the name line; rejected_label when the label or note matches rejected_label_pattern. ok otherwise. Any block means the asset is NOT added to the sheet: variant-sheet.mjs records it under variants.skipped in run.json and prints one line per skipped asset; --force-viability renders it anyway with a NOT VIABLE badge on the cell. ink_vanishes_on_card when the failing components of the row logo on the row primary hold at least card_vanish_min_ink_share of the ink: the (row, column) pair takes no letter and no render, recorded under variants.skipped with kind cell (row, column, primary, logo, vanished_ink_share); --force-viability creates the cell with a NOT VIABLE badge. A cell a human later marks rejected (mark --status rejected) keeps its letter and renders greyed with REJECTED in its header.",
+      "severity": "block",
+      "override_allowed": false,
+      "override_rationale": "A cut that misspells the business name or a white square on a red card is not a variant, it is noise on the review canvas (Travisse, Dogwood Pizza 2026-09-21: these logos are a joke and should not be included in the canvas; there should be some check if the logo is viable before adding those variations). The fix is a better cut or a transparent-ground source. When a human wants to see the junk anyway the path is --force-viability on the sheet command, which badges the cell; never an override record.",
+      "case_study": "Dogwood Pizza (Lawrenceville) 2026-09-21: cells K-O rendered the auto cut-words output that dropped the g and d of the script wordmark (reads Do woo Pizza) and the agent marked them rejected on the sheet itself; cells P-T rendered the opaque-white-background lockup as a white square on the #CF000B card. Spinachio Pizza (North Haledon) 2026-09-30: the authored two-ink lockup rendered on the #17723E green card in cells C, D, H (green ink 1.03:1, the lockup vanishes) and had to be marked rejected by hand after the letters were quoted; Oogie's Pizza Pub (Gibsonburg) 2026-10-01: the green words lockup on the #D6522D orange card (AE, 1.64:1) and the full-color lockup on orange (AD). Travisse 2026-10-01: drop rejected cells from the rendered sheet entirely so they do not consume letters.",
+      "battery": false,
+      "when": "inside variant-sheet.mjs build / add-row / add-cell / add-column, on every logo asset before its cells render (not part of gates run)",
+      "override_allowed_for_shipped": false
+    }
+  ],
+  "changelog": [
+    {
+      "date": "2026-09-17",
+      "gate": "png-color-type, logo-crop, component-contrast",
+      "change": "override_allowed_for_shipped: true",
+      "reason": "Replay of the pre-registry runs blocked on assets already live in production (JJ's palette PNG and excess padding, Olympus/Palio's/Midnight Munchie/JJ's padding, Swine Omaha component contrast). Travisse chose to leave those live files as they are and record the decision; new uploads stay hard-blocked.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-17",
+      "gate": "text-legibility",
+      "change": "severity_by_verdict.business_name_unreadable_at_product_size = warn (render-legibility tiny text stays block)",
+      "reason": "Audit false-failure candidate #2: tesseract on stylized, inline-serif, or small-caps type is a proxy that failed 20 of 21 shipped, human-approved assets on replay (Gregorio's GE°B0TIO§, Coriander 'Coanl,'). The read stays in the verdict as a warning.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-17",
+      "gate": "text-legibility",
+      "change": "counter topology (glyph_counters_filled) scoped to single-ink knockout assets; full-color art -> counter_topology.verdict not_applicable_fullcolor",
+      "reason": "The census counts alpha holes; on full-color art (Park Avenue, Swine Omaha, 206 Burger) the counters are painted, not cut, so the alpha census reports 0 and false-fails. Knockouts (Gregorio's, Toscano's) are still assessed.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-18",
+      "gate": "ink-retention",
+      "change": "new verdict authored_white_dropped (recall shortfall with dropped_ink_white_share >= 0.95, classified with one source pixel of edge tolerance, and no vanished component); override_allowed: true restricted to override_allowed_verdicts [authored_white_dropped]; authored_ink_lost stays non-overridable",
+      "reason": "Coloradough Pizza (Aurora): the authored mark has white snow caps on a blue mountain. The open-ridge white knockout (the window-decal look, snow caps transparent so the card blue shows through) is the recognizable mark and matches the in-store sign, but recall 0.81 held it as authored_ink_lost with no override path. The only asset that passed was a solid silhouette that filled the snow caps, which Travisse rejected as unrecognizable. Authored white becoming negative space on a colored card is a human recognizability call; a vanished keyline, ring, or word remains hard.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "edge-quality",
+      "change": "new block gate: soft_edge_share (binary_alpha under 1000px), stair_step_score (nearest-neighbour block stepping), effective resolution (traced_from_small_source under 700px); override_allowed only for traced_from_small_source",
+      "reason": "Skyboxx (Morrow): the live card logo, an 800px binary-alpha potrace of a 640px Facebook avatar, passed every gate and printed with jagged edges. Nothing in the battery measured edge rendering or the native source size. Calibrated so the Skyboxx live attachment fails and the HQ rebuild passes; Katy Pizza Kitchen (719px) and Park Avenue BBQ (724px) also fail on replay and are reported, not waived.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "sticker-ground",
+      "change": "new conditional block gate for sticker and POP-on-white assets: opaque_panel_ground when the ink bbox is >= 90% opaque with opaque corners",
+      "reason": "The Place Pizza: the copper-panel lockup was proposed as the sticker; Travisse asked for the same lockup without the background. The card had a panel gate (validate-logo-surface); the sticker had none.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "primary-too-light",
+      "change": "new block gate: web_primary_color must clear 1.2:1 against white",
+      "reason": "That's a Wrap: a white card primary makes the touchpoint page look broken. Hard reject for white and near-white; the cream/tan threshold stays open (feedback review Q8).",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "sheet-viability",
+      "change": "new block gate run by variant-sheet.mjs before any row, column, or cell renders: opaque_ground (sticker-ground measurement on a card asset), wordmark_text_mismatch (OCR of a words-only cut vs its source, letter-component fallback), rejected_label",
+      "reason": "Dogwood Pizza: the sheet rendered a Do woo Pizza cut (marked rejected by the agent, still on the canvas) and a white-square lockup. Travisse: there should be some check if the logo is viable before adding those variations.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "ink-retention",
+      "change": "new overridable verdict authored_dark_dropped: recall shortfall (vanished components included) that is >= 0.95 authored near-black (channels <= 40) while the card primary contrasts with that black under 1.5:1; needs the primary (gates run/check --color; ink-retention --primary); override_allowed_verdicts now [authored_white_dropped, authored_dark_dropped]; authored_ink_lost stays non-overridable for every other case",
+      "reason": "Cellblock Sips & Bakery (Huntsville): Travisse picked the kit's authored full-color mark on the kit's own #030607 dark azure card. The authored #161819 panel is the dropped ink; it merges into the card at 1.05:1 either way, so the shaded gold extraction loses nothing a viewer could see. Mirror of the Coloradough authored_white_dropped case. Extend-the-rule decision, not a waiver.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-21",
+      "gate": "interior",
+      "change": "new verdict authored_dark_panel_on_dark_card, severity_by_verdict warn: fill-collision whose colliding interior is >= 0.95 near-black (channels <= 40) on a primary under 1.5:1 against black; every other fill-collision stays block",
+      "reason": "Cellblock Sips & Bakery (Huntsville): the same authored black panel on the same near-black card; the panel is designed to vanish into the ground, and the visible gold ink is still measured by component-contrast and ink-retention.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-22",
+      "gate": "primary-too-light",
+      "change": "min_contrast_vs_white 1.2 -> 1.3; only white and near-white fail. Authored cream or tan is allowed as the card when text reads black on it.",
+      "reason": "Feedback review Q8 = A (Travisse 2026-09-22): ban white and near-white only (contrast vs white under about 1.3:1); a brand's own authored cream or tan is fine as the card. That's a Wrap C white card rejected; Chubby's tan allowed. No shipped or decided primary sits between 1.2 and 1.3, so no verdict changes.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-23",
+      "gate": "component-contrast",
+      "change": "override_allowed true, limited to the new verdict authored_lockup_low_contrast, emitted only when the check runs with an explicit --treatment fullcolor and fails. Every other failing verdict remains non-overridable (shipped-asset path unchanged).",
+      "reason": "Soybean Asian Grille (Wilmington): Travisse picked AH, the exact authored full-color lockup on cream, after seeing it at size; the green wordmark measures ~1.65:1 on the cream and ~2.3:1 on the white sticker. The rule was written for stripped components and knockouts, not for a brand's own untouched artwork on the ground it prints on. The override is recorded as his pick per asset; the rule itself does not learn.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-09-29",
+      "gate": "ink-retention",
+      "change": "new overridable verdict rebuilt_from_low_res_source: recall shortfall with no vanished component, coverage_recall >= 0.90, source ink box at most 300 px on its longest side, final ink box at least 2x wider than the source ink box; override_allowed_verdicts now [authored_white_dropped, authored_dark_dropped, rebuilt_from_low_res_source]; authored_ink_lost stays non-overridable for every other case, including any vanished component and any recall under 0.90",
+      "reason": "Toscana Gourmet Pizza (Springfield): the owner-approved TOSCANA PIZZERIA mark exists only as a 250 px site header cut, which fails the 700 px ship gate. The rebuilt 1542 px wordmark keeps every letter (vanished components 0 of 7, dropped white share 0, dropped dark share 0) but measures recall 0.9111 against the blurry original; uniform stroke growth peaks at 0.9518, so no honest asset passes 0.97. Travisse reviewed the tap card at actual size (the smallest use of the logo) and approved it: 'yeah toscana is good to go with the rebuilt wordmark' and, after the lead explained that the fix is a change to this rule, 'i reviewed the tapcard which is the smallest instance of the logo and it was fine. just go forward'. Rule edit made by the lead (Claude) in the main session on that go. Extend-the-rule decision, not a waiver: each use still needs a named human override.",
+      "decided_by": "travisse"
+    },
+    {
+      "date": "2026-10-01",
+      "gate": "sheet-viability",
+      "change": "new refusal ink_vanishes_on_card with threshold card_vanish_min_ink_share 0.5: a (row, column) pair whose row logo loses at least half its ink to components that fail component-contrast on the row primary is not created on the variant sheet (no letter, no render, kind cell under variants.skipped); --force-viability still renders it with a NOT VIABLE badge. Human rejected marks keep their letters and render greyed with REJECTED in the header.",
+      "reason": "Spinachio (green lockup on the green card, cells C, D, H) and Oogie's (green words and full-color lockup on the orange card, AD and AE) rendered cells the builder could have refused, and each consumed a letter that then had to be marked rejected by hand. Travisse 2026-10-01: drop rejected cells from the rendered sheet entirely so they do not consume letters. Letters quoted to Travisse before this change never shift: the rule applies only when a cell is created.",
+      "decided_by": "travisse"
+    }
+  ]
+}

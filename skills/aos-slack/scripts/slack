@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# shellcheck source=lib/env.sh
+source "$SCRIPT_DIR/lib/env.sh"
+# shellcheck source=lib/api.sh
+source "$SCRIPT_DIR/lib/api.sh"
+# shellcheck source=lib/pagination.sh
+source "$SCRIPT_DIR/lib/pagination.sh"
+# shellcheck source=lib/resolve.sh
+source "$SCRIPT_DIR/lib/resolve.sh"
+# shellcheck source=lib/users.sh
+source "$SCRIPT_DIR/lib/users.sh"
+# shellcheck source=lib/help.sh
+source "$SCRIPT_DIR/lib/help.sh"
+# shellcheck source=lib/dryrun.sh
+source "$SCRIPT_DIR/lib/dryrun.sh"
+
+COMMAND="${1:-}"
+SUBCOMMAND="${2:-}"
+shift 2 2>/dev/null || true
+
+# Help is handled before env/token init so `--help` works without a token.
+# Only the command, the subcommand slot, or the FIRST arg after it count as a
+# help request — so `--help`/`-h` in a later positional (e.g. message TEXT) is
+# still treated as literal content, not help.
+# An empty command is an incomplete invocation, not a help request: keep the
+# original fail-fast (usage to stderr, non-zero exit) so callers don't silently
+# continue on a malformed call.
+case "$COMMAND" in
+  help|--help|-h) slack_usage_top; exit 0 ;;
+  "")             slack_usage_top >&2; exit 2 ;;
+esac
+# A help request is --help/-h in the subcommand slot or as the first arg after
+# it. A known command pair prints its own help (exit 0); any unknown or
+# incomplete pair fails fast with usage on stderr, so probing --help to detect
+# supported operations can't read an unsupported one as success.
+if [ "$SUBCOMMAND" = --help ] || [ "$SUBCOMMAND" = -h ] \
+   || [ "${1:-}" = --help ] || [ "${1:-}" = -h ]; then
+  if slack_help_for "$COMMAND:$SUBCOMMAND"; then exit 0; fi
+  slack_usage_top >&2; exit 2
+fi
+
+slack_env_init || exit $?
+
+case "$COMMAND:$SUBCOMMAND" in
+  auth:check)       source "$SCRIPT_DIR/commands/auth-check.sh" ;;
+  channels:list)    source "$SCRIPT_DIR/commands/channels-list.sh" ;;
+  channels:resolve) source "$SCRIPT_DIR/commands/channels-resolve.sh" ;;
+  users:lookup)     source "$SCRIPT_DIR/commands/users-lookup.sh" ;;
+  dms:open)         source "$SCRIPT_DIR/commands/dms-open.sh" ;;
+  messages:read)    source "$SCRIPT_DIR/commands/messages-read.sh" ;;
+  messages:search)  source "$SCRIPT_DIR/commands/messages-search.sh" ;;
+  messages:send)    source "$SCRIPT_DIR/commands/messages-send.sh" ;;
+  messages:edit)    source "$SCRIPT_DIR/commands/messages-edit.sh" ;;
+  messages:delete)  source "$SCRIPT_DIR/commands/messages-delete.sh" ;;
+  files:upload)     source "$SCRIPT_DIR/commands/files-upload.sh" ;;
+  *)
+    slack_usage_top >&2
+    exit 2
+    ;;
+esac

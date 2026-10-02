@@ -1,0 +1,68 @@
+{
+  "input_url": "https://www.tiktok.com/@phobolsa916/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:57:25.020Z",
+  "evidence": {
+    "input_url": "https://www.tiktok.com/@phobolsa916/",
+    "final_url": "https://www.tiktok.com/@phobolsa916",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Pho Bolsa Restaurant (@phobolsa916) | TikTok",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1.0",
+      "pumbaa-ctx": "login=0,ftc=0",
+      "google": "notranslate",
+      "format-detection": "telephone=no",
+      "description": "Pho Bolsa Restaurant (@phobolsa916) on TikTok | 2591 Likes. 177 Followers. Vietnamese Cuisine located in South Sacramento.Watch the latest video from Pho Bolsa Restaurant (@phobolsa916).",
+      "robots": "index, follow, max-image-preview:large",
+      "applicable-device": "pc, mobile",
+      "al:ios:url": "snssdk1233://user/profile/",
+      "al:android:url": "snssdk1233://user/profile/",
+      "al:ios:app_store_id": "835599320",
+      "al:ios:app_name": "musical.ly",
+      "al:android:app_name": "musical.ly",
+      "al:android:package": "com.zhiliaoapp.musically",
+      "og:site_name": "TikTok",
+      "og:type": "website",
+      "og:title": "Pho Bolsa Restaurant (@phobolsa916) | TikTok",
+      "og:description": "Pho Bolsa Restaurant (@phobolsa916) on TikTok | 2591 Likes. 177 Followers. Vietnamese Cuisine located in South Sacramento.Watch the latest video from Pho Bolsa Restaurant (@phobolsa916).",
+      "fb:app_id": "597615686992125",
+      "twitter:app:id:iphone": "835599320",
+      "twitter:app:id:googleplay": "com.zhiliaoapp.musically",
+      "twitter:card": "summary",
+      "twitter:site": "TikTok",
+      "twitter:title": "Pho Bolsa Restaurant (@phobolsa916) | TikTok",
+      "twitter:description": "Pho Bolsa Restaurant (@phobolsa916) on TikTok | 2591 Likes. 177 Followers. Vietnamese Cuisine located in South Sacramento.Watch the latest video from Pho Bolsa Restaurant (@phobolsa916).",
+      "og:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/ac2a1bb6981d1a0e8c4b7c08204e0528~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=295dfaea&x-expires=1783119600&x-signature=BFpl5WF3tBk7z1plnHwAmJE%2FpwI%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "twitter:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/ac2a1bb6981d1a0e8c4b7c08204e0528~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=295dfaea&x-expires=1783119600&x-signature=BFpl5WF3tBk7z1plnHwAmJE%2FpwI%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "og:image:width": "360",
+      "og:image:height": "360",
+      "og:image:alt": "Pho Bolsa Restaurant (@phobolsa916) | TikTok",
+      "og:url": "https://www.tiktok.com/@phobolsa916/"
+    },
+    "h1": [
+      "Pho Bolsa Restaurant"
+    ],
+    "h2": [
+      "phobolsa916",
+      "Vietnamese Cuisine located in South Sacramento"
+    ],
+    "text": "TikTok Shop is now available on web! Browse your favorite items. TikTok Search For You Shop Explore Following LIVE Upload Profile More Log in © 2026 TikTok Pho Bolsa Restaurant phobolsa916 9 Following 177 Followers 2591 Likes Follow Message Vietnamese Cuisine located in South Sacramento Suggested accounts View all Videos Liked Latest Popular Oldest Something went wrong Sorry about that! Please try again later. Refresh Log in",
+    "links": [
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/shop",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/following",
+      "https://www.tiktok.com/live",
+      "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video",
+      "https://www.tiktok.com/@",
+      "https://www.tiktok.com/@phobolsa916/"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

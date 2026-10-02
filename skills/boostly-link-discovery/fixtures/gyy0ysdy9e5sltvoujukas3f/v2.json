@@ -1,0 +1,171 @@
+{
+  "location_context": {
+    "location_id": "gyy0ysdy9e5sltvoujukas3f",
+    "location_name": "Hofbräuhaus Columbus (Columbus)",
+    "location_status": "enabled",
+    "account_id": "k4so5049iy8v7ie4k6p4nwem",
+    "account_name": "Hofbrauhaus - Columbus",
+    "account_status": "pending",
+    "address": "800 Goodale Blvd, Columbus, OH 43212, USA",
+    "shipping_address_line1": null,
+    "shipping_city": null,
+    "shipping_state": null,
+    "shipping_zip": null,
+    "ordering_phone_number": "+16142942437",
+    "google_place_id": "ChIJb5ERHB2POIgRORfFzwzCwGo",
+    "website_url": "http://hofbrauhauscolumbus.com/",
+    "ordering_url": "https://order.toasttab.com/online/hofbrauhaus-columbus",
+    "facebook_url": null,
+    "instagram_url": "https://www.instagram.com/hofbrauhaus_columbus/",
+    "x_url": "https://twitter.com/hbhcolumbus",
+    "tiktok_url": null,
+    "youtube_url": null,
+    "apple_app_url": null,
+    "google_app_url": null
+  },
+  "touchpoint_events": [
+    {
+      "id": "g3u91sno93fraib30nbzy2l7",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 0,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "d4huynauj8xxh3z64v7mh9n9"
+      },
+      "link": null,
+      "updated_at": "2026-06-25T16:36:43.515"
+    },
+    {
+      "id": "dhsspvm18nigxf40rrkxkrcw",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_review",
+      "title": "Reviews",
+      "display_title": "Feedback",
+      "description": "How's your experience?",
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-25T16:36:43.181"
+    },
+    {
+      "id": "rkkfdv1njelcro8n2ncz713t",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "d4huynauj8xxh3z64v7mh9n9"
+      },
+      "link": null,
+      "updated_at": "2026-06-11T16:34:50.72"
+    },
+    {
+      "id": "eh7dpb7utvif6kge6k780po6",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "d4huynauj8xxh3z64v7mh9n9"
+      },
+      "link": null,
+      "updated_at": "2026-06-11T16:34:50.503"
+    },
+    {
+      "id": "x6d9gsyvoahk8fmhznt7hbby",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "d4huynauj8xxh3z64v7mh9n9"
+      },
+      "link": null,
+      "updated_at": "2026-06-11T16:34:50.607"
+    },
+    {
+      "id": "mqsum3dp1gvq7aed9xruoz4s",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Bier",
+      "display_title": "Bier",
+      "description": "See what's on tap",
+      "primary_button_text": "View Bier",
+      "sort_order": 2,
+      "is_active": true,
+      "config": null,
+      "link": "https://www.hofbrauhauscolumbus.com/the-bier/",
+      "updated_at": "2026-06-25T16:36:43.322"
+    },
+    {
+      "id": "nbb96t44qrbkw4ez1e2qqtzt",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Food",
+      "display_title": "Food",
+      "description": "Explore our menu",
+      "primary_button_text": "View Food",
+      "sort_order": 3,
+      "is_active": true,
+      "config": null,
+      "link": "https://www.hofbrauhauscolumbus.com/menu/",
+      "updated_at": "2026-06-25T16:36:43.376"
+    },
+    {
+      "id": "nitcv5xaawghn65kjnycjlvg",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Jobs",
+      "display_title": "Jobs",
+      "description": "Join our team",
+      "primary_button_text": "Apply Today",
+      "sort_order": 4,
+      "is_active": true,
+      "config": null,
+      "link": "https://hofparagon.traitset.com/postingPage/9646/",
+      "updated_at": "2026-06-25T16:36:43.267"
+    },
+    {
+      "id": "nf8pan9n8owpike8mzvxswhu",
+      "account_id": "k4so5049iy8v7ie4k6p4nwem",
+      "location_id": "gyy0ysdy9e5sltvoujukas3f",
+      "touchpoint_event_default_id": "tid_socials",
+      "title": "Socials",
+      "display_title": "Follow Us",
+      "description": "Stay up to date",
+      "primary_button_text": null,
+      "sort_order": 5,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-25T16:36:43.211"
+    }
+  ]
+}

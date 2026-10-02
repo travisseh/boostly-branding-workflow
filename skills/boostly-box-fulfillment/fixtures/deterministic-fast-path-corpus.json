@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-07-14",
+  "legacy_replay_status": "quarantined_missing_fixture_hashes",
+  "cases": [
+    {
+      "id": "river_grille",
+      "discovery_report": "/Users/travisse/Documents/Codex/2026-07-08/boostly-link-discovery-cloudflare-spike/work/river-grille-full-local-chrome-dataforseo-report.json",
+      "discovery_sha256": "e57237163b5957fb96f1cbc43c19aa3fe9ad6eeb12c8d1588e7a56165bd0dd66",
+      "validator_exit": 0,
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-20260709/river-grille-chatham/manifest.json",
+      "branding_sha256": "49e34a2b0b75703ecd6ce47f7fa5c1681e1e50bcc3fb1b8a2623f8aa3d41f500",
+      "quality_contract": ["challenge_is_not_broken", "wrong_location_links_rejected", "official_logo_preserved"]
+    },
+    {
+      "id": "taste_of_beauty",
+      "discovery_report": "/Users/travisse/.codex/skills/boostly-link-discovery/runs/taste_of_beauty_rerun_20260709T173145Z/link-discovery-enrichment-report.json",
+      "discovery_sha256": "9b10d6b863ba48c9c909dd531b0bba9fa0a5741ed34ef5cdf09cac5116ec008b",
+      "validator_exit": 2,
+      "validator_errors": ["write_action_has_negative_evidence:ordering", "write_action_has_negative_evidence:order", "write_action_events_missing_upcoming_event_evidence"],
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-20260709/taste-of-beauty-irvine/manifest.json",
+      "branding_sha256": "3a0d256c4193ae06ce4f232df2f874f3255c6e31f49aa0c6e1fb8cbe4720946e",
+      "quality_contract": ["social_recall_preserved", "challenge_order_held", "event_without_future_date_held", "identity_flag_preserved"]
+    },
+    {
+      "id": "paolos",
+      "discovery_report": "/Users/travisse/.codex/skills/boostly-link-discovery/runs/paolos_direct_extension_20260709/official-social-report.json",
+      "discovery_sha256": "45532f84f88c6f39b53e0f955e571414e5026ad0ff09160b9d7d56f55e20b18a",
+      "validator_exit": 0,
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-20260709/paolos-restaurant-reading/manifest.json",
+      "branding_sha256": "dd36a940e470aa273ff306ae4c41315f3a132d798e77a1fa507d587202739621",
+      "quality_contract": ["existing_order_preserved", "unbacked_social_held", "descriptor_preserved"]
+    },
+    {
+      "id": "small_town_tavern",
+      "fulfillment_report": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/small-town-tavern/fulfillment-report.json",
+      "fulfillment_sha256": "f0e8e200986ca16ca5183dafcb62936716208cb2202bd7c508d7a6ee1db477a8",
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/small-town-tavern/revision-1/manifest.json",
+      "branding_sha256": "8bc14da3ec85520f34ec8c46004484f7e3dae6ccea0f1ed9be0469310b25afcf",
+      "quality_contract": ["ten_badges_exact", "account_scope", "old_border_dust_fails", "cleaned_logo_passes"]
+    },
+    {
+      "id": "goldfinch",
+      "discovery_report": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/the-goldfinch/link-discovery-report-corrected-2026-07-13.json",
+      "discovery_sha256": "8841a93d6a904ae261b46e90437f3a3d9b2b98e86050c8a0d88faec554148d84",
+      "validator_exit": 2,
+      "validator_errors": ["write_action_events_missing_upcoming_event_evidence"],
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/the-goldfinch/revision-1/manifest.json",
+      "branding_sha256": "67ad798d6b8bcea5f9ffc00e29cde8155f59b03ca358a7002d097ec1331fdd3d",
+      "quality_contract": ["menu_and_careers_recalled", "event_without_future_date_held", "authored_orange_wins"]
+    },
+    {
+      "id": "pilonis_brazil",
+      "discovery_report": "/Users/travisse/.codex/skills/boostly-link-discovery/runs/piloni-supervised-rerun-20260713/brazil-discovery-report.json",
+      "discovery_sha256": "4baa6c2b819326dcc3fbb2f87a68587ddae7f16e7dfb27aae144d00431795e48",
+      "validator_exit": 0,
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/pilonis-brazil-rerun/manifest.json",
+      "branding_sha256": "54d61f2e6fd26eefc64a510db2b7999f363332de67d8c5862b6d39af2e96aab0",
+      "quality_contract": ["existing_links_preserved", "fifteen_badges_exact", "sibling_identity_preserved"]
+    },
+    {
+      "id": "pilonis_terre_haute",
+      "discovery_report": "/Users/travisse/.codex/skills/boostly-link-discovery/runs/piloni-supervised-rerun-20260713/terre-haute-discovery-report.json",
+      "discovery_sha256": "b4b028b2d1b17747663850a33c35b975092e64af817a895fb7355b7dc104a3bd",
+      "validator_exit": 0,
+      "branding_manifest": "/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-07-13/pilonis-terre-haute-rerun/manifest.json",
+      "branding_sha256": "c8c03e1fe75d3be8cc8c85d0e034beb2360d3672487d352b3ee2589daedc231a",
+      "quality_contract": ["careers_presentation_normalized", "wrong_sibling_proof_fails_loudly", "human_logo_exact"]
+    }
+  ]
+}

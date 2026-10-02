@@ -1,0 +1,32 @@
+{
+  "input_url": "https://order.online/online-ordering/business/the-brass-tap-25215?delivery=true",
+  "kind": "candidate",
+  "recorded_at": "2026-07-02T00:00:15.621Z",
+  "evidence": {
+    "input_url": "https://order.online/online-ordering/business/the-brass-tap-25215?delivery=true",
+    "final_url": "https://order.online/online-ordering/business/the-brass-tap-25215?delivery=true",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 403,
+    "ok": false,
+    "title": "Just a moment...",
+    "meta": {
+      "robots": "noindex,nofollow",
+      "viewport": "width=device-width,initial-scale=1"
+    },
+    "h1": [
+      "order.online"
+    ],
+    "h2": [
+      "Performing security verification",
+      "Verification successful. Waiting for order.online to respond"
+    ],
+    "text": "order.online Performing security verification This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot. Ray ID: a1495e7a0e57e769 Performance and Security by Cloudflare Privacy",
+    "links": [
+      "https://www.cloudflare.com/?utm_source=challenge&utm_campaign=m",
+      "https://www.cloudflare.com/privacypolicy/"
+    ],
+    "error": null,
+    "static_http_status": 403,
+    "static_error": null
+  }
+}

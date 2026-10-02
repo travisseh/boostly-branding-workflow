@@ -1,0 +1,68 @@
+{
+  "input_url": "https://iloveelcalamar.com/menu/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:58:16.785Z",
+  "evidence": {
+    "input_url": "https://iloveelcalamar.com/menu/",
+    "final_url": "https://iloveelcalamar.com/menu/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 404,
+    "ok": false,
+    "title": "404: Page not found - El Calamar Restaurant",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "og:locale": "en_US",
+      "og:title": "Page not found - El Calamar Restaurant",
+      "og:site_name": "El Calamar Restaurant",
+      "robots": "index, follow",
+      "og:url": "https://iloveelcalamar.com",
+      "og:type": "article",
+      "twitter:card": "summary_large_image",
+      "generator": "Elementor 4.1.4; features: additional_custom_breakpoints; settings: css_print_method-external, google_font-enabled, font_display-swap",
+      "msapplication-TileImage": "https://iloveelcalamar.com/wp-content/uploads/2026/02/cropped-android-chrome-512x512-1-270x270.png"
+    },
+    "h1": [
+      "This page doesn't seem to exist."
+    ],
+    "h2": [
+      "Book your reservation online or give us a call.",
+      "(714) 884-4510"
+    ],
+    "text": "Manage Consent To provide the best experiences, we use technologies like cookies to store and/or access device information. Consenting to these technologies will allow us to process data such as browsing behavior or unique IDs on this site. Not consenting or withdrawing consent, may adversely affect certain features and functions. Accept Skip to content Home About Us Contact Menu Order Now Reservations This page doesn't seem to exist. It looks like the link pointing here was faulty. Maybe try searching? Search for: Book your reservation online or give us a call. Make a Reservation (714) 884-4510 Copyright © 2026 El Calamar Restaurant | Powered by El Calamar Restaurant English Accessibility Adjustments Powered by OneTap Hide Toolbar Content Modules Font Size Default Readable Font Line Height Default Big Cursor Letter Spacing Align Text Font Weight Color Modules Light Contrast High Contrast Monochrome Orientation Modules Reading Line Reading Mask Hide Images Highlight Content Stop Animations Highlight Links Skip To Content Choose... Navigation Footer Reset Settings",
+    "links": [
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#",
+      "https://cookiedatabase.org/tcf/purposes/",
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#",
+      "https://iloveelcalamar.com/menu/#content",
+      "https://iloveelcalamar.com/",
+      "https://iloveelcalamar.com/",
+      "https://iloveelcalamar.com/about-us/",
+      "https://iloveelcalamar.com/contact/",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://reservations.shift4payments.com/#/5c00e489-f7c7-43f5-a8b3-42f68b1a49a3",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://reservations.shift4payments.com/#/5c00e489-f7c7-43f5-a8b3-42f68b1a49a3",
+      "https://iloveelcalamar.com/",
+      "https://iloveelcalamar.com/",
+      "https://iloveelcalamar.com/about-us/",
+      "https://iloveelcalamar.com/contact/",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://reservations.shift4payments.com/#/5c00e489-f7c7-43f5-a8b3-42f68b1a49a3",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+      "https://reservations.shift4payments.com/#/5c00e489-f7c7-43f5-a8b3-42f68b1a49a3",
+      "https://wponetap.com/?utm_source=frontend-link&utm_medium=link&utm_campaign=ref-link-toolbar"
+    ],
+    "error": null,
+    "static_http_status": 404,
+    "static_error": null
+  }
+}

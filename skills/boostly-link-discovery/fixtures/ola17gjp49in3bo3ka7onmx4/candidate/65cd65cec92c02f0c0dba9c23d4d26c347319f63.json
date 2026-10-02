@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/hickorystationpizzeria/?hl=en",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:53:34.430Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/hickorystationpizzeria/?hl=en",
+    "final_url": "https://www.instagram.com/hickorystationpizzeria/?hl=en",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Hickory Station Pizzeria (@hickorystationpizzeria) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/338770190_203890335671615_18787702262795445_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=105&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDU4LkMzIn0%3D&_nc_ohc=fN6bB9yULbUQ7kNvwHRS5sg&_nc_oc=AdpaQMse0QHBfxlWWVlKhIzp-QWdSRD6p5xyAB9Ox1Sj1v-Fls9lJS21uE_xF_5--gE&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQCa73kGNNICIkcI0dPG0o2mddJHCAwCzc0wb9y1lxGKJQ&oe=6A4B8C77",
+      "og:title": "Hickory Station Pizzeria (@hickorystationpizzeria) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/hickorystationpizzeria/",
+      "og:description": "990 Followers, 589 Following, 425 Posts - See Instagram photos and videos from Hickory Station Pizzeria (@hickorystationpizzeria)",
+      "description": "990 Followers, 589 Following, 425 Posts - Hickory Station Pizzeria (@hickorystationpizzeria) on Instagram: \"1510 Conowingo Road, Bel Air, MD\nPhone: 410-420-6300\nDine in, carry out, or order delivery!\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=hickorystationpizzeria",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/hickorystationpizzeria/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

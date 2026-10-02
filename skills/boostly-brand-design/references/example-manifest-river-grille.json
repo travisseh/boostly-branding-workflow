@@ -1,0 +1,64 @@
+{
+  "location_id": "g3dzai5zy6u9m5mxxrngq0pv",
+  "location_name": "River Grille",
+  "address": "34 River Rd, Chatham, NJ 07928, USA",
+  "proposed": {
+    "web_primary_color": "#060809",
+    "web_secondary_color": "#008FD6",
+    "web_text_color": "#FFFFFF",
+    "web_text_secondary_color": "#FFFFFF",
+    "print_primary_color": "#060809",
+    "print_secondary_color": "#008FD6",
+    "print_text_color": "#FFFFFF",
+    "print_text_secondary_color": "#FFFFFF"
+  },
+  "logo_files": {
+    "source_native": {
+      "file": "assets/logo_native.png",
+      "width": 221,
+      "height": 224,
+      "note": "Official-site mark at native CDN resolution (RGB, solid black ground). Current brand identity."
+    },
+    "color_transparent": {
+      "file": "assets/logo_final.png",
+      "width": 196,
+      "height": 207,
+      "note": "Rendered variant. Black ground removed to transparency via restore-blocks; white RIVER/GRILLE serif wordmark + blue river emblem preserved. vanish-fix was a no-op (blue does not vanish on near-black). This is the file used in the proof."
+    },
+    "nobg_intermediate": {
+      "file": "assets/logo_nobg.png",
+      "width": 196,
+      "height": 207,
+      "note": "Identical to color_transparent (vanish-fix no-op); kept as the background-removal output for audit."
+    }
+  },
+  "sources": {
+    "website": "https://chathamrivergrille.com/",
+    "gbp": "https://www.yelp.com/biz/river-grille-chatham (Yelp listing; GBP confirmed same address 34 River Rd A, Chatham NJ)",
+    "logo_asset": "https://chathamrivergrille.com/pluto-images/funnel/images/2c1b023e-6aa0-46b7-86c8-83f107a60877?format=png (official header/apple-touch/icon mark, single source id, native 221x224)",
+    "og_image": "https://static-content.owner.com/funnel/images/8087270e-c258-47b2-9608-d8fe61697e85",
+    "theme_color_meta": "#db594b (Owner-platform site accent meta[name=theme-color]; NOT present anywhere in the actual brand mark — deliberately not used)",
+    "palette_source": "harness vibrant on logo_native.png (blue pole #008fd6, sat 0.995, 14% share; 85.4% neutral black+white) + exact black-ground sample (#000000 corners)"
+  },
+  "taste_output": {
+    "stroke": { "medianStrokePx": 11, "verdict": "ok", "renderWidth": 380 },
+    "interior": { "interiorLowContrastShare": 0.0892, "verdict": "ok", "primaryTested": "#060809" },
+    "whiteblob": "warning present but expected — the opaque near-white regions ARE the white RIVER/GRILLE letterforms floating on transparency, not leftover background; confirmed visually in proof",
+    "holes": "0 (serif R counters retain the mark's original black fill; they read seamless against the near-black card, confirmed in proof)",
+    "text_secondary_contrast_on_secondary": 3.56,
+    "text_contrast_on_primary": 21.0,
+    "note": "taste-check.mjs config-based gate not run separately; individual harness gates (stroke/interior/holes/vanish-fix/whiteblob) all pass and the rendered proof was eyeballed and is clean."
+  },
+  "rationale": {
+    "identity": "River Grille (Chatham, NJ) confirmed via official site chathamrivergrille.com at 34 River Rd. The mark is a single designed lockup: white serif RIVER over a stylized blue winding-river emblem over white serif GRILLE, composed on a solid black field. Same mark serves the header, favicon set, and apple-touch-icon (one source id), so it is unambiguously the CURRENT identity.",
+    "logo_treatment": "Treatment #1 (original full-color mark straight on the primary). The lockup is designed for a dark ground, so the card primary is a deep near-black that matches the mark's own black field. Background flood-removed to transparency (restore-blocks) so the white wordmark + blue emblem composite seamlessly on the near-black without a hard black rectangle seam. The lockup is interlocked/designed as one unit (the river emblem bridges the two words) so nothing was stripped — no free-standing taglines, dates, or address bands exist.",
+    "color_choice": "Only one non-neutral family exists: the river blue. Vibrant vivid pole #008FD6 (sat 0.995) is the brand blue. Primary = near-black #060809 (the mark's authored ground; true-black corners sampled at #000000, lifted a hair for intentionality while keeping the black-filled R counters seamless). Secondary = the brand blue #008FD6 — necessary as well as on-brand, since a dark secondary would make the badge-number circle vanish on the black card. Text = #FFFFFF (contrast 21 on primary). Text-secondary = #FFFFFF (contrast 3.56 on the blue band, above the 3.0 floor) so the badge digit stays legible.",
+    "composition_note": "The Owner-platform site exposes a theme-color meta of #db594b (coral), but that coral appears nowhere in the actual brand mark — it is a template default, so it was deliberately excluded. The brand's real chroma is blue.",
+    "resolution_note": "Native mark is 221x224 (below the 500px ideal). No upscale was applied because the badge logo box renders the lockup at roughly its native size, and the proof shows crisp serif letterforms with intact counters. Rendering it substantially larger would soften it, so it is sized to read large-but-crisp rather than pushed to fill every pixel."
+  },
+  "production": {
+    "confidence": "high",
+    "flags": ["neutral_mark_composition"],
+    "notes": "Identity, logo cleanliness, and colors are solid: the mark is the current official-site identity, background removal is clean, and colors are sampled/authored. The single judgment call to confirm is COMPOSITION ORIENTATION (neutral_mark_composition): the mark is ~85% neutral (black ground + white text) with the blue river as an emblem accent, so 'near-black card + blue accent' vs 'blue card' is a taste coin-flip. I chose near-black because it is faithful to the mark's authored dark field and because a blue card would force recoloring/erasing the blue river emblem (it would vanish on blue). A human reviewer should confirm they are happy with a predominantly black tapcard for this venue rather than a blue one. Secondary point to eyeball: source mark is only 221px native, so do not scale the logo up further in production — it is sized to stay crisp. No coral (#db594b site theme-color) was used; confirm that is intended (it is a template default, not brand ink)."
+  }
+}

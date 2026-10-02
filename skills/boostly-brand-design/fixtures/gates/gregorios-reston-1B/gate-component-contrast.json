@@ -1,0 +1,230 @@
+{
+  "primary": "#C93B18",
+  "minContrast": 3,
+  "lowShareFail": 0.9,
+  "pass": true,
+  "failingComponents": [],
+  "components": [
+    {
+      "id": 0,
+      "areaShareOfInk": 0.1678,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 16,
+        "y": 71,
+        "w": 298,
+        "h": 357
+      }
+    },
+    {
+      "id": 1,
+      "areaShareOfInk": 0.1462,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 617,
+        "y": 74,
+        "w": 204,
+        "h": 292
+      }
+    },
+    {
+      "id": 2,
+      "areaShareOfInk": 0.095,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 811,
+        "y": 68,
+        "w": 184,
+        "h": 196
+      }
+    },
+    {
+      "id": 3,
+      "areaShareOfInk": 0.094,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1233,
+        "y": 145,
+        "w": 181,
+        "h": 199
+      }
+    },
+    {
+      "id": 4,
+      "areaShareOfInk": 0.0865,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 446,
+        "y": 97,
+        "w": 167,
+        "h": 196
+      }
+    },
+    {
+      "id": 5,
+      "areaShareOfInk": 0.0815,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1444,
+        "y": 221,
+        "w": 142,
+        "h": 207
+      }
+    },
+    {
+      "id": 6,
+      "areaShareOfInk": 0.0711,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 300,
+        "y": 126,
+        "w": 145,
+        "h": 222
+      }
+    },
+    {
+      "id": 7,
+      "areaShareOfInk": 0.071,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 989,
+        "y": 82,
+        "w": 152,
+        "h": 197
+      }
+    },
+    {
+      "id": 8,
+      "areaShareOfInk": 0.0528,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1138,
+        "y": 111,
+        "w": 95,
+        "h": 197
+      }
+    },
+    {
+      "id": 9,
+      "areaShareOfInk": 0.0272,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1423,
+        "y": 79,
+        "w": 72,
+        "h": 127
+      }
+    },
+    {
+      "id": 10,
+      "areaShareOfInk": 0.0161,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1175,
+        "y": 6,
+        "w": 61,
+        "h": 65
+      }
+    },
+    {
+      "id": 11,
+      "areaShareOfInk": 0.0125,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 959,
+        "y": 473,
+        "w": 60,
+        "h": 65
+      }
+    },
+    {
+      "id": 12,
+      "areaShareOfInk": 0.0122,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 865,
+        "y": 472,
+        "w": 68,
+        "h": 65
+      }
+    },
+    {
+      "id": 13,
+      "areaShareOfInk": 0.0112,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 512,
+        "y": 473,
+        "w": 57,
+        "h": 65
+      }
+    },
+    {
+      "id": 14,
+      "areaShareOfInk": 0.011,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1109,
+        "y": 473,
+        "w": 64,
+        "h": 65
+      }
+    },
+    {
+      "id": 15,
+      "areaShareOfInk": 0.0109,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 603,
+        "y": 472,
+        "w": 65,
+        "h": 66
+      }
+    },
+    {
+      "id": 16,
+      "areaShareOfInk": 0.0096,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 690,
+        "y": 473,
+        "w": 62,
+        "h": 64
+      }
+    },
+    {
+      "id": 17,
+      "areaShareOfInk": 0.0086,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 424,
+        "y": 473,
+        "w": 61,
+        "h": 65
+      }
+    },
+    {
+      "id": 18,
+      "areaShareOfInk": 0.0085,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 778,
+        "y": 472,
+        "w": 61,
+        "h": 65
+      }
+    },
+    {
+      "id": 19,
+      "areaShareOfInk": 0.0064,
+      "lowContrastShare": 0,
+      "bbox": {
+        "x": 1050,
+        "y": 472,
+        "w": 30,
+        "h": 65
+      }
+    }
+  ],
+  "verdict": "ok"
+}

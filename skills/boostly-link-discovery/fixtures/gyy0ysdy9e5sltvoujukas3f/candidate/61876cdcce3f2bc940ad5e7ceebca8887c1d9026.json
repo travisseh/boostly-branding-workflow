@@ -1,0 +1,21 @@
+{
+  "input_url": "https://hofparagon.traitset.com/postingPage/9646/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:15.098Z",
+  "evidence": {
+    "input_url": "https://hofparagon.traitset.com/postingPage/9646/",
+    "final_url": "https://hofparagon.traitset.com/postingPage/9646/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Traitset",
+    "meta": {},
+    "h1": [],
+    "h2": [],
+    "text": " Traitset You are using an outdated browser. Please upgrade your browser to improve your experience. --> ",
+    "links": [
+      "http://browsehappy.com/"
+    ],
+    "error": null
+  }
+}

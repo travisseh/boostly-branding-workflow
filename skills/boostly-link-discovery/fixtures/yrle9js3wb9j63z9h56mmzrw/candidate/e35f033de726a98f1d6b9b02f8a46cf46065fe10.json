@@ -1,0 +1,44 @@
+{
+  "input_url": "https://order.spoton.com/692628e4c6a15952fda35fd1",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:57.074Z",
+  "evidence": {
+    "input_url": "https://order.spoton.com/692628e4c6a15952fda35fd1",
+    "final_url": "https://order.spoton.com/so-mils-cafe-26123/bluffdale-ut/692628e4c6a15952fda35fd1/ordering-unavailable",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Ordering Unavailable",
+    "meta": {
+      "robots": "index, follow",
+      "description": "Order delicious food online with SpotOn. Fast, easy online ordering for pickup, delivery, and dine-in.",
+      "og:title": "SpotOn Order",
+      "og:description": "Order delicious food online with SpotOn. Fast, easy online ordering for pickup, delivery, and dine-in.",
+      "og:url": "https://order.spoton.com",
+      "og:type": "website",
+      "og:image": "https://firebasestorage.googleapis.com/v0/b/android-spoton-mobile-192322.appspot.com/o/favicon-32x32.png?alt=media&token=24ab335c-dcba-406f-bc60-7f0115cc381b",
+      "og:image:alt": "SpotOn Order",
+      "og:image:width": "1200",
+      "og:image:height": "630",
+      "og:locale": "en_US",
+      "og:site_name": "SpotOn Order",
+      "keywords": "online ordering, restaurant, delivery, pickup, dine-in, food, SpotOn",
+      "author": "SpotOn",
+      "viewport": "width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=5, viewport-fit=cover",
+      "theme-color": "#fff",
+      "next-head-count": "23"
+    },
+    "h1": [
+      "Mil's Cafe",
+      "Online ordering not available."
+    ],
+    "h2": [],
+    "text": "Skip to main content Mil's Cafe Sign in From: 14702 S Porter Rockwell Blvd, Bluffdale, UT Change location Online ordering not available. Please try again later or choose a different location.",
+    "links": [
+      "https://order.spoton.com/so-mils-cafe-26123/bluffdale-ut/692628e4c6a15952fda35fd1/ordering-unavailable#main-content"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

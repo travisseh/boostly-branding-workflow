@@ -1,0 +1,32 @@
+{
+  "input_url": "https://order.toasttab.com/online/firehouse-pizza-bg-1703-u-s-31-west-bypass",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:55:33.887Z",
+  "evidence": {
+    "input_url": "https://order.toasttab.com/online/firehouse-pizza-bg-1703-u-s-31-west-bypass",
+    "final_url": "https://order.toasttab.com/online/firehouse-pizza-bg-1703-u-s-31-west-bypass",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 403,
+    "ok": false,
+    "title": "Just a moment...",
+    "meta": {
+      "robots": "noindex,nofollow",
+      "viewport": "width=device-width,initial-scale=1"
+    },
+    "h1": [
+      "order.toasttab.com"
+    ],
+    "h2": [
+      "Performing security verification",
+      "Verification successful. Waiting for order.toasttab.com to respond"
+    ],
+    "text": "order.toasttab.com Performing security verification This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot. Ray ID: a14957996af8c4df Performance and Security by Cloudflare Privacy",
+    "links": [
+      "https://www.cloudflare.com/?utm_source=challenge&utm_campaign=m",
+      "https://www.cloudflare.com/privacypolicy/"
+    ],
+    "error": null,
+    "static_http_status": 403,
+    "static_error": null
+  }
+}

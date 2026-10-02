@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boostly fulfillment request ledger",
+  "description": "One location's review-queue entry. Branding runners emit this; review-queue.mjs renders it into a Notion toggle. Only business, city, and account_id are required; everything else degrades to a placeholder cell.",
+  "type": "object",
+  "required": ["business", "city", "account_id"],
+  "properties": {
+    "location_id": { "type": "string", "description": "V2 location id (cuid)." },
+    "account_id": { "type": "string", "description": "V2 account id; renders as https://new.boostly.com/admin/accounts/<id>." },
+    "business": { "type": "string", "description": "Business name without the city suffix, e.g. \"Denise's Delicacies\"." },
+    "city": { "type": "string", "description": "City shown in parentheses in the heading." },
+    "status": { "type": "string", "enum": ["waiting", "done"], "default": "waiting", "description": "Which H1 section the toggle belongs under." },
+    "waiting_on": { "type": "string", "description": "Who or what it waits on, e.g. \"Jonathan: offer + quantities\". Becomes the heading label \"waiting on <x>\" when status is waiting." },
+    "label": { "type": "string", "description": "Optional explicit heading label that overrides waiting_on / DONE." },
+    "ease": { "type": "integer", "minimum": 1, "maximum": 5, "description": "1 = quickest review. Orders the queue and renders as [ease x/5]." },
+    "verdict": { "type": "string", "description": "One or two sentences: what the reviewer should do." },
+    "applied": { "type": "string", "description": "What was written to production (scope, colors, logo, socials, events) and how it was verified." },
+    "signage": { "type": "string", "description": "Sheet count, quantities, offer copy, sticker/POP logo choices." },
+    "open": { "type": "string", "description": "Numbered open questions, e.g. \"(1) ... (2) ...\"." },
+    "slack_ts": { "type": "string", "description": "Fulfillment notification thread ts, e.g. 1788723953.830589." },
+    "slack_channel": { "type": "string", "default": "C09MSM8MA9Y" },
+    "figma_url": { "type": "string", "description": "Figma section URL (In-Store-Fulfillment file, node-id of the section)." },
+    "website": { "type": "string" },
+    "ordering_url": { "type": "string", "description": "Ordering URL; used as the Website fallback and kept for the runner." },
+    "place_id": { "type": "string", "description": "Google place id. Anything not shaped like a place id (e.g. \"manual\") renders as a Google search link instead of a Maps link." },
+    "address": { "type": "string", "description": "Street address; used in the manual-place-id Google search query." },
+    "variant_sheets": {
+      "type": "array",
+      "description": "Variant sheets (brand-design rule 2b) to embed under the toggle, one image block each. Several are allowed; when a run stitched its sheets into one variant-sheet-all.png, list that file once. ledger-from-manifest.mjs derives this from manifest.variant_sheet.",
+      "items": {
+        "type": "object",
+        "required": ["png"],
+        "properties": {
+          "png": { "type": "string", "description": "Absolute path to the sheet PNG (uploaded to Notion)." },
+          "json": { "type": "string", "description": "Absolute path to the variant-sheet.json whose cells[<letter>] describes the applied cell (hexes, row label, logo, badge digit)." },
+          "label": { "type": "string", "description": "Caption label; defaults to the PNG basename. Also the key used to find an existing image block on upsert." },
+          "applied_letter": { "type": "string", "description": "The lettered cell that went to production, e.g. \"Q\"." }
+        },
+        "additionalProperties": true
+      }
+    },
+    "applied_variant": { "type": "string", "description": "Free-text override for the Variant row, e.g. \"Q (#8D4CED / #6416D7, white digit)\". When set it replaces the text derived from the sheet json." },
+    "source": { "type": "object", "description": "Free-form provenance (manifest path, run id)." }
+  },
+  "additionalProperties": true
+}

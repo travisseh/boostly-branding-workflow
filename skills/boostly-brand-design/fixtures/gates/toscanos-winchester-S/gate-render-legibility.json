@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "verdict": "ok",
+  "product_logo_box": {
+    "width": 126,
+    "height": 56
+  },
+  "proxy": {
+    "limitation": "No OCR or semantic text map is available. This gate conservatively measures product-size component height and edge energy; it cannot identify which words are essential.",
+    "edge_energy": 7160.585,
+    "minimum_substantial_component_height_px": 7,
+    "small_component_ink_share": 0,
+    "tiny_text_ink_share": 0,
+    "ink_pixel_share": 0.1368
+  },
+  "attach_4x_crop_required": false,
+  "reasons": []
+}

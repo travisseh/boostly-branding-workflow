@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/mozzarella_dibufala",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:59:03.992Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/mozzarella_dibufala",
+    "final_url": "https://www.instagram.com/mozzarella_dibufala",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Mozzarella Di Bufala Pizzeria (@mozzarella_dibufala) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/439451772_1395858247783758_6394492474931003396_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=108&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy44NjcuQzMifQ%3D%3D&_nc_ohc=kGRVw08gjMYQ7kNvwFK1c5V&_nc_oc=AdpuH81rE8YtyDNYkXptaahewfpJfMpqV-6W9bjf9Nvo9hpiWxOkWUlpoxoE86uUgdQ&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQC_JgJuJ94ayN-PPXPZynIqFTgASNBqjMf-cixH6hZPnA&oe=6A4B75B1",
+      "og:title": "Mozzarella Di Bufala Pizzeria (@mozzarella_dibufala) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/mozzarella_dibufala",
+      "og:description": "2,908 Followers, 575 Following, 90 Posts - See Instagram photos and videos from Mozzarella Di Bufala Pizzeria (@mozzarella_dibufala)",
+      "description": "2,908 Followers, 575 Following, 90 Posts - Mozzarella Di Bufala Pizzeria (@mozzarella_dibufala) on Instagram: \"Italian-Brazillian Restaurant\nMon-Sun: 10:30-9:30pm TRY our strawberry Nutella dessert pizza 🕺🏼\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=mozzarella_dibufala",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/mozzarella_dibufala/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

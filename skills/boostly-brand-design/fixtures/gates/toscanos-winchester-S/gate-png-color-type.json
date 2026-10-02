@@ -1,0 +1,11 @@
+{
+  "pass": true,
+  "verdict": "ok",
+  "color_type": 6,
+  "color_type_name": "truecolor_rgba",
+  "allowed_color_types": [
+    2,
+    6
+  ],
+  "reasons": []
+}

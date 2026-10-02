@@ -1,0 +1,37 @@
+{
+  "input_url": "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:53:06.839Z",
+  "evidence": {
+    "input_url": "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+    "final_url": "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "El Calamar Online - SkyTab Online",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "lh-public-olo/config/environment": "%7B%22modulePrefix%22%3A%22lh-public-olo%22%2C%22environment%22%3A%22production%22%2C%22rootURL%22%3A%22%2F%22%2C%22locationType%22%3A%22auto%22%2C%22EmberENV%22%3A%7B%22FEATURES%22%3A%7B%7D%2C%22EXTEND_PROTOTYPES%22%3A%7B%22Date%22%3Afalse%7D%2C%22_APPLICATION_TEMPLATE_WRAPPER%22%3Afalse%2C%22_DEFAULT_ASYNC_OBSERVERS%22%3Atrue%2C%22_JQUERY_INTEGRATION%22%3Atrue%2C%22_TEMPLATE_ONLY_GLIMMER_COMPONENTS%22%3Atrue%7D%2C%22APP%22%3A%7B%22name%22%3A%22lh-public-olo%22%2C%22version%22%3A%220.0.0%2B7ffb5404%22%7D%2C%22metricsAdapters%22%3A%5B%5D%2C%22ember-metrics%22%3A%7B%22includeAdapters%22%3A%5B%22FacebookPixel%22%5D%7D%2C%22host%22%3A%22https%3A%2F%2Foloapi.shift4payments.com%22%2C%22i4goHost%22%3A%22https%3A%2F%2Fi4m.i4go.com%22%2C%22i4goUrl%22%3A%22https%3A%2F%2Fi4m.i4go.com%22%2C%22oocHost%22%3A%22https%3A%2F%2Fapps-api.shift4payments.com%22%2C%22googleMapsApiKey%22%3A%22AIzaSyA6EcXvIwLrvsceqUt1DbYGsk4WsFuVvPs%22%2C%22googlePay%22%3Atrue%2C%22ember-cli-google%22%3A%7B%22recaptcha%22%3A%7B%22siteKey%22%3A%226LdUGToiAAAAAClU7z7PmMFaoxuST-EXzuntqdpp%22%7D%7D%2C%22captchaEnabled%22%3Atrue%2C%22datadog%22%3A%7B%22clientToken%22%3A%22pub03e12989df03aacb654caee283951490%22%2C%22site%22%3A%22datadoghq.com%22%2C%22forwardErrorsToLogs%22%3Atrue%2C%22sessionSampleRate%22%3A100%2C%22service%22%3A%22sto-frontend%22%2C%22env%22%3A%22production%22%2C%22tags%22%3A%7B%22department%22%3A%22cloud-and-mobile%22%2C%22platform%22%3A%22lighthouse%22%7D%2C%22enabled%22%3Atrue%7D%2C%22datadogRum%22%3A%7B%22applicationId%22%3A%224ac9e8d0-cc27-41d5-8b97-ee451d5de2b6%22%2C%22clientToken%22%3A%22pubc80bc103561bdc97b5c75e222f400928%22%2C%22site%22%3A%22datadoghq.com%22%2C%22service%22%3A%22skytab-online%22%2C%22env%22%3A%22production%22%2C%22version%22%3A%221.0.0%22%2C%22sessionSampleRate%22%3A100%2C%22sessionReplaySampleRate%22%3A0%2C%22trackUserInteractions%22%3Atrue%2C%22trackResources%22%3Atrue%2C%22trackLongTasks%22%3Atrue%2C%22defaultPrivacyLevel%22%3A%22mask-user-input%22%2C%22enabled%22%3Atrue%7D%2C%22launchDarkly%22%3A%7B%22clientSideId%22%3A%225fe60cb26004d70ada453ead%22%7D%2C%22cpValidations%22%3A%7B%22muteWarnings%22%3Afalse%7D%2C%22i4goBetaUrl%22%3A%22https%3A%2F%2Fi4m-beta.i4go.com%22%2C%22ember-simple-auth-token%22%3A%7B%22serverTokenEndpoint%22%3A%22https%3A%2F%2Fapps-api.shift4payments.com%2Fonline-ordering%2Fmars%2Fapi%2Fv2%2Fcustomer%2Fauth%22%2C%22tokenDataPropertyName%22%3A%22tokenData%22%2C%22refreshAccessTokens%22%3Afalse%2C%22tokenExpirationInvalidateSession%22%3Atrue%2C%22tokenPropertyName%22%3A%22accessToken%22%7D%2C%22exportApplicationGlobal%22%3Afalse%2C%22SEMANTIC_UI_VERSION%22%3A%222.2%22%7D",
+      "application-name": "SkyTab Online",
+      "msapplication-config": "none",
+      "msapplication-TileColor": "#FFFFFF",
+      "msapplication-TileImage": "/img/mstile-144x144-2e6a467897340785f07dc17ea8456a2f.png",
+      "msapplication-square70x70logo": "/img/mstile-70x70-e06a8681da20d8003c005a54cc1195bf.png",
+      "msapplication-square150x150logo": "/img/mstile-150x150-685dce1747a65ac306bfa0bd05cdc0c9.png",
+      "msapplication-wide310x150logo": "/img/mstile-310x150-95e21b8e8e75070c43f17cf40103c164.png",
+      "msapplication-square310x310logo": "/img/mstile-310x310-8e26ce67427ae60882fa485646edd083.png"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "Skip to main content Sign In Sign Up Loading... Your order items with quantity, name, edit, price, and remove options Quantity Item Name Edit Item Price Remove Item There are no items in your order. Powered by",
+    "links": [
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46#main-content",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46/account/entry",
+      "https://online.skytab.com/89888ea5a0493fc750af7f2cb3b11d46/account/entry?signUpTab=true",
+      "https://www.shift4.com/skytab-online/"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

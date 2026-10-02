@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/phobolsa916/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:57:22.763Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/phobolsa916/",
+    "final_url": "https://www.instagram.com/phobolsa916/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "ℙℍ𝕆 𝔹𝕆𝕃𝕊𝔸 (@phobolsa916) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/441145605_1484449432506956_3271455898705552373_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=101&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy41MDAuQzMifQ%3D%3D&_nc_ohc=TzS2DnHRcBEQ7kNvwHywvZw&_nc_oc=AdpNB6Tpil5CRStqetlUfiwiADUdxeQwj3z2rLZ7bUJec-FbxmcCFNzVytwoVKYcSVg&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQCHXgV_bspo-wsXqWlrgklE4qH51QI6TOG7ILMXU6556A&oe=6A4B7A22",
+      "og:title": "ℙℍ𝕆 𝔹𝕆𝕃𝕊𝔸 (@phobolsa916) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/phobolsa916/",
+      "og:description": "739 Followers, 142 Following, 248 Posts - See Instagram photos and videos from ℙℍ𝕆 𝔹𝕆𝕃𝕊𝔸 (@phobolsa916)",
+      "description": "739 Followers, 142 Following, 248 Posts - ℙℍ𝕆 𝔹𝕆𝕃𝕊𝔸 (@phobolsa916) on Instagram: \"Authentic Vietnamese Cuisine\n📍5815 Stockton Blvd #A, Sacramento CA\n☎️(916)451-7985\n🕙DAILY 10am - 6pm (❌️ Wednesday Closed)\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=phobolsa916",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/phobolsa916/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "location_context": {
+    "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+    "location_name": "Texas Traditions Grill & Bar (Port Lavaca)",
+    "location_status": "enabled",
+    "account_id": "zgignh3dremw2qw2v5jhg7on",
+    "account_name": "Texas Traditions Grill & Bar",
+    "account_status": "enabled",
+    "address": "234 E Main St, Port Lavaca, TX 77979, USA",
+    "shipping_address_line1": null,
+    "shipping_city": null,
+    "shipping_state": null,
+    "shipping_zip": null,
+    "ordering_phone_number": "+13615535555",
+    "google_place_id": "ChIJe9ZIb9cOQoYRQI9-uEPYp8Q",
+    "website_url": "http://www.txtraditions.com/",
+    "ordering_url": "https://texastraditionslavaca.ordering.ordercounter.com/Menu",
+    "facebook_url": "https://www.facebook.com/texastraditionscafe/",
+    "instagram_url": "https://www.instagram.com/txtgrillandbar/",
+    "x_url": null,
+    "tiktok_url": "https://www.tiktok.com/@txtgrillandbar",
+    "youtube_url": null,
+    "apple_app_url": null,
+    "google_app_url": null
+  },
+  "touchpoint_events": [
+    {
+      "id": "n11ovhminyjpznoetyy2rgkz",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 0,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "k87vv6u5xi75sbaxyjzpkt3q"
+      },
+      "link": null,
+      "updated_at": "2026-06-22T21:03:14.943"
+    },
+    {
+      "id": "l3l9gdzt841y9s22nvwdh5g4",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_review",
+      "title": "Reviews",
+      "display_title": "Feedback",
+      "description": "How's your experience?",
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-22T21:03:14.784"
+    },
+    {
+      "id": "snfk1o6l7964dky1eugpwlq1",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "k87vv6u5xi75sbaxyjzpkt3q"
+      },
+      "link": null,
+      "updated_at": "2026-06-09T18:27:29.015"
+    },
+    {
+      "id": "o8osos3vurtylp7q8cqmrmya",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "k87vv6u5xi75sbaxyjzpkt3q"
+      },
+      "link": null,
+      "updated_at": "2026-06-09T18:27:29.123"
+    },
+    {
+      "id": "n11gsxqzao9fxzxs0urd2ljf",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "k87vv6u5xi75sbaxyjzpkt3q"
+      },
+      "link": null,
+      "updated_at": "2026-06-09T18:27:28.914"
+    },
+    {
+      "id": "tzvh2f0crrdon8j8cef9t3gf",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Menu",
+      "display_title": "Menu",
+      "description": "Explore our menu",
+      "primary_button_text": "View Menu",
+      "sort_order": 2,
+      "is_active": true,
+      "config": null,
+      "link": "https://txtraditions.com/menu/",
+      "updated_at": "2026-06-22T21:03:14.828"
+    },
+    {
+      "id": "nn3kbs2a2qimqguayy3abo2z",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Order",
+      "display_title": "Order",
+      "description": "Pickup or delivery",
+      "primary_button_text": "Order Now",
+      "sort_order": 3,
+      "is_active": true,
+      "config": null,
+      "link": "https://texastraditionslavaca.ordering.ordercounter.com/Menu",
+      "updated_at": "2026-06-22T21:03:14.854"
+    },
+    {
+      "id": "grz0hl56pt06bhqakzq5pxkb",
+      "account_id": "zgignh3dremw2qw2v5jhg7on",
+      "location_id": "jecr140ujjmhzeuo7kj5s7yg",
+      "touchpoint_event_default_id": "tid_socials",
+      "title": "Socials",
+      "display_title": "Follow Us",
+      "description": "Stay up to date",
+      "primary_button_text": null,
+      "sort_order": 4,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-22T21:03:14.799"
+    }
+  ]
+}

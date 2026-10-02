@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/mchcco/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:59:27.597Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/mchcco/",
+    "final_url": "https://www.instagram.com/mchcco/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Music City Hot Chicken (@mchcco) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/200649812_384680052970571_5139965992543926013_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=109&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=AcyPf-Br5GYQ7kNvwGcp09i&_nc_oc=AdrQZtdxDrkHMH47afW_Nil9CAXUYrCibwMceEEga-aVY9zgQQyDffsiUhp3ZBOHZ68&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQDQQAP_rAD0ChkbfnPPlqMJZaY3Yp0lp2O8WdGzkiHu1g&oe=6A4B80FA",
+      "og:title": "Music City Hot Chicken (@mchcco) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/mchcco/",
+      "og:description": "7,363 Followers, 993 Following, 1,296 Posts - See Instagram photos and videos from Music City Hot Chicken (@mchcco)",
+      "description": "7,363 Followers, 993 Following, 1,296 Posts - Music City Hot Chicken (@mchcco) on Instagram: \"🎉 Celebrating 10 Years April 2026!\n🐓 FoCo’s 1st Fried Chicken+Cold Beer Joint\n🕓 Lunch, Dinner, Brunch\n📍Also visit @mchc_north & @mchcden\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=mchcco",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/mchcco/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

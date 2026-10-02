@@ -1,0 +1,117 @@
+{
+  "build_id": "mDEeYcY1BsQdBaqcIm1Ch",
+  "derived_at": "2026-09-29T21:48:20.274Z",
+  "base_url": "https://new.boostly.com",
+  "actions": {
+    "getEvents": "404a8a617f8f6cdcdf7de8a3baf987dfab6ed78043",
+    "getObjectives": "4032b5022f347a9ae4b2fc775005a5b6fce771368d",
+    "saveEvents": "40490c2e1be8efb62e23a25f738814a59bd1ba341b",
+    "updateLocation": "6003fc8b9a0ee0d6ef64418044bbcdce2d5ff5a7aa",
+    "switchUserAccount": "40912ef2fa6cc745c1e2dd2a43a24c6dffb45388f8",
+    "updateAccountBranding": "40525081ea9b982157ad7a862834b5a92c6efca127",
+    "createBulkBadges": "40f320c7fbafbdc3ce016696ba72a144889380deb8",
+    "createSignage": "4013b80be6ab7721dcbcd39b7ee97b5a6994716604",
+    "saveTouchpointEventOverrides": "60fab89fcd4500740a44d4959fb9e96d3252423fef",
+    "createPromotion": "40f0e8dfc32409daa54a175edf256ff1f6c19e6598",
+    "createObjective": "70af06efbbe793167ed53e8399210eee5640ca31bd",
+    "deleteObjective": "40a7ea704c24086593d39f5b69bbcd00409a974586",
+    "setStoreDetailsConfirmed": "600031109887a60562534a3d5b02a872d60818e239",
+    "setDigitalFulfillmentCompleted": "60917347b32cb0891a0caa9ed5afe023f7aeca2894",
+    "updateFulfillmentOffer": "608f7acaf005223525be0ec9e302a2cbea7f090409",
+    "updateShippingAddress": "60f997c332e7bec472556907f489f2aa8e7e9b478f",
+    "updateSubscribeLink": "60bc570681849a913f65b7afa8f63e586236b65bd7",
+    "updateFulfillmentNotes": "60c4b2c445af02c944f4d80ebff2a1b0688cea7a91"
+  },
+  "sources": {
+    "getEvents": {
+      "export": "getTouchpointEventConfigForLocation",
+      "page": "/in-store/links/location/oyf4v3crj09wtnt8gzs02i2r",
+      "chunk": "page-effbb01dd1565c4c.js"
+    },
+    "getObjectives": {
+      "export": "getObjectiveOptionsForLocation",
+      "page": "/in-store/links/location/oyf4v3crj09wtnt8gzs02i2r",
+      "chunk": "page-effbb01dd1565c4c.js"
+    },
+    "saveEvents": {
+      "export": "saveLocationTouchpointEventConfigs",
+      "page": "/in-store/links/location/oyf4v3crj09wtnt8gzs02i2r",
+      "chunk": "page-effbb01dd1565c4c.js"
+    },
+    "updateLocation": {
+      "export": "updateLocation",
+      "page": "/locations/oyf4v3crj09wtnt8gzs02i2r",
+      "chunk": "page-4b8c6ca8e60f3081.js"
+    },
+    "switchUserAccount": {
+      "export": "switchUserAccount",
+      "page": "/account-settings",
+      "chunk": "layout-e6e96cf0ab60b1fb.js"
+    },
+    "updateAccountBranding": {
+      "export": "updateAccountBranding",
+      "page": "/account-settings",
+      "chunk": "page-a2c6b4b98e4e2666.js"
+    },
+    "createBulkBadges": {
+      "export": "createBulkBadges",
+      "page": "/in-store?tab=badges",
+      "chunk": "page-a3b54d3fafb5e6c4.js"
+    },
+    "createSignage": {
+      "export": "createSignage",
+      "page": "/in-store/signage/new",
+      "chunk": "page-8ee1720d1bbb1848.js"
+    },
+    "saveTouchpointEventOverrides": {
+      "export": "saveTouchpointEventConfigForTouchpoint",
+      "page": "/in-store/signage/qv260io13oh8zerlh8jgrw6t?tab=links",
+      "chunk": "page-3659b3839444cfe7.js"
+    },
+    "createPromotion": {
+      "export": "createPromotion",
+      "page": "/promotions/new",
+      "chunk": "page-6e7d83cf348c7103.js"
+    },
+    "createObjective": {
+      "export": "createObjective",
+      "page": "/in-store/objectives/new",
+      "chunk": "page-f87c9dafd1826186.js"
+    },
+    "deleteObjective": {
+      "export": "deleteObjective",
+      "page": "/in-store/objectives/u10gmlifllgc0ivf5hsipajw",
+      "chunk": "page-92a4c7b4763125bb.js"
+    },
+    "setStoreDetailsConfirmed": {
+      "export": "setStoreDetailsConfirmedAction",
+      "page": "/admin/fulfillment/e4a8lyqumai49bwbu4h9qawc",
+      "chunk": "page-11a74f2e1a38e591.js"
+    },
+    "setDigitalFulfillmentCompleted": {
+      "export": "setDigitalFulfillmentCompletedAction",
+      "page": "/admin/fulfillment/e4a8lyqumai49bwbu4h9qawc",
+      "chunk": "page-11a74f2e1a38e591.js"
+    },
+    "updateFulfillmentOffer": {
+      "export": "updateFulfillmentOfferAction",
+      "page": "/admin/fulfillment/e4a8lyqumai49bwbu4h9qawc",
+      "chunk": "page-11a74f2e1a38e591.js"
+    },
+    "updateShippingAddress": {
+      "export": "updateShippingAddressAction",
+      "page": "/admin/fulfillment/e4a8lyqumai49bwbu4h9qawc",
+      "chunk": "page-11a74f2e1a38e591.js"
+    },
+    "updateSubscribeLink": {
+      "export": "updateSubscribeLink",
+      "page": "/click-to-join/j135ayw92ioisko9l2acs44c",
+      "chunk": "page-659ef937ed85ff61.js"
+    },
+    "updateFulfillmentNotes": {
+      "export": "updateNotesAction",
+      "page": "/admin/fulfillment/e4a8lyqumai49bwbu4h9qawc",
+      "chunk": "page-11a74f2e1a38e591.js"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "input_url": "https://tiktok.com/@firehousepizzatiktok",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:55:29.637Z",
+  "evidence": {
+    "input_url": "https://tiktok.com/@firehousepizzatiktok",
+    "final_url": "https://www.tiktok.com/@firehousepizzatiktok",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) | TikTok",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1.0",
+      "pumbaa-ctx": "login=0,ftc=0",
+      "google": "notranslate",
+      "format-detection": "telephone=no",
+      "og:url": "https://www.tiktok.com/@firehousepizzatiktok",
+      "description": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) on TikTok | 22K Likes. 3993 Followers. FireHousePizza Morgantown KY 107 E OHIO 42261.Watch the latest video from FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok).",
+      "robots": "index, follow, max-image-preview:large",
+      "applicable-device": "pc, mobile",
+      "al:ios:url": "snssdk1233://user/profile/",
+      "al:android:url": "snssdk1233://user/profile/",
+      "al:ios:app_store_id": "835599320",
+      "al:ios:app_name": "musical.ly",
+      "al:android:app_name": "musical.ly",
+      "al:android:package": "com.zhiliaoapp.musically",
+      "og:site_name": "TikTok",
+      "og:type": "website",
+      "og:title": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) | TikTok",
+      "og:description": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) on TikTok | 22K Likes. 3993 Followers. FireHousePizza Morgantown KY 107 E OHIO 42261.Watch the latest video from FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok).",
+      "fb:app_id": "597615686992125",
+      "twitter:app:id:iphone": "835599320",
+      "twitter:app:id:googleplay": "com.zhiliaoapp.musically",
+      "twitter:card": "summary",
+      "twitter:site": "TikTok",
+      "twitter:title": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) | TikTok",
+      "twitter:description": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) on TikTok | 22K Likes. 3993 Followers. FireHousePizza Morgantown KY 107 E OHIO 42261.Watch the latest video from FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok).",
+      "og:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/7344780667953086510~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=8016425f&x-expires=1783119600&x-signature=iJX0Kx8tp6cT13sl6KxT%2Fmb019Y%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "twitter:image": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/7344780667953086510~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=8016425f&x-expires=1783119600&x-signature=iJX0Kx8tp6cT13sl6KxT%2Fmb019Y%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "og:image:width": "360",
+      "og:image:height": "360",
+      "og:image:alt": "FireHousePizzaTikTok🔥🏠🍕 (@firehousepizzatiktok) | TikTok"
+    },
+    "h1": [
+      "FireHousePizzaTikTok🔥🏠🍕"
+    ],
+    "h2": [
+      "firehousepizzatiktok",
+      "FireHousePizza Morgantown KY 107 E OHIO 42261"
+    ],
+    "text": "TikTok Shop is now available on web! Browse your favorite items. TikTok Search For You Shop Explore Following LIVE Upload Profile More Log in © 2026 TikTok FireHousePizzaTikTok🔥🏠🍕 firehousepizzatiktok 4087 Following 3993 Followers 22K Likes Follow Message FireHousePizza Morgantown KY 107 E OHIO 42261 Suggested accounts View all Videos Liked Latest Popular Oldest Something went wrong Sorry about that! Please try again later. Refresh Log in",
+    "links": [
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/shop",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/following",
+      "https://www.tiktok.com/live",
+      "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video",
+      "https://www.tiktok.com/@",
+      "https://www.tiktok.com/@firehousepizzatiktok"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "input_url": "https://tmt.spotapps.co/ordering-menu/?spot_id=",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:59:11.250Z",
+  "evidence": {
+    "input_url": "https://tmt.spotapps.co/ordering-menu/?spot_id=",
+    "final_url": "https://tmt.spotapps.co/ordering-menu/?spot_id",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 404,
+    "ok": false,
+    "title": "Page not found",
+    "meta": {
+      "viewport": "width=device-width,initial-scale=1.0,minimum-scale=1.0",
+      "description": "contactless menu"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "Page not found Back to the home page Nuxt",
+    "links": [
+      "https://tmt.spotapps.co/",
+      "https://nuxtjs.org/"
+    ],
+    "error": null,
+    "static_http_status": 404,
+    "static_error": null
+  }
+}

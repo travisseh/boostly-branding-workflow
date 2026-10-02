@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/hofbrauhaus_columbus/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:11.552Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/hofbrauhaus_columbus/",
+    "final_url": "https://www.instagram.com/hofbrauhaus_columbus/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Hofbräuhaus Columbus (@hofbrauhaus_columbus) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/25008238_153480708744896_4131465037866860544_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=102&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4yNzguQzMifQ%3D%3D&_nc_ohc=_yXNL3wT11UQ7kNvwFPUnJV&_nc_oc=AdqVyNZr_EOqRd98CVu2FwQzV2YBdqfbd66lCKz505bysTC0ecS-zANKigdwD0SYDOo&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQBtLFv3CH45j_TCcKulWajXIKeyzCN9LN0haWO8cSnIFw&oe=6A4B867B",
+      "og:title": "Hofbräuhaus Columbus (@hofbrauhaus_columbus) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/hofbrauhaus_columbus/",
+      "og:description": "5,379 Followers, 1,256 Following, 2,521 Posts - See Instagram photos and videos from Hofbräuhaus Columbus (@hofbrauhaus_columbus)",
+      "description": "5,379 Followers, 1,256 Following, 2,521 Posts - Hofbräuhaus Columbus (@hofbrauhaus_columbus) on Instagram: \"🍺 Craft Bier\n🥨 Traditional German Cuisine\n🎵 Live Entertainment\n🐶 Dog Friendly\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=hofbrauhaus_columbus",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/hofbrauhaus_columbus/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

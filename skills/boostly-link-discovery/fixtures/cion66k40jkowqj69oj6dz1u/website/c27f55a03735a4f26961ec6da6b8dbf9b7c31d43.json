@@ -1,0 +1,68 @@
+{
+  "input_url": "https://firehousepizza.net/contact-us/",
+  "kind": "website",
+  "recorded_at": "2026-07-01T23:55:32.335Z",
+  "evidence": {
+    "input_url": "https://firehousepizza.net/contact-us/",
+    "final_url": "https://www.firehousepizza.net/contact-us/",
+    "fetch_method": "static_fetch",
+    "http_status": 200,
+    "ok": true,
+    "title": "Contact Firehouse Pizza",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1",
+      "robots": "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "description": "Have a question or want to place an order? Contact Firehouse Pizza in Bowling Green or Morgantown, KY. We&#039;re here to help with hours, directions, and more.",
+      "og:locale": "en_US",
+      "og:type": "article",
+      "og:title": "Contact Us",
+      "og:description": "Have a question or want to place an order? Contact Firehouse Pizza in Bowling Green or Morgantown, KY. We&#039;re here to help with hours, directions, and more.",
+      "og:url": "https://www.firehousepizza.net/contact-us/",
+      "og:site_name": "Firehouse Pizza",
+      "article:publisher": "https://www.facebook.com/profile.php?id=61566735130949",
+      "article:modified_time": "2025-12-07T18:13:21+00:00",
+      "og:image": "https://www.firehousepizza.net/wp-content/uploads/2025/12/FH_Pizza_Logo_square.jpg",
+      "og:image:width": "1024",
+      "og:image:height": "1024",
+      "og:image:type": "image/jpeg",
+      "twitter:card": "summary_large_image",
+      "twitter:label1": "Est. reading time",
+      "twitter:data1": "1 minute",
+      "generator": "Site Kit by Google 1.182.0",
+      "ti-site-data": "eyJyIjoiMTowITc6MCEzMDoyIiwibyI6Imh0dHBzOlwvXC93d3cuZmlyZWhvdXNlcGl6emEubmV0P3RpLW9ubGluZS11c2Vycy1nb29nbGU9MSZhbXA7cD0lMkZjb250YWN0LXVzJTJGJmFtcDtfd3Bub25jZT01NTc2ODBjZjNlIn0=",
+      "msapplication-TileImage": "https://www.firehousepizza.net/wp-content/uploads/2025/11/cropped-66821cf3255daf-270x270.png"
+    },
+    "h1": [
+      "Contact Us"
+    ],
+    "h2": [
+      "Fill the form below",
+      "Our Locations",
+      "Quick Links"
+    ],
+    "text": " Contact Firehouse Pizza Skip to content About Us Franchising Locations Bowling Green Firehouse Pizza Morgantown Order Contact Us Contact Us Fill the form below Your name Your email Your Phone Message Our Locations Firehouse Pizza 107 E Ohio St, Morgantown, KY 42261, United States Phone:&nbsp; 270-526-5560 Opening Hours: 10:00 AM &#8211; 9:00 PM Learn More Firehouse Pizza 1703 US 31-W Bypass Bowling Green KY 42101 Phone:&nbsp; 270-781-3246 Opening Hours: 11:00 AM &#8211; 3:00 AM Learn More Quick Links About Us Franchising Order Locations Contact Us Receive birthday treats and be among the first to receive the latest news on events and special offers! Join Firehouse club » © 2025 Firehouse Pizza. All Rights Reserved. ",
+    "links": [
+      "https://www.firehousepizza.net/contact-us/#wp--skip-link--target",
+      "https://www.firehousepizza.net/about-us/",
+      "https://www.firehousepizza.net/franchising/",
+      "https://www.firehousepizza.net/locations/",
+      "https://www.firehousepizza.net/locations/bowling-green/",
+      "https://www.firehousepizza.net/locations/morgantown/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/contact-us/",
+      "tel:270-526-5560",
+      "https://www.firehousepizza.net/locations/morgantown/",
+      "tel:270-781-3246",
+      "https://www.firehousepizza.net/locations/bowling-green/",
+      "https://www.firehousepizza.net/",
+      "https://firehousepizza.net/about-us/",
+      "https://firehousepizza.net/franchising/",
+      "https://firehousepizza.net/order/",
+      "https://firehousepizza.net/locations/",
+      "https://firehousepizza.net/contact-us/",
+      "https://www.firehousepizza.net/"
+    ],
+    "error": null
+  }
+}

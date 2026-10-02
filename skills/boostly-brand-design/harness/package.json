@@ -1,0 +1,15 @@
+{
+  "name": "boostly-brand-design-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "palette": "node colors.mjs palette",
+    "taste-check": "node taste-check.mjs",
+    "screenshot": "node screenshot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.4"
+  }
+}

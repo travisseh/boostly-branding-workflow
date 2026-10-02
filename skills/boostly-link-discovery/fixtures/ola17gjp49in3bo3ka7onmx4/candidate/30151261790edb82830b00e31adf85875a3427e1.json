@@ -1,0 +1,60 @@
+{
+  "input_url": "https://www.facebook.com/pages/Hickory-Station-Pizzeria-and-Grill/113545245345399",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:53:32.584Z",
+  "evidence": {
+    "input_url": "https://www.facebook.com/pages/Hickory-Station-Pizzeria-and-Grill/113545245345399",
+    "final_url": "https://www.facebook.com/pages/Hickory-Station-Pizzeria-and-Grill/113545245345399",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Hickory Station Pizzeria and Grill | Facebook",
+    "meta": {
+      "bingbot": "noarchive",
+      "viewport": "width=device-width,initial-scale=1,maximum-scale=2,shrink-to-fit=no",
+      "application-title": "Facebook",
+      "color-scheme": "light",
+      "theme-color": "#FFFFFF"
+    },
+    "h1": [
+      "Hickory Station Pizzeria and Grill"
+    ],
+    "h2": [
+      "About",
+      "Page transparency",
+      "Posts about Hickory Station Pizzeria and Grill",
+      "Naeemah Bee is with hickorystationpizzeria and cantoncarwash at Hickory Station Pizzeria and Grill."
+    ],
+    "text": "Log In Forgot Account? Hickory Station Pizzeria and Grill Pizza place · Unofficial Page More Home About About See all 1510 Conowingo Rd, Ste D Bel Air, MD 21014 0 people follow this 128 people checked in here http://hickorypizza.com/ (410) 420-6300 Price range · $$ Open now 11:00 AM - 9:00 PM Pizza place Page transparency See all Facebook is showing information to help you better understand the purpose of a Page. See actions taken by the people who manage and post content. Page created - April 24, 2010 Privacy · Consumer Health Privacy · Terms · Advertising · Ad Choices · Cookies · More Posts about Hickory Station Pizzeria and Grill Naeemah Bee is with hickorystationpizzeria and cantoncarwash at Hickory Station Pizzeria and Grill. May 13 · Bel Air, MD · Spend Dat · Yung Miami · @cantoncarwash is one of my fav places to get ny car washed. I love that I can sit outside or inside, get work done or enjoy a coffee. They are quick and always do a go… See more 0:00 / 0:47 All reactions: 2 Like Comment See more on Facebook Email or phone number Password Log In Forgot password? or Create new account",
+    "links": [
+      "https://www.facebook.com/login/device-based/regular/login/?login_attempt=1&next=https%3A%2F%2Fwww.facebook.com%2Fpages%2FHickory-Station-Pizzeria-and-Grill%2F113545245345399",
+      "https://www.facebook.com/recover/initiate?ars=royal_blue_bar",
+      "https://www.facebook.com/Hickory-Station-Pizzeria-and-Grill-113545245345399/?ref=page_internal",
+      "https://www.facebook.com/Hickory-Station-Pizzeria-and-Grill-113545245345399/about?ref=page_internal",
+      "https://www.facebook.com/pages/Hickory-Station-Pizzeria-and-Grill/113545245345399",
+      "https://www.facebook.com/Hickory-Station-Pizzeria-and-Grill-113545245345399/about",
+      "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.google.com%2Fmaps%2Fdir%2F%3Fapi%3D1%26destination%3D39.567385373347%252C-76.354632473436&h=AUA_XmDneJbJerK-8zLi-d7GRU10TGib4ovcSFPXzmvQnvuOexALhiHF4YSEswcTkLEfHWuxZKHcR1Q_15Bc59rSwZe3B1hJbXMfzH_iSmDEd61UO0ReX9b-cWS5LNzpgq5-OYMIGtIzglbXoNDnebj7oxc",
+      "https://l.facebook.com/l.php?u=http%3A%2F%2Fhickorypizza.com%2F&h=AUA_XmDneJbJerK-8zLi-d7GRU10TGib4ovcSFPXzmvQnvuOexALhiHF4YSEswcTkLEfHWuxZKHcR1Q_15Bc59rSwZe3B1hJbXMfzH_iSmDEd61UO0ReX9b-cWS5LNzpgq5-OYMIGtIzglbXoNDnebj7oxc",
+      "https://www.facebook.com/pages/category/pizza-place/",
+      "https://www.facebook.com/privacy/policy/?entry_point=comet_dropdown",
+      "https://www.facebook.com/privacy/policies/health/",
+      "https://www.facebook.com/policies?ref=pf",
+      "https://www.facebook.com/business/",
+      "https://www.facebook.com/help/568137493302217",
+      "https://www.facebook.com/policies/cookies/",
+      "https://www.facebook.com/naeemahlegened?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=%3C%3C%2CP-R",
+      "https://www.facebook.com/naeemahlegened?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=-]C%2CP-R",
+      "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.instagram.com%2F_u%2Fhickorystationpizzeria&h=AUBfNGLjAaWQPQ78EGUCIyRyVpW8pZfa6_z4DWTeL8aBuO3IVzUkdjdLl-BL5miFJXdyeRhglS78jWORai44KqpKx5xBbPG4MkL1FWJfq-u12m8PwwkzVVs8VIkMjsp0nA-uUoViuyl1D0c_HgFKuntEpg&__tn__=C%2CP-R&c[0]=AUAQ8TbCIqK1wxlz9nm8FogVlZicZKOf33bxdaPW37_e--Jsgs7DfnvZig8MWuBb-NszF8D5r5V8AY7J5CYDTRvxzQnlWG3oKz9hR0wdL96VC0cAU9U5R030LgcVi79QitaD67RZllJgQw_D_1_u7KOnTs7gAQqP_uY7OwLXv-j37o4816O7fA",
+      "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.instagram.com%2F_u%2Fcantoncarwash&h=AUDm99-ex2mJ8HTMBeyjDgQjp_4zy6Hs7EG-yB9H2kOrNxiijC2VMBPMisMeBHUKSgRi0eXMQ8FMtDqCXIvlPXTry3a2lkFcVip0o-Yk4C_-DVFafp6On2NIna8LPkLPj6_ILNN-N10OxZfdXhNvp1Ur1w&__tn__=C%2CP-R&c[0]=AUAQ8TbCIqK1wxlz9nm8FogVlZicZKOf33bxdaPW37_e--Jsgs7DfnvZig8MWuBb-NszF8D5r5V8AY7J5CYDTRvxzQnlWG3oKz9hR0wdL96VC0cAU9U5R030LgcVi79QitaD67RZllJgQw_D_1_u7KOnTs7gAQqP_uY7OwLXv-j37o4816O7fA",
+      "https://www.facebook.com/Hickory-Station-Pizzeria-and-Grill-113545245345399/?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=kC%2CP-R",
+      "https://www.facebook.com/reel/1427686966063935/?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=%2CO%2CP-R",
+      "https://www.facebook.com/pages/Bel-Air-Maryland/108642145834185?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=%2CP-R",
+      "https://www.facebook.com/pages/Hickory-Station-Pizzeria-and-Grill/113545245345399#",
+      "https://www.facebook.com/reel/1427686966063935/?__cft__[0]=AZa9XDUOkOur-P6Fdvg5bk8S6TtZwiIx_NtDGF5kfX8S2TPT4IAoaJA1owAyCzKS_OBW7NKxYUqrUo9kIlQB-QXmbZB9DhMcvpWhH7ePEEsxMOa8eeB9nfhuQyZfxCYlDgHa6NEI99VcigEhZFGUVdPY5qm0CZ70-AryDoPTrlZg-w&__tn__=%2B%3FFH-R",
+      "https://www.facebook.com/recover/initiate?ars=royal_blue_bar"
+    ],
+    "error": null,
+    "static_http_status": 400,
+    "static_error": null
+  }
+}

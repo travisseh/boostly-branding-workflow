@@ -1,0 +1,141 @@
+{
+  "location_context": {
+    "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+    "location_name": "Emilio's Mexican Restaurant & Cantina (San Jacinto)",
+    "location_status": "enabled",
+    "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+    "account_name": "Emilio's Mexican Restaurant",
+    "account_status": "pending",
+    "address": "2340 S San Jacinto Ave, San Jacinto, CA 92583, USA",
+    "shipping_address_line1": null,
+    "shipping_city": null,
+    "shipping_state": null,
+    "shipping_zip": null,
+    "ordering_phone_number": "+19519253721",
+    "google_place_id": "ChIJja7768po24ARU_3vN0x5XEQ",
+    "website_url": "http://www.emiliosmexicanrestaurantandcantina.net/",
+    "ordering_url": "https://order.spoton.com/so-emilios-mexican-restaurant-and-cantina-17709/san-jacinto-ca/65c176afa099b0003d63287f",
+    "facebook_url": "https://www.facebook.com/Emiliosmexicanrestaurantandcantina",
+    "instagram_url": "https://www.instagram.com/emilios_mexican_restaurant_/",
+    "x_url": null,
+    "tiktok_url": null,
+    "youtube_url": null,
+    "apple_app_url": null,
+    "google_app_url": null
+  },
+  "touchpoint_events": [
+    {
+      "id": "hn4rocq1hlmv8gdt9q52keo6",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 0,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "xluksncmsvdumxw73z3anox3"
+      },
+      "link": null,
+      "updated_at": "2026-06-24T22:35:58.092"
+    },
+    {
+      "id": "xx16mjksh051azaoqfmkvxby",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_review",
+      "title": "Reviews",
+      "display_title": "Feedback",
+      "description": "How's your experience?",
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-24T22:35:57.849"
+    },
+    {
+      "id": "pnved7l77n0i1s0y32r48out",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "xluksncmsvdumxw73z3anox3"
+      },
+      "link": null,
+      "updated_at": "2026-06-04T18:40:18.909"
+    },
+    {
+      "id": "uuqwopt93rbqprwi0m6o8is7",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "xluksncmsvdumxw73z3anox3"
+      },
+      "link": null,
+      "updated_at": "2026-06-04T18:40:19.007"
+    },
+    {
+      "id": "xy7mndejad5a1rtunmogq0sw",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_subscribe",
+      "title": "Text Club",
+      "display_title": "Join the Text Club",
+      "description": null,
+      "primary_button_text": null,
+      "sort_order": 1,
+      "is_active": true,
+      "config": {
+        "subscribe_link_id": "xluksncmsvdumxw73z3anox3"
+      },
+      "link": null,
+      "updated_at": "2026-06-04T18:40:18.817"
+    },
+    {
+      "id": "dlh4iigu1wgp1z3dkrr9d4me",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_custom",
+      "title": "Menu",
+      "display_title": "Menu",
+      "description": "Explore our menu",
+      "primary_button_text": "View Menu",
+      "sort_order": 2,
+      "is_active": true,
+      "config": null,
+      "link": "https://www.emiliosmexicanrestaurantandcantina.net/menu",
+      "updated_at": "2026-06-24T22:35:57.934"
+    },
+    {
+      "id": "fnaynmznxvnz8hsfqt5z7l12",
+      "account_id": "bo4bxjai3vo2rrrfoe4r8106",
+      "location_id": "nqsoa0mq5uevi3abv6dbalpd",
+      "touchpoint_event_default_id": "tid_socials",
+      "title": "Socials",
+      "display_title": "Follow Us",
+      "description": "Stay up to date",
+      "primary_button_text": null,
+      "sort_order": 3,
+      "is_active": true,
+      "config": {},
+      "link": null,
+      "updated_at": "2026-06-24T22:35:57.88"
+    }
+  ]
+}

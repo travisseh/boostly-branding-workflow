@@ -1,0 +1,33 @@
+{
+  "input_url": "https://www.facebook.com/BrassTapBeerBar",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:54:31.030Z",
+  "evidence": {
+    "input_url": "https://www.facebook.com/BrassTapBeerBar",
+    "final_url": "https://www.facebook.com/BrassTapBeerBar",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Facebook",
+    "meta": {
+      "bingbot": "noarchive",
+      "viewport": "width=device-width,initial-scale=1,maximum-scale=2,shrink-to-fit=no",
+      "color-scheme": "light",
+      "theme-color": "#FFFFFF"
+    },
+    "h1": [],
+    "h2": [
+      "This content isn't available right now"
+    ],
+    "text": "Log In Forgot Account? This content isn't available right now When this happens, it's usually because the owner only shared it with a small group of people, changed who can see it or it's been deleted. Go to Feed Go back Visit Help Center",
+    "links": [
+      "https://www.facebook.com/login/device-based/regular/login/?login_attempt=1&next=https%3A%2F%2Fwww.facebook.com%2FBrassTapBeerBar",
+      "https://www.facebook.com/recover/initiate?ars=royal_blue_bar",
+      "https://www.facebook.com/",
+      "https://www.facebook.com/help"
+    ],
+    "error": null,
+    "static_http_status": 400,
+    "static_error": null
+  }
+}

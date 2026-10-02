@@ -1,0 +1,69 @@
+{
+  "input_url": "https://www.tiktok.com/@txtgrillandbar",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:59:49.652Z",
+  "evidence": {
+    "input_url": "https://www.tiktok.com/@txtgrillandbar",
+    "final_url": "https://www.tiktok.com/@txtgrillandbar",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Texas Traditions Grill & Bar (@txtgrillandbar) | TikTok",
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1.0",
+      "pumbaa-ctx": "login=0,ftc=0",
+      "google": "notranslate",
+      "format-detection": "telephone=no",
+      "og:url": "https://www.tiktok.com/@txtgrillandbar",
+      "description": "Texas Traditions Grill & Bar (@txtgrillandbar) on TikTok | 5509 Likes. 1297 Followers. https://texastraditionslavaca.ordering.ordercounter.com/Menu.Watch the latest video from Texas Traditions Grill & Bar (@txtgrillandbar).",
+      "robots": "index, follow, max-image-preview:large",
+      "applicable-device": "pc, mobile",
+      "al:ios:url": "snssdk1233://user/profile/",
+      "al:android:url": "snssdk1233://user/profile/",
+      "al:ios:app_store_id": "835599320",
+      "al:ios:app_name": "musical.ly",
+      "al:android:app_name": "musical.ly",
+      "al:android:package": "com.zhiliaoapp.musically",
+      "og:site_name": "TikTok",
+      "og:type": "website",
+      "og:title": "Texas Traditions Grill & Bar (@txtgrillandbar) | TikTok",
+      "og:description": "Texas Traditions Grill & Bar (@txtgrillandbar) on TikTok | 5509 Likes. 1297 Followers. https://texastraditionslavaca.ordering.ordercounter.com/Menu.Watch the latest video from Texas Traditions Grill & Bar (@txtgrillandbar).",
+      "fb:app_id": "597615686992125",
+      "twitter:app:id:iphone": "835599320",
+      "twitter:app:id:googleplay": "com.zhiliaoapp.musically",
+      "twitter:card": "summary",
+      "twitter:site": "TikTok",
+      "twitter:title": "Texas Traditions Grill & Bar (@txtgrillandbar) | TikTok",
+      "twitter:description": "Texas Traditions Grill & Bar (@txtgrillandbar) on TikTok | 5509 Likes. 1297 Followers. https://texastraditionslavaca.ordering.ordercounter.com/Menu.Watch the latest video from Texas Traditions Grill & Bar (@txtgrillandbar).",
+      "og:image": "https://p19-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/be90fb009268193383c952ccd9b4106c~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=c24150b7&x-expires=1783119600&x-signature=zjU9V4aPJwq%2FCk102%2BV2A5Pvow4%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "twitter:image": "https://p19-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/be90fb009268193383c952ccd9b4106c~tplv-tiktokx-cropcenter:720:720.jpeg?dr=9640&refresh_token=c24150b7&x-expires=1783119600&x-signature=zjU9V4aPJwq%2FCk102%2BV2A5Pvow4%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "og:image:width": "360",
+      "og:image:height": "360",
+      "og:image:alt": "Texas Traditions Grill & Bar (@txtgrillandbar) | TikTok"
+    },
+    "h1": [
+      "Texas Traditions Grill & Bar"
+    ],
+    "h2": [
+      "txtgrillandbar",
+      "https://texastraditionslavaca.ordering.ordercounter.com/Menu"
+    ],
+    "text": "TikTok Shop is now available on web! Browse your favorite items. TikTok Search For You Shop Explore Following LIVE Upload Profile More Log in © 2026 TikTok Texas Traditions Grill & Bar txtgrillandbar 2371 Following 1297 Followers 5509 Likes Follow Message https://texastraditionslavaca.ordering.ordercounter.com/Menu Txtraditions.com Suggested accounts View all Videos Liked Latest Popular Oldest Something went wrong Sorry about that! Please try again later. Refresh Log in",
+    "links": [
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/",
+      "https://www.tiktok.com/shop",
+      "https://www.tiktok.com/explore",
+      "https://www.tiktok.com/following",
+      "https://www.tiktok.com/live",
+      "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video",
+      "https://www.tiktok.com/@",
+      "https://www.tiktok.com/@txtgrillandbar",
+      "https://www.tiktok.com/link/v2?aid=1988&lang=en&scene=bio_url&target=Txtraditions.com"
+    ],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

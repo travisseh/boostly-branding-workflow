@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/harolddeansmokedgoods/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:55:41.932Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/harolddeansmokedgoods/",
+    "final_url": "https://www.instagram.com/harolddeansmokedgoods/",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Harold Dean Smoked Goods (@harolddeansmokedgoods) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/283256971_1196392927780508_8747447173773275733_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=110&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy42MDAuQzMifQ%3D%3D&_nc_ohc=N0P0Gm0otN4Q7kNvwFKSagm&_nc_oc=Adr649A655Gcwcpwd11BI-LK5x6-4tZgTdHe5ThOkluMQncc6WY9gKgQpLES1Xpe45c&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQAT1d6DYmZwEY7SlWImUP5v-pYm1DVj3Ht3_UgO1RVvKA&oe=6A4B74B6",
+      "og:title": "Harold Dean Smoked Goods (@harolddeansmokedgoods) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/harolddeansmokedgoods/",
+      "og:description": "12K Followers, 612 Following, 813 Posts - See Instagram photos and videos from Harold Dean Smoked Goods (@harolddeansmokedgoods)",
+      "description": "12K Followers, 612 Following, 813 Posts - Harold Dean Smoked Goods (@harolddeansmokedgoods) on Instagram: \"Texas Style BBQ\nPork•Brisket•Wings•Ribs•Sausage\n🍗Wing Master 🍗\n🔥 Pit Handler 🔥 \n🍖 Catering🍖\n🎉 Special Events 🎉\n📍Flower Mound, Texas\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=harolddeansmokedgoods",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/harolddeansmokedgoods/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}

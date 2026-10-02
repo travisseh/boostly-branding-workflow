@@ -1,0 +1,64 @@
+{
+  "location_id": "ntre6k06op21wr2yrdykge67",
+  "location_name": "Paolo's Restaurant & Bar (Reading)",
+  "address": "2480 Lancaster Pike, Reading, PA 19607, USA",
+  "proposed": {
+    "web_primary_color": "#00472a",
+    "web_secondary_color": "#000000",
+    "web_text_color": "#ffffff",
+    "print_primary_color": "#00472a",
+    "print_secondary_color": "#000000",
+    "print_text_color": "#ffffff"
+  },
+  "text_secondary_color": "#ffffff",
+  "logo_files": [
+    {
+      "role": "source_color_mark",
+      "file": "assets/logo-black-light.png",
+      "dimensions": "456x213",
+      "description": "Current official Paolo's lockup: dark-green blackletter 'Paolo's' over green script 'Restaurant & Bar', transparent background. Retrieved from Wayback archive of mypaolospizza.com (site currently offline).",
+      "source_url": "https://web.archive.org/web/20241123101325id_/https://mypaolospizza.com/wp-content/uploads/2018/01/logo-black-light.png"
+    },
+    {
+      "role": "shipped_white_knockout",
+      "file": "assets/paolos-white-2x.png",
+      "dimensions": "912x426",
+      "description": "Full-lockup white knockout of the current mark, ESRGAN-2x upscaled from the 456px source then knocked out at high res. This is the asset rendered on the card. Counters preserved (30 holes), stroke gate ok (median 5px), interior gate 0 low-contrast on the green primary."
+    }
+  ],
+  "sources": {
+    "website": "http://www.mypaolospizza.com/ (OFFLINE — connection refused on ports 80 and 443 during this run; verified unreachable via curl and headless Chrome)",
+    "website_archive": "https://web.archive.org/web/2026*/mypaolospizza.com (latest image captures 2026-06-15; logo asset from 2024-11-23 capture)",
+    "gbp": "Google Business Profile not fetched directly; address and identity corroborated by Instagram bio and directory listings",
+    "instagram": "https://www.instagram.com/paolospizza/ — bio 'Family atmosphere and quality food since 1979! Located at 2480 Lancaster Pike Reading, PA 19607'; profile avatar is the same green Paolo's lockup (confirms current identity, June 2026)",
+    "image_search": "https://www.google.com/search?q=Paolo's+Restaurant+%26+Bar+Reading+PA+logo&tbm=isch — top first-party results (mypaolospizza.com, @paolospizza) all show the same green wordmark; other 'Paolo's' businesses (Saugus MA Caribbean Fusion, Kent WA Italian, Studio Andrel rebrand concept) were explicitly excluded",
+    "ordering": "https://order.toasttab.com/online/paolos-restaurant-and-bar-2480-lancaster-pike (listed in V2), grubhub/yelp listings corroborate address",
+    "palette_source": "vibrant-pole extraction from assets/logo-black-light.png (single dark-green family #00472a, share 0.819, saturation 0.999); no live CSS token available because site is offline"
+  },
+  "taste_output": {
+    "pass": true,
+    "classification": "complementary",
+    "checks": {
+      "text_vs_primary_contrast": { "pass": true, "value": 10.854, "threshold": ">= 3.0" },
+      "primary_vs_secondary_distinguishable": { "pass": true, "deltaE00": 27.122, "hueDiff": 155.5 },
+      "logo_edge_legibility_vs_primary": { "pass": true, "value": 0.0, "threshold": "< 0.4" }
+    },
+    "interior_gate": { "interiorLowContrastShare": 0, "verdict": "ok" }
+  },
+  "rationale": {
+    "identity": "Single confirmed current identity: the green 'Paolo's Restaurant & Bar' wordmark lockup. Matches the June-2026 Instagram avatar, the 2026 Google image preview, and the Wayback-archived site logo. No mark substitution or identity conflict.",
+    "logo_treatment": "Monochrome brand (one dark-green family, no qualifying second color). Per the composition rule, the strong green chroma IS the card primary; a green mark on a green card fails the interior gate (0.797 low-contrast), so a FULL white knockout of the entire lockup is the sanctioned treatment for this flat vector-style mark. Counters were already transparent holes in the source (23 holes), so counter-punch was unnecessary; knockout preserved them (30 holes after 2x upscale).",
+    "descriptor_kept": "The 'Restaurant & Bar' script band is hairline (0.8px at render, per-band stroke fail) and free-standing, which normally triggers a strip. It was KEPT because: (1) it is a short designed descriptor that is part of the composed lockup and is literally the business name (DESIGNED-DESCRIPTOR exception, Riwaaz lesson), and (2) empirically, mask-based remove-components left an un-removable sub-128-alpha antialiasing halo that rendered as a messy green ghost, whereas knocking out the whole lockup renders the descriptor as clean legible white script. The full-lockup knockout is both truer to the brand and visually cleaner.",
+    "resolution": "Best first-party source is 456px (< 500px). No higher-res first-party vector exists (site offline; Google's larger results are recompressions of this same 456px asset). ESRGAN-2x upscale of the color source to 912px, then knockout at high res, clears the ~680px render box.",
+    "colors": "Primary #00472a = vibrant pole of the single green family (top-decile saturation median, not a cluster mean). Secondary #000000 = colors.mjs derive of the primary (the brand green is already near-maximally dark, so the same-hue darker derivative collapses to black); it is well distinguished (deltaE 27.1) where a lighter dark-green (#00301c) failed distinguishability (deltaE 7.4). Text #ffffff wins the deterministic contrast test (10.85 white vs 1.94 black on the green). text-secondary #ffffff gives 21:1 on the black number circle so the digit stays visible."
+  },
+  "production": {
+    "confidence": "medium",
+    "flags": [
+      "website_unreachable: official site mypaolospizza.com is offline (ports 80/443 refuse); logo sourced from Wayback archive (2024-11 capture) and current identity confirmed via June-2026 Instagram avatar + 2026 Google results",
+      "low_res_source: best first-party asset is 456px (< 500px); shipped mark is a 2x ESRGAN upscale (912px)",
+      "hairline_descriptor_kept: 'Restaurant & Bar' script fails the per-band stroke test but was kept as part of the composed lockup (renders cleanly in the full white knockout)"
+    ],
+    "notes": "Reviewer should: (1) confirm #00472a matches Paolo's true brand green if/when the site comes back online (no live CSS token was available); (2) eyeball the soft white emboss glow around the wordmark on the card (it comes from the source's antialiased edges becoming low-alpha white in the knockout — it reads as an intentional emboss but is a cosmetic artifact); (3) confirm the large black (#000000) secondary footer band + number circle reads as intended against the green — black is the sanctioned derived anchor here, not a lighter green; (4) verify 'Restaurant & Bar' legibility at physical tapcard size. No production systems were written; this is a proposal only."
+  }
+}

@@ -1,0 +1,8 @@
+# Python packages the skills import with the system python3 (installed with --user by setup.sh).
+# review-checklist.py, write_decision_brief.py, search_meetings.py: stdlib only.
+# harness/mockups/_signage-mockup-compose.py: Pillow.
+Pillow>=10.0
+# OpenCV lives in its own venv (~/.config/boostly-branding/cvenv) because QR decoding needs it and
+# system python wheels lag; see setup.sh. Listed here for reference only.
+# opencv-python-headless
+# numpy

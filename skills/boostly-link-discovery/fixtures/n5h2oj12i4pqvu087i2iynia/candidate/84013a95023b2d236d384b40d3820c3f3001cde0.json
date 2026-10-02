@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/mamma_fla/",
+  "kind": "candidate",
+  "recorded_at": "2026-07-01T23:56:38.012Z",
+  "evidence": {
+    "input_url": "https://www.instagram.com/mamma_fla/",
+    "final_url": "https://www.instagram.com/accounts/login/?next=%2Fmamma_fla%2F&source=omni_redirect",
+    "fetch_method": "static_fetch_then_playwright",
+    "http_status": 200,
+    "ok": true,
+    "title": "Mama Fla (@mamma_fla) • Instagram photos and videos",
+    "meta": {
+      "bingbot": "noarchive",
+      "robots": "noarchive, noimageindex",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "mobile-web-app-capable": "yes",
+      "viewport": "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=2, viewport-fit=cover",
+      "theme-color": "#000000",
+      "og:type": "profile",
+      "og:image": "https://scontent-den2-1.cdninstagram.com/v/t51.2885-19/468414056_625154949840689_1746637074926776000_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=105&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=Y1DRjjWOJVkQ7kNvwHSJvP6&_nc_oc=AdpF34B0rPuFgs_zOgA-FNXOnp6Mh_qz5UYOQV8Pj-vcl59ER176A83krBHYmY0qtIQ&_nc_zt=24&_nc_ht=scontent-den2-1.cdninstagram.com&_nc_ss=7fa8c&oh=00_AQBuueLlqU7mpE5xHy1mebSXLjm6xmTgeVNF3n3EnuWXaA&oe=6A4B6F89",
+      "og:title": "Mama Fla (@mamma_fla) • Instagram photos and videos",
+      "og:url": "https://www.instagram.com/mamma_fla/",
+      "og:description": "980 Followers, 1,178 Following, 298 Posts - See Instagram photos and videos from Mama Fla (@mamma_fla)",
+      "description": "980 Followers, 1,178 Following, 298 Posts - Mama Fla (@mamma_fla) on Instagram: \"𝐀𝐮𝐭𝐡𝐞𝐧𝐭𝐢𝐜 𝐈𝐭𝐚𝐥𝐢𝐚𝐧 𝐂𝐮𝐢𝐬𝐢𝐧𝐞 𝐢𝐧 𝐈𝐝𝐚𝐡𝐨 \n🛵 𝐓𝐀𝐊𝐄 & 𝐁𝐀𝐊𝐄\n🍽 𝐈𝐓𝐀𝐋𝐈𝐀𝐍 𝐂𝐎𝐎𝐊𝐈𝐍𝐆 𝐂𝐋𝐀𝐒𝐒𝐄𝐒\n🍝 𝐂𝐀𝐓𝐄𝐑𝐈𝐍𝐆 𝐄𝐕𝐄𝐍𝐓𝐒\n📲 𝐎𝐑𝐃𝐄𝐑 𝐎𝐍𝐋𝐈𝐍𝐄 \n𝐁𝐫𝐢𝐧𝐠 𝐈𝐭𝐚𝐥𝐲 𝐇𝐨𝐦𝐞 𝐓𝐨𝐧𝐢𝐠𝐡𝐭! 🇮🇹\"",
+      "al:ios:app_name": "Instagram",
+      "al:ios:app_store_id": "389801252",
+      "al:ios:url": "instagram://user?username=mamma_fla",
+      "al:android:app_name": "Instagram",
+      "al:android:package": "com.instagram.android",
+      "al:android:url": "https://instagram.com/_u/mamma_fla/",
+      "application-title": "Instagram",
+      "color-scheme": "light"
+    },
+    "h1": [],
+    "h2": [],
+    "text": "",
+    "links": [],
+    "error": null,
+    "static_http_status": 200,
+    "static_error": null
+  }
+}
