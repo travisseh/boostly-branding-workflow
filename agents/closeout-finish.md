@@ -142,6 +142,13 @@ Never use em dashes in anything you write.
    approved, Slack posted, branding complete; 2 links held for your call"; edit only your key
    with a small JSON read, set, write; keep the file mode 0600) and refresh the note:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`.
+   Then rebuild and push the public review site so the location's page shows "Closed out"
+   (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <RUN_DIR name>`
+   `git add public data && git commit -m "Close out <location> review page"`
+   `git push`
+   (`--slug` keeps the page in the index even when the run is older than the newest 25). A
+   failed build or push is reported, not retried blindly.
    Finally delete your cookie directory (`rm -rf` on the exact `mktemp` path only).
 
 Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/finish/`
@@ -162,7 +169,7 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
   applied. A skipped step is reported as skipped with the reason.
 - A failed step is reported as failed with its output. Do not work around a refusal, a gate,
   or an auth failure. Do not weaken or bypass any check.
-- Never print secrets. Never commit anything. Never open a browser or any app, never run
+- Never print secrets. Never commit anything except the review-site publish in step 8. Never open a browser or any app, never run
   `open`, AppleScript, or osascript yourself.
 - If something needs a judgment call, stop and report it to the lead. That is the correct
   outcome, not a failure.
@@ -171,5 +178,6 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
 Secondary logo: sticker file, scope, attachment id from the readback (or the skip reason, or
 "failed" with the output); Slack permalink (or "no thread, nothing posted", or "already posted");
 branding complete status readback with state before and after (or "skipped: HOLD.md"); Notion entry number and
-whether it was updated in place or appended; `run-file validate` result; links written, links
+whether it was updated in place or appended; `run-file validate` result; the review site URL
+(`https://fulfillment-reviews.vercel.app/<run dir name>/`) after the rebuild, or what failed; links written, links
 held, open flags, skipped steps; anything that failed.

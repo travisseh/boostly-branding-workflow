@@ -122,3 +122,17 @@ Bulk text replacement in `.md` files only (SKILL.md, references, agents); no cod
   link-evidence cache), `boostly-link-discovery/.local/` (empty), `askelephant/evals/` (13 MB of eval artifacts),
   `image-generator/node_modules` and `image-generator/.env` (a secret), `__pycache__`, `*.bak*`
   (`boostly-instore-link-settings/scripts/boostly-links.ts.bak-2026-09-15`). No file over 5 MB remains.
+
+## Doc patches 2026-10-09: public review site
+
+Text-only edits (no logic change) so the shareable review page is the public site
+https://fulfillment-reviews.vercel.app (repo `Boostly/fulfillment-reviews`) instead of the local
+127.0.0.1:3917 page or a Claude artifact. Clone path in the copies is `~/Programming/repos/fulfillment-reviews`
+and the run root is `"$BOOSTLY_RUN_ROOT"`; the originals name Travisse's paths.
+
+| File | Change |
+|---|---|
+| `skills/boostly-box-fulfillment/SKILL.md` | "Public review site" section under Finish (publish command, Blob/env facts, one-machine caveat); local review-server bullet says the site is the shareable link |
+| `skills/boostly-brand-design/SKILL.md` | `review-canvas.mjs --open` is the operator's own look; the shareable page is the site (script list and rule 2c) |
+| `agents/fulfill-location.md` | publish step after the Apple Note refresh; commit carve-out; site URL in the final report |
+| `agents/closeout-finish.md` | site rebuild and push after the note refresh in step 8; commit carve-out; site URL in the final report |

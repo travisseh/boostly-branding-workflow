@@ -64,6 +64,14 @@ Do, in order:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`
    (box-fulfillment SKILL.md "Apple Notes quick view"). Do not pass `--open` to the canvas
    unless the lead asks; the note link is how he opens it.
+   Then publish the shareable page to the public review site (box-fulfillment SKILL.md "Public
+   review site"; the push is part of publishing and needs no separate go; skip only when the
+   lead's prompt says "no site publish"):
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <RUN_DIR name>`
+   `git add public data && git commit -m "Add <location> review page"`
+   `git push`
+   The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/`. A failed build or push
+   is reported, not retried blindly; never edit `data/sites.json` or `public/` by hand.
 5. Links. Page reading is TRANSPORT and is never done in your own context (2026-09-29); the
    verdicts are yours. Box-fulfillment SKILL.md "Discovery" has the details.
    a. Default transport, Codex: run
@@ -109,14 +117,14 @@ Do, in order:
 
 Hard rules: no production writes of any kind (no branding apply, no link writes, no offer or
 promotion changes, no Slack posts, no Notion edits, no fulfillment status changes). Do not commit
-anything. Never print secrets. If a skill script fails, read its source and fix your invocation;
+anything except the review-site publish in step 4. Never print secrets. If a skill script fails, read its source and fix your invocation;
 do not rewrite skill scripts. If something truly needs Travisse, record it in run.json and finish
 everything else. No white or near-white primary. No solid-silhouette knockout that fills authored
 negative space. The logo must be crisp: rebuild at higher quality when the source is pixelated.
 
 Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (or
-HOLD and why), review page link (`http://127.0.0.1:3917/<run dir name>/review/review-canvas.html`)
-and path, variant sheet path, logo source rung and native px, links ready
+HOLD and why), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
+"not published" with the error) and the local review page path, variant sheet path, logo source rung and native px, links ready
 to write versus links that need a decision (and the ordering_url match or mismatch), quantities
 and ship-to gaps, blockers.
 

@@ -68,7 +68,9 @@ harness encode every failure a human flagged.
 - `scripts/review-canvas.mjs`: the REVIEW CANVAS that closes the sheet stage: one tall 2x PNG
   plus a self-contained HTML page per location with the website, GBP photos plus live Maps view,
   Google Images logo search (live Chrome session), logo candidates, gate summary, and the variant
-  sheet with Fable's default framed. `--run <run_dir> --open`. See Core operating rule 2c.
+  sheet with Fable's default framed. `--run <run_dir> [--open]`; `--open` is the operator's own
+  look only, the shareable page is the public review site (box-fulfillment SKILL.md "Public
+  review site"). See Core operating rule 2c.
 - `scripts/cut-words.mjs`: deterministic business-name-words-only cut of a knockout by
   connected components (two-pass union-find, line clustering, emblem/descriptor drop), with a
   JSON of kept and dropped components and `--band`, `--keep-ids`, `--drop-ids` hints.
@@ -327,7 +329,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    LIGHT PRIMARY: when the card primary fails 3:1 against white (cream, yellow, pastel), the script recolors the knockout and words-only rows to the card text ink (black when the text ink is light too), labels the rows with that ink, records `light_primary` and `knockout_ink` in the sheet json, and renders the POP tile on the sticker band instead of the primary. A white knockout on a light card is invisible and the sheet is not reviewable (206 Burger 2026-09-09). The knockout applied from such a row is the tinted file, not the white one.
 2c. **Review canvas: the sheet stage ends by generating and opening it.** After the variant
    sheet is built (or patched) and Fable has marked its default letter, run
-   `node scripts/review-canvas.mjs --run <run_dir> --open`. It writes two outputs under
+   `node scripts/review-canvas.mjs --run <run_dir> --open` (`--open` is for the operator's own
+   look only; the page Cam, Karissa, or the vendor see is the public review site, published per
+   box-fulfillment SKILL.md "Public review site", never a Claude artifact). It writes two outputs under
    `<run_dir>/review/` and opens both: `review-canvas.png` (one tall PNG, 3200px wide at the
    default `--scale 2`, photos embedded large, never smaller than a 3-column grid; opens in
    Preview) and `review-canvas.html` (the same sections as a self-contained page with inline CSS

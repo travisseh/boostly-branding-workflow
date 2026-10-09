@@ -539,6 +539,31 @@ Every location with link candidates gets a `Links` jump in the note (`review-can
 Travisse reviews from one Apple Note, "Fulfillment reviews: pre-physical checklist". Keep it
 current by default; do not wait to be asked.
 
+### Public review site (default, Travisse 2026-10-09)
+The shareable review page is `https://fulfillment-reviews.vercel.app/<run dir name>/` (index at
+the root: search by name or city, status filter, sort by last updated or request date). Repo
+`Boostly/fulfillment-reviews`, clone `~/Programming/repos/fulfillment-reviews`, Vercel team `boostly`,
+project `fulfillment-reviews`; a push to main deploys. Images go to the Vercel Blob store
+`fulfillment-reviews-assets` keyed by content hash (cache committed at `data/blob-index.json`),
+so a rebuild uploads only new assets. The build reads `BLOB_READ_WRITE_TOKEN` from the clone's
+git-ignored `.env.local` (`vercel env pull .env.local --scope boostly` after `vercel link`). As
+soon as `review/review-canvas.html` exists and the Apple Note is refreshed, publish the page:
+
+```bash
+cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && \
+  npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <run dir name> && \
+  git add public data && git commit -m "Add <location> review page" && git push
+```
+
+Rerun the same command after a closeout (closeout-finish does it) so the page's status flips
+to "Closed out". Pushing to this repo is part of publishing and needs no separate go. The
+build strips Boostly admin anchors and internal json/md links from each page; never add
+ship-to data to `data/sites.json`. The build regenerates `public/` and `data/sites.json` from
+the run root it is given, so it runs on the machine that holds the runs; a push from a machine
+with a different run root drops every page it cannot see. The site page is what Cam, Karissa,
+and customstickers.com look at; the local review server (`127.0.0.1:3917`) and the Apple Note
+are the operator's own quick view, and Claude artifacts are no longer used for review pages.
+
 ```bash
 python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
   --run-root <run root, the folder holding one run dir per location>
@@ -555,7 +580,9 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
   still building; that is a gap to close, so build the canvas. A sibling location that
   inherits account-level branding (`write.branding_source_run`) links to the source run's pages.
 - Review links are served by a local static server on `127.0.0.1:3917` that the script starts
-  when it is not running. They open on this Mac only. Never `open` them for Travisse.
+  when it is not running. They open on this Mac only. Never `open` them for Travisse. The
+  link to share with Cam, Karissa, or the vendor is the site page (above), never this local
+  URL and never a Claude artifact.
 - The note is view only and rebuilt from state; edits made in Notes are overwritten. Put a
   one-line human note per location in `<run root>/checklist/notes.json` (keyed by run dir
   name): the lead's recommendation, an open decision the run.json does not track, a closeout

@@ -23,8 +23,12 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
       that profile.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.
-- [ ] A GitHub account with access to this private repo (travisseh/boostly-branding-workflow) and to
-      github.com/Boostly/boostly (the app repo, needed for the badge preview harness).
+- [ ] A GitHub account that is a member of the Boostly GitHub org (github.com/Boostly/boostly for the
+      badge preview harness, github.com/Boostly/fulfillment-reviews for the public review site) and has
+      access to this private repo (travisseh/boostly-branding-workflow).
+- [ ] A Vercel account that is a member of the Boostly Vercel team (`boostly`), and the Vercel CLI
+      (`npm i -g vercel`, then `vercel login` in the terminal). Needed once, to pull the review site's
+      image-upload token (step 9).
 - [ ] Travisse has, ready to paste into files himself: the operator's Boostly admin MCP key, a Slack user
       token for the operator, a Notion internal integration token, the SearchAPI key, the Google Places
       key, the DataForSEO login and password, and the signage service API key (`BOOSTLY_V2_API_KEY`).
@@ -187,7 +191,47 @@ which minimal `.env.local` the app needs for this page. Known issue (2026-09-23)
 `signage-preview-harness` page can 500 when `_components/signage-previews.tsx` is absent on main; only
 the badge preview page is required here. CHECKPOINT 8: the curl prints 200.
 
-## 9. Notion, Slack, Apple Note, review server
+## 9. Public review site (Boostly/fulfillment-reviews)
+
+The shareable review page for every location lives at https://fulfillment-reviews.vercel.app (one
+page per run dir at `/<run dir name>/`, index with search by name or city, status filter, sort by
+last updated or request date). It is a static site built from the run root and pushed to GitHub;
+Vercel deploys `main` automatically and the images go to a Vercel Blob store (public read, keyed by
+content hash, cache committed at `data/blob-index.json`). Karissa, Cam, and customstickers.com review
+from the site; the local 127.0.0.1:3917 page and the Apple Note are the operator's own quick view.
+Claude artifacts are not used for review pages. Needs the Boostly GitHub org and Boostly Vercel team
+membership from section 0.
+
+```bash
+mkdir -p ~/Programming/repos
+gh repo clone Boostly/fulfillment-reviews ~/Programming/repos/fulfillment-reviews
+cd ~/Programming/repos/fulfillment-reviews
+vercel login                                        # interactive, in the terminal, operator's Vercel account
+vercel link --scope boostly --project fulfillment-reviews --yes
+vercel env pull .env.local --scope boostly          # writes BLOB_READ_WRITE_TOKEN into the git-ignored .env.local
+chmod 600 .env.local
+grep -cE '^BLOB_READ_WRITE_TOKEN=.+' .env.local     # prints 1; never print the file
+```
+
+Dry build into a scratch folder (nothing uploaded, nothing committed):
+
+```bash
+set -a; . ~/.config/boostly-branding/.env; set +a
+cd ~/Programming/repos/fulfillment-reviews
+node scripts/build.mjs --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --no-upload --out /tmp/fulfillment-reviews-dry
+git restore data/sites.json      # the dry build regenerated the manifest from an empty run root
+git status --short               # must print nothing
+```
+
+`--no-upload` makes the build fail instead of uploading when an asset is missing from the blob index;
+with `--limit 0` on an empty run root it proves the toolchain (node 20+, python3 with Pillow, the
+token) without touching the site. The build regenerates the whole index from the run root it is
+given, so a push from a Mac whose run root lacks the other Mac's runs removes those pages from the
+site. Until Travisse says this Mac is the publishing machine, add "no site publish" to every
+`fulfill-location` prompt and do not push from this clone. CHECKPOINT 9: the grep prints 1, the dry
+build exits 0, `git status --short` prints nothing.
+
+## 10. Notion, Slack, Apple Note, review server
 
 ```bash
 ~/.config/notion-tools/notion-ai-ntn.sh --workspace boostly whoami
@@ -200,18 +244,18 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --r
 The last command prints the checklist markdown; without `--no-note` it writes the Apple Note
 "Fulfillment reviews: pre-physical checklist" (macOS asks once for Notes automation permission). The
 5-minute refresh job is optional: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist`.
-CHECKPOINT 9: Notion whoami shows the integration, the search finds the queue page, Slack auth check
+CHECKPOINT 10: Notion whoami shows the integration, the search finds the queue page, Slack auth check
 shows the operator, the review server answers on 127.0.0.1:3917.
 
-## 10. Doctor
+## 11. Doctor
 
 ```bash
 cd ~/Programming/projects/boostly-branding-workflow && bash setup/setup.sh --check
 ```
 
-CHECKPOINT 10: 0 MISSING. WARN lines for optional keys are fine. Fix anything MISSING before the dry run.
+CHECKPOINT 11: 0 MISSING. WARN lines for optional keys are fine. Fix anything MISSING before the dry run.
 
-## 11. First dry run (one request, no production writes)
+## 12. First dry run (one request, no production writes)
 
 Read `memory/RULES.md` and `~/.claude/skills/boostly-box-fulfillment/SKILL.md` first. Then:
 
@@ -228,12 +272,15 @@ compared). Create its run dir and seed `run.json` with the request block through
 with the run dir and the request facts. It stops at the review stage: evidence packet, Fable decision,
 variant sheet, review canvas, link candidates. It makes no production writes.
 
-Review the canvas at `http://127.0.0.1:3917/<run dir>/review/review-canvas.html` against the GBP
-photos, Instagram, and the website. Do NOT run a closeout in the dry run. CHECKPOINT 11: review page
+Review the page against the GBP photos, Instagram, and the website. In the dry run that is the local
+page at `http://127.0.0.1:3917/<run dir>/review/review-canvas.html`; the agent's site publish is
+skipped with "no site publish" in its prompt unless Travisse has made this Mac the publishing machine
+(step 9), in which case review the site page `https://fulfillment-reviews.vercel.app/<run dir>/`.
+Do NOT run a closeout in the dry run. CHECKPOINT 12: review page
 exists, `run-file validate <run dir>` exits 0, no production write happened (confirm from run.json:
 `write.status` is `not_written`).
 
-## 12. How to run a day
+## 13. How to run a day
 
 Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
 
@@ -244,14 +291,21 @@ Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
 2. Fulfill: for each request, seed the run dir (`run-file.ts init`) and launch `fulfill-location`
    (one agent per location; they run in parallel). Refresh the Apple Note:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root "$BOOSTLY_RUN_ROOT"`.
-3. Pick: open the review page, compare with GBP/Instagram/website, choose the letter. The letter is the
-   go. If the pick's text equals the band, state the web/print split in the closeout prompt.
+   The agent publishes the location's page to `https://fulfillment-reviews.vercel.app/<run dir>/`
+   (step 9). If it reports "not published", run the publish command from the box-fulfillment
+   SKILL.md "Public review site" section yourself:
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <run dir> && git add public data && git commit -m "Add <location> review page" && git push`
+3. Pick: open the site page (or the local 127.0.0.1:3917 page), compare with GBP/Instagram/website,
+   choose the letter. The letter is the go. When Cam, Travisse, or the vendor needs to see a review,
+   share the site URL, never the local link and never a Claude artifact. If the pick's text equals
+   the band, state the web/print split in the closeout prompt.
 4. Closeout: launch `closeout-location` with the run dir and the letter. It applies branding to that
    location, writes ready links, renders proofs, builds the Figma section, and STOPS with a screenshot.
    Check the signage in Figma.
 5. Finish: after approving the signage, launch `closeout-finish` with the run dir. One Slack post in the
    request thread, branding complete, store details confirmed when the ship-to is complete, Notion queue
-   entry spot-updated, run.json validated.
+   entry spot-updated, run.json validated, and the site page rebuilt and pushed so it shows
+   "Closed out".
 6. End of day: `review-checklist.py` once more; held links and ship-to gaps go to the CSM in Slack.
 
 Escalate to Travisse (do not improvise): a refused gate override, an identity conflict between sources,
