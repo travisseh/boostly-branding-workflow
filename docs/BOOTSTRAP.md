@@ -219,16 +219,15 @@ Dry build into a scratch folder (nothing uploaded, nothing committed):
 set -a; . ~/.config/boostly-branding/.env; set +a
 cd ~/Programming/repos/fulfillment-reviews
 node scripts/build.mjs --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --no-upload --out /tmp/fulfillment-reviews-dry
-git restore data/sites.json      # the dry build regenerated the manifest from an empty run root
+git restore data/sites.json      # the dry build only rewrote the manifest timestamp
 git status --short               # must print nothing
 ```
 
 `--no-upload` makes the build fail instead of uploading when an asset is missing from the blob index;
 with `--limit 0` on an empty run root it proves the toolchain (node 20+, python3 with Pillow, the
-token) without touching the site. The build regenerates the whole index from the run root it is
-given, so a push from a Mac whose run root lacks the other Mac's runs removes those pages from the
-site. Until Travisse says this Mac is the publishing machine, add "no site publish" to every
-`fulfill-location` prompt and do not push from this clone. CHECKPOINT 9: the grep prints 1, the dry
+token) without touching the site. The build merges into the committed manifest: only runs found in
+this run root are rebuilt, every other page is kept, so pages built on Travisse's Mac survive a push
+from this one (`--prune` is the only way a page is removed). CHECKPOINT 9: the grep prints 1, the dry
 build exits 0, `git status --short` prints nothing.
 
 ## 10. Notion, Slack, Apple Note, review server
@@ -273,9 +272,8 @@ with the run dir and the request facts. It stops at the review stage: evidence p
 variant sheet, review canvas, link candidates. It makes no production writes.
 
 Review the page against the GBP photos, Instagram, and the website. In the dry run that is the local
-page at `http://127.0.0.1:3917/<run dir>/review/review-canvas.html`; the agent's site publish is
-skipped with "no site publish" in its prompt unless Travisse has made this Mac the publishing machine
-(step 9), in which case review the site page `https://fulfillment-reviews.vercel.app/<run dir>/`.
+page at `http://127.0.0.1:3917/<run dir>/review/review-canvas.html` and, once the agent has
+published it (step 9), the site page `https://fulfillment-reviews.vercel.app/<run dir>/`.
 Do NOT run a closeout in the dry run. CHECKPOINT 12: review page
 exists, `run-file validate <run dir>` exits 0, no production write happened (confirm from run.json:
 `write.status` is `not_written`).

@@ -558,9 +558,10 @@ cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && \
 Rerun the same command after a closeout (closeout-finish does it) so the page's status flips
 to "Closed out". Pushing to this repo is part of publishing and needs no separate go. The
 build strips Boostly admin anchors and internal json/md links from each page; never add
-ship-to data to `data/sites.json`. The build regenerates `public/` and `data/sites.json` from
-the run root it is given, so it runs on the machine that holds the runs; a push from a machine
-with a different run root drops every page it cannot see. The site page is what Cam, Karissa,
+ship-to data to `data/sites.json`. The build merges into the committed `data/sites.json`: only
+runs found in the given run root are rebuilt, every other page is kept, so pages from another
+machine survive; `--prune` wipes and regenerates from this run root only and is how a page is
+removed. The site page is what Cam, Karissa,
 and customstickers.com look at; the local review server (`127.0.0.1:3917`) and the Apple Note
 are the operator's own quick view, and Claude artifacts are no longer used for review pages.
 
