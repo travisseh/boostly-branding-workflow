@@ -68,8 +68,13 @@ const facts = requestFacts(run, args);
 const folderName = folderNameFor(facts);
 const folder = await ensureFolder(master.master_folder_id, folderName);
 const files = {};
-const missing = KINDS.map((k) => `${k.kind}.pdf`).filter((f) => !fs.existsSync(path.join(out, f)));
-if (missing.length) throw new Error(`missing PDFs in ${out}: ${missing.join(", ")} (run export-sheets.mjs first)`);
+// Only the kinds export-sheets.mjs found frames for are required (a zero-table location has no table or review sheets).
+const present = Object.keys(h.sheets || {});
+if (!present.length) throw new Error(`handoff.json has no sheets block in ${out} (run export-sheets.mjs first)`);
+const missing = present.map((k) => `${k}.pdf`).filter((f) => !fs.existsSync(path.join(out, f)));
+if (missing.length) throw new Error(`missing PDFs in ${out}: ${missing.join(", ")} (rerun export-sheets.mjs)`);
+const notIncluded = KINDS.map((k) => k.kind).filter((k) => !present.includes(k));
+if (notIncluded.length) log("kinds not in this section (not uploaded):", notIncluded.join(", "));
 for (const r of await uploadDir(folder.id, out, (f) => f.endsWith(".pdf"))) { files[r.name] = { id: r.id, md5: r.md5Checksum, action: r.action }; log(r.action, r.name); }
 if (logos.length) {
   const lf = await ensureFolder(folder.id, "logos");
@@ -99,6 +104,6 @@ if (!args["skip-summary"]) {
 
 h.request_id = facts.request_id; h.location_name = facts.location_name;
 h.facts = { offer_text: facts.offer_text, quantities: { tap_cards: facts.quantities?.tap_cards, tables: facts.quantities?.tables, bathroom_stalls: facts.quantities?.bathroom_stalls, to_go_rolls: facts.quantities?.to_go_rolls, signage: facts.quantities?.signage }, ship_to: shipLines(facts.shipping || {}), ship_to_complete: !!facts.shipping?.complete, source: facts.source };
-h.drive = { master_folder_id: master.master_folder_id, master_link: master.master_link, logos_folder_id: master.logos_folder_id, logos_link: master.logos_link, folder_name: folderName, folder_id: folder.id, folder_link: folderLink(folder.id), files, summary, uploaded_at: new Date().toISOString() };
+h.drive = { not_included_kinds: notIncluded, master_folder_id: master.master_folder_id, master_link: master.master_link, logos_folder_id: master.logos_folder_id, logos_link: master.logos_link, folder_name: folderName, folder_id: folder.id, folder_link: folderLink(folder.id), files, summary, uploaded_at: new Date().toISOString() };
 writeHandoff(runDir, h);
 log(JSON.stringify({ folder: folderLink(folder.id), files: Object.keys(files).length, summary: summary.row_action || summary.status }));

@@ -156,7 +156,7 @@ Never use em dashes in anything you write.
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`.
    Then rebuild and push the public review site so the location's page shows "Closed out"
    (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
-   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <RUN_DIR name>`
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Close out <location> review page"`
    `git push`
    (`--slug` keeps the page in the index even when the run is older than the newest 25). A

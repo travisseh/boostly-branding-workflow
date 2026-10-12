@@ -183,3 +183,8 @@ replacement. `references/drive-master.json` in boostly-print-handoff differed on
 
 The gmail-tools CLI the operator receives from Travisse must be the 2026-10-12 build or later: `draft --cc`,
 `drafts list`, and `drafts delete`.
+
+## 2026-10-12 (second resync, evening)
+
+- `skills/boostly-print-handoff/scripts/drive-upload.mjs`: copied from live. Requires only the sheet kinds export-sheets.mjs found (zero-table locations), records `drive.not_included_kinds`.
+- `agents/closeout-finish.md`, `agents/fulfill-location.md`: review-site rebuild uses `--limit 0 --slug <RUN_DIR name>` (limit 25 rewrote every page and concurrent builds dropped pages from the manifest). Package path patches on those lines kept.

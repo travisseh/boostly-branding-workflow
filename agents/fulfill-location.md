@@ -67,7 +67,7 @@ Do, in order:
    Then publish the shareable page to the public review site (box-fulfillment SKILL.md "Public
    review site"; the push is part of publishing and needs no separate go; skip only when the
    lead's prompt says "no site publish"):
-   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <RUN_DIR name>`
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Add <location> review page"`
    `git push`
    The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/`. A failed build or push
