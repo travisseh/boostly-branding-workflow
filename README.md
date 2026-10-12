@@ -38,3 +38,5 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
   links from run.json show as rejected, an approved website swap shows as the website row. Print hand-off: short
   vendor email body; stale drafts are listed and deleted with the gmail-tools `drafts list` / `drafts delete` commands
   (the CLI build of 2026-10-12 or later). See the last section of `PATCHES.md`.
+- **Resync 2026-10-12 (evening).** Print hand-off accepts zero-table orders (only the sheet kinds found in Figma are
+  required). Review-site rebuilds use `--limit 0 --slug <run dir>` so only that page is rebuilt.
