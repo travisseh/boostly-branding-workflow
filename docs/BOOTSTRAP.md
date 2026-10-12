@@ -109,10 +109,14 @@ Order (one checkpoint each; stop and ask before each file edit):
 7. Optional: `ASKELEPHANT_*`, `TINYPNG_API_KEY`, `REPLICATE_API_TOKEN`, `OPENAI_API_KEY`.
 8. `BOOSTLY_REPO_DIR`: where the Boostly app repo will be cloned (step 8).
 9. Print hand-off: `FIGMA_TOKEN` (the operator's own Figma personal access token; Travisse pastes),
-   `GMAIL_TOOLS_DIR` and `GOOGLE_TOOLS_DIR` (keep the defaults). The gmail-tools and google-tools CLIs
-   are not in this repo: Travisse shares them separately, and the operator authorizes gmail-tools for
-   her own Boostly Google identity under the account name `boostly` (its `draft` command must accept
-   `--cc`). Without them closeout-finish reports the print hand-off as failed and continues.
+   `GMAIL_TOOLS_DIR` and `GOOGLE_TOOLS_DIR` (keep the defaults). The gmail-tools, google-tools and
+   google-calendar-tools CLIs ship in this repo under `tools/google-cli/` (code only). Install them with
+   `bash tools/google-cli/install.sh` (copies to `~/.config/<name>/`, runs npm install). Two things are
+   never in the repo: the Google OAuth client keys file, which Travisse sends out of band and you save as
+   `~/.config/google-calendar-mcp/gcp-oauth.keys.json` (mode 600), and your own token, which you create once with
+   `BOOSTLY_GOOGLE_EMAIL=<your boostly email> node ~/.config/google-tools/google.js add boostly` (sign in with
+   your Boostly Google account in the browser). Check with `node ~/.config/gmail-tools/gmail.js drafts list boostly 3`.
+   Without them closeout-finish reports the print hand-off as failed and continues.
 
 After each edit: `source ~/.zshrc` (or open a new shell) so the key is exported.
 CHECKPOINT 3: list the keys that are set (names only) and the ones still empty.

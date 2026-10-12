@@ -188,3 +188,6 @@ The gmail-tools CLI the operator receives from Travisse must be the 2026-10-12 b
 
 - `skills/boostly-print-handoff/scripts/drive-upload.mjs`: copied from live. Requires only the sheet kinds export-sheets.mjs found (zero-table locations), records `drive.not_included_kinds`.
 - `agents/closeout-finish.md`, `agents/fulfill-location.md`: review-site rebuild uses `--limit 0 --slug <RUN_DIR name>` (limit 25 rewrote every page and concurrent builds dropped pages from the manifest). Package path patches on those lines kept.
+
+- `tools/google-cli/google-tools/auth.js` line 32: the `boostly` login hint reads `BOOSTLY_GOOGLE_EMAIL` (another operator's address) before Travisse's default.
+- `tools/google-cli/` added 2026-10-12: copies of ~/.config/gmail-tools (gmail.js, package.json, package-lock.json), ~/.config/google-tools (auth.js, google.js), ~/.config/google-calendar-tools (calendar.js) plus install.sh. No tokens, no keys.

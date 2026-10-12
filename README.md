@@ -40,3 +40,5 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
   (the CLI build of 2026-10-12 or later). See the last section of `PATCHES.md`.
 - **Resync 2026-10-12 (evening).** Print hand-off accepts zero-table orders (only the sheet kinds found in Figma are
   required). Review-site rebuilds use `--limit 0 --slug <run dir>` so only that page is rebuilt.
+- **Google CLIs in the repo (2026-10-12).** `tools/google-cli/` holds gmail-tools, google-tools and
+  google-calendar-tools (code only) plus `install.sh`; the OAuth client keys file and the operator's token stay out of band.
