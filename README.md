@@ -34,3 +34,7 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
   offer, the review headline is "Let us know how we did" (`boostly-signage-sheets`).
 - **Review canvas.** Logo candidate captions show where each candidate came from and the overview carries link verdict chips
   (`boostly-brand-design/scripts/review-canvas.mjs`).
+- **Resync 2026-10-12 (afternoon).** Review canvas: the variant sheet loads eagerly and is cache-busted, rejected
+  links from run.json show as rejected, an approved website swap shows as the website row. Print hand-off: short
+  vendor email body; stale drafts are listed and deleted with the gmail-tools `drafts list` / `drafts delete` commands
+  (the CLI build of 2026-10-12 or later). See the last section of `PATCHES.md`.

@@ -167,3 +167,19 @@ backend, inbox stub): the live copies had not changed. The print hand-off depend
 this repo (`gmail-tools/gmail.js` with the `draft --cc` flag of 2026-10-12, and `google-tools/auth.js`); the
 env file points at them with `GMAIL_TOOLS_DIR` and `GOOGLE_TOOLS_DIR`, and `setup.sh --check` warns when they
 are missing. `FIGMA_TOKEN` was added to the env file for the REST export.
+
+## Resync 2026-10-12 (second pass, after b83ae60): live copies refreshed again
+
+Diffed every skill dir and the four agents against the live `~/.claude` copies again; four files had changed
+live since the morning resync and were copied fresh, with the patches above re-applied by anchored single-match
+replacement. `references/drive-master.json` in boostly-print-handoff differed only by mtime (byte-identical).
+
+| File | Live change | Patch re-applied |
+|---|---|---|
+| `skills/boostly-brand-design/scripts/review-canvas.mjs` | variant sheet image loads eagerly and is cache-busted by file mtime; `links.rejected` rows from run.json beat the report for the same category; `approvedWebsiteSwap` helper so an approved website swap shows as the ready website row and in the page subtitle | none needed |
+| `skills/boostly-brand-design/scripts/review-canvas.test.ts` | test for `approvedWebsiteSwap` and the swap row (11 tests pass on the live copy; the package copy needs the harness `node_modules/sharp` from setup.sh) | none needed |
+| `skills/boostly-print-handoff/scripts/draft-email.mjs` | short email body (no file list, no vector-PDF explanation, no closer) | GMAIL_TOOLS_DIR for the gmail-tools CLI |
+| `skills/boostly-print-handoff/SKILL.md` | short-body rule; `drafts list` / `drafts delete` commands for stale drafts (delete only ids recorded in handoff.json) | working directory; FIGMA_TOKEN source; gmail-tools and google-tools paths x4 |
+
+The gmail-tools CLI the operator receives from Travisse must be the 2026-10-12 build or later: `draft --cc`,
+`drafts list`, and `drafts delete`.

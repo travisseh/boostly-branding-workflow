@@ -29,7 +29,7 @@
 // schema has no top-level review block). No production writes; nothing printed that could be a secret.
 
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -589,6 +589,18 @@ const executionCategory = (op) => {
 const executionUrl = (op) => op?.url ?? op?.value ?? Object.entries(op ?? {}).find(([k, v]) => /_url$/.test(k) && typeof v === 'string')?.[1] ?? null;
 
 /**
+ * Pure: the approved website swap recorded on links.website_bootstrap, or null. `url` is what the page
+ * shows as the website; `note` says what it replaces ("replaces stored www.example.com/ (approved)").
+ */
+export function approvedWebsiteSwap(wb) {
+  const url = wb?.approved_website_url;
+  if (!url || !/^https?:\/\//.test(String(url))) return null;
+  const stored = wb.stored_website_url ?? wb.places_website_uri ?? wb.url ?? null;
+  const bare = stored ? String(stored).replace(/^https?:\/\//, '') : null;
+  return { url: String(url), stored, note: bare ? `replaces stored ${bare} (approved)` : 'approved website' };
+}
+
+/**
  * Pure: one row per category from the run.json links block, the report's category_results, and the
  * pending browser URLs. Row: { category, label, url, status: { kind, words }, reason, evidence, source }.
  */
@@ -639,6 +651,22 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
     if (/verified/.test(vs) && !row.evidence.length) row.evidence.push(`${vs.replace(/_/g, ' ')}${c.fetch_method ? ` (${String(c.fetch_method).replace(/_/g, ' ')})` : ''}`);
     row.source = 'run.json candidates';
   }
+  // 2b. run.json rejected: the fulfillment agent rejected a URL the report had marked found/verified
+  // (2026-10-12, Creamer by Kay: dead Wix menu and careers pages showed as "ready"). A rejected entry
+  // beats the report for the same category unless a candidate or execution record decided otherwise.
+  for (const rj of links.rejected ?? []) {
+    if (!rj?.category) continue;
+    const row = at(rj.category);
+    if (row.decided) continue;
+    const same = !row.url || !rj.url || norm(rj.url) === norm(row.url);
+    if (!same) continue;
+    row.decided = true;
+    row.url = rj.url ?? row.url;
+    row.status = 'rejected';
+    row.reason = rj.reason ?? rj.reason_code ?? 'rejected by the fulfillment agent';
+    row.evidence = [];
+    row.source = 'run.json rejected';
+  }
   // 3. execution records: what was written or held
   for (const e of links.execution ?? []) {
     const cat = executionCategory(e.operation);
@@ -661,12 +689,21 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
   for (const c of links.not_found ?? []) { const row = at(c); if (!row.status) row.status = 'none'; }
   // 4. website bootstrap and the stored ordering url
   const wb = links.website_bootstrap;
-  if (wb && (wb.places_website_uri || wb.url)) {
+  if (wb && (wb.places_website_uri || wb.url || wb.approved_website_url)) {
     const row = at('website');
     row.url = row.url ?? wb.places_website_uri ?? wb.url;
     if (/applied|written/.test(String(wb.status))) row.status = 'written';
     else if (String(wb.status) === 'held') { row.status = 'held'; row.reason = row.reason ?? (wb.apply ?? 'website bootstrap held'); }
     if (wb.resolves_to && !row.evidence.length) row.evidence.push(`Places website resolves to ${String(wb.resolves_to).split(' ')[0]}`);
+    // Travisse approved a different website than the stored one (2026-10-12, Creamer by Kay: the stored
+    // www host is dead): the page shows the approved URL everywhere and says what it replaces.
+    const swap = approvedWebsiteSwap(wb);
+    if (swap) {
+      row.url = swap.url;
+      row.decided = true;
+      if (row.status !== 'written') { row.status = 'ready'; row.reason = wb.closeout_action ?? wb.approved_by ?? 'approved website swap'; }
+      row.evidence = [swap.note];
+    }
   }
   const om = links.ordering_url_match;
   if (om?.stored) {
@@ -744,7 +781,9 @@ export function linksSection({ runDir, sources }) {
   const summary = [];
   if (links.mode || links.written_by) summary.push({ text: `Run: ${[links.mode ? String(links.mode).replace(/_/g, ' ') : null, links.applied ? 'writes applied' : 'no link writes applied', links.written_by ? `by ${String(links.written_by).split(',')[0]}` : null].filter(Boolean).join('; ')}.`, size: 18, color: '#444444' });
   const wb = links.website_bootstrap;
-  if (wb) summary.push({ text: `Website bootstrap: ${wb.status ?? 'unknown'}${wb.places_website_uri ? `, Places says ${wb.places_website_uri}` : ''}${wb.resolves_to ? ` (${String(wb.resolves_to).split(' (')[0]})` : ''}.`, size: 18, color: '#444444', gap: 4 });
+  const swap = approvedWebsiteSwap(wb);
+  if (swap) summary.push({ text: `Website: ${swap.url} ${swap.note}; written at closeout.`, size: 18, color: '#444444', gap: 4 });
+  else if (wb) summary.push({ text: `Website bootstrap: ${wb.status ?? 'unknown'}${wb.places_website_uri ? `, Places says ${wb.places_website_uri}` : ''}${wb.resolves_to ? ` (${String(wb.resolves_to).split(' (')[0]})` : ''}.`, size: 18, color: '#444444', gap: 4 });
   else if (links.existing?.website_url) summary.push({ text: `Website on file: ${links.existing.website_url}.`, size: 18, color: '#444444', gap: 4 });
   const om = links.ordering_url_match;
   if (om?.stored) summary.push({ text: `Ordering URL on file ${om.stored}: ${om.match === true ? 'matches the website' : om.match === false ? 'does not match the website' : 'not compared'}${om.note ? `. ${firstSentence(om.note, 160)}` : ''}`, size: 18, color: '#444444', gap: 4 });
@@ -1226,7 +1265,13 @@ function renderHtml(sections, { title, reviewDir }) {
     for (const part of sec.parts) {
       if (part.type === 'text') out.push(textHtml(part.items, secId));
       else if (part.type === 'gray') out.push(`<div class="gray">${linkify(part.text)}</div>`);
-      else if (part.type === 'image') out.push(`<div class="shot${part.zoom ? ' zoom' : ''}"${part.zoom ? ' title="click to toggle native size"' : ''}><a href="${href(part.file)}" target="_blank"><img src="${href(part.file)}" loading="lazy" alt="${esc(part.alt ?? part.caption ?? '')}"></a></div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}`);
+      else if (part.type === 'image') {
+        // The variant sheet is the deliverable: load it eagerly (Chrome never fetches loading="lazy" images in a
+        // hidden tab, and a 0-height placeholder can sit unloaded for a long time) and cache-bust the src with
+        // the file mtime so a rebuilt sheet under the same file name is never served from the browser cache (2026-10-12).
+        const bust = part.bust ? `?v=${(() => { try { return Math.round(statSync(part.file).mtimeMs); } catch { return Date.now(); } })()}` : '';
+        out.push(`<div class="shot${part.zoom ? ' zoom' : ''}"${part.zoom ? ' title="click to toggle native size"' : ''}><a href="${href(part.file)}${bust}" target="_blank"><img src="${href(part.file)}${bust}" loading="${part.eager ? 'eager' : 'lazy'}" alt="${esc(part.alt ?? part.caption ?? '')}"></a></div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}`);
+      }
       // Links table: one plain-English verdict per row (linkVerdict); the raw reason and evidence stay behind a collapsed "raw evidence".
       else if (part.type === 'links') out.push(`<table class="links"><thead><tr><th>Category</th><th>URL</th><th>Status</th><th>Verdict</th></tr></thead><tbody>${part.rows.map((r) => {
         const raw = [r.reason, ...(r.evidence ?? [])].filter(Boolean);
@@ -1423,7 +1468,10 @@ async function main() {
   const name = identity.account_name ?? req.account_name ?? req.location_name ?? 'Unknown business';
   const city = [identity.city, identity.state].filter(Boolean).join(', ') || '';
   const cityOnly = identity.city ?? '';
-  const website = req.website_url ?? evidence.location?.website_url ?? null;
+  // An approved website swap (links.website_bootstrap.approved_website_url) is what the page shows
+  // as the website; the stored value stays in run.json for the closeout agent (2026-10-12).
+  const websiteSwap = approvedWebsiteSwap(run.links?.website_bootstrap);
+  const website = websiteSwap?.url ?? req.website_url ?? evidence.location?.website_url ?? null;
   const placeId = req.google_place_id ?? evidence.location?.google_place_id ?? null;
   // ---- live-source links for the HTML page (omitted when the run does not record them) -------
   const accountId = req.account_id ?? evidence.location?.account_id ?? null;
@@ -1583,7 +1631,7 @@ async function main() {
     websiteParts.push({ type: 'gray', text: `Website not captured. ${usage.website.reason}` });
   }
   // The subtitle URL is itself the link (linkify gives it target=_blank rel=noopener); no separate "Open website" button (2026-10-12).
-  sections.push({ id: 'website', title: 'Website', subtitle: website ?? 'no website on the request', links: [], parts: websiteParts });
+  sections.push({ id: 'website', title: 'Website', subtitle: website ? `${website}${websiteSwap ? ` ${websiteSwap.note}` : ''}` : 'no website on the request', links: [], parts: websiteParts });
 
   // ---- 3. Google Business Profile ---------------------------------------------------------
   const gbpParts = [];
@@ -1708,7 +1756,7 @@ async function main() {
   if (sheetMeta) {
     usage.sheet = { mode: 'cached', file: rel(runDir, sheetPng), native: `${sheetMeta.width}x${sheetMeta.height}`, revision: sheet?.revision ?? null };
     const shown = Math.min(CW(), sheetMeta.width);
-    sheetParts.push({ type: 'image', file: markedSheetFile, native: true, maxH: 4000, zoom: true, alt: 'variant sheet', caption: `${rel(runDir, sheetPng)} at ${shown === sheetMeta.width ? 'native size' : `${shown} of ${sheetMeta.width}px wide`}, revision ${sheet?.revision ?? '?'}. In the HTML page click the sheet to toggle native size.` });
+    sheetParts.push({ type: 'image', file: markedSheetFile, native: true, maxH: 4000, zoom: true, eager: true, bust: true, alt: 'variant sheet', caption: `${rel(runDir, sheetPng)} at ${shown === sheetMeta.width ? 'native size' : `${shown} of ${sheetMeta.width}px wide`}, revision ${sheet?.revision ?? '?'}. In the HTML page click the sheet to toggle native size.` });
   } else {
     usage.sheet = { mode: 'missing' };
     sheetParts.push({ type: 'gray', text: 'variants/variant-sheet.png is missing; run variant-sheet.mjs build first.', height: 110 });

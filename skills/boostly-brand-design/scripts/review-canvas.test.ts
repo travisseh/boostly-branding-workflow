@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { buildLinkRows, candidateSource, collectPreviews, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
+import { approvedWebsiteSwap, buildLinkRows, candidateSource, collectPreviews, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
 
 test('parsePreviewName reads scene and letter and tolerates suffixes', () => {
   assert.deepEqual(parsePreviewName('signage-preview-K.png'), { kind: 'signage', scene: 'signage preview', letter: 'K', suffix: null, name: 'signage-preview-K' });
@@ -233,4 +233,19 @@ test('overviewLinkChips keeps written, live, ready, existing and held rows only,
   const chips = overviewLinkChips(rows);
   assert.deepEqual(chips.map((c) => [c.label, c.host, c.tag]), [['Website', 'bc.pizza/', null], ['Ordering', 'bcpizzaus.hungerrush.com/Order/Menu/1009', 'held'], ['Careers', 'bc.pizza/join-the-team/', null]]);
   assert.ok(rows.every((r) => typeof r.verdict === 'string' && r.verdict.length));
+});
+
+test('buildLinkRows: an approved website swap shows the approved URL as a ready row and says what it replaces', () => {
+  const wb = { status: 'swap_approved_by_travisse', stored_website_url: 'http://www.creamerbykay.com/', places_website_uri: 'http://www.creamerbykay.com/', approved_website_url: 'https://creamerbykay.com/', closeout_action: 'At closeout, write location website_url = https://creamerbykay.com/' };
+  assert.deepEqual(approvedWebsiteSwap(wb), { url: 'https://creamerbykay.com/', stored: 'http://www.creamerbykay.com/', note: 'replaces stored www.creamerbykay.com/ (approved)' });
+  assert.equal(approvedWebsiteSwap({ status: 'held', places_website_uri: 'http://x.com/' }), null);
+  const rows = buildLinkRows({ links: { website_bootstrap: wb } });
+  const site = rows.find((r) => r.category === 'website');
+  assert.equal(site.url, 'https://creamerbykay.com/');
+  assert.equal(site.status.kind, 'ready');
+  assert.deepEqual(site.evidence, ['replaces stored www.creamerbykay.com/ (approved)']);
+  assert.match(site.verdict, /Will be written at closeout/);
+  const chip = overviewLinkChips(rows).find((c) => c.label === 'Website');
+  assert.equal(chip.url, 'https://creamerbykay.com/');
+  assert.equal(chip.tag, null);
 });

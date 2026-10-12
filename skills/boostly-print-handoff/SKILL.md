@@ -42,7 +42,7 @@ draft even though one is recorded; `--print-only` prints the email body without 
 
 Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH), the
 `v2-db` CLI, the gmail-tools CLI at `$GMAIL_TOOLS_DIR/gmail.js` (default `~/.config/gmail-tools`) with the `boostly`
-account authorized (its `draft` command needs the `--cc` flag, present since 2026-10-12).
+account authorized (its `draft` command needs the `--cc` flag and its `drafts list` / `drafts delete` commands, present since 2026-10-12).
 
 ## What each step does
 
@@ -76,11 +76,14 @@ account authorized (its `draft` command needs the `--cc` flag, present since 202
    `node $GMAIL_TOOLS_DIR/gmail.js draft boostly ckbrandsmktg@gmail.com "<subject>" "<body>" --cc "<VENDOR_CC>"`,
    where `VENDOR_CC` (exported from the script) is Colin Dunn <colin@printiverse.com> and
    Maren Dunn <maren@customstickers.com>. The `Cc:` line is also written under `To:` in draft-body.txt.
-   Subject `Boostly print order: <Location name>`. Body: what is in the folder (six vector PDFs,
-   page counts, logos), quantities, offer, ship-to, location folder link, master folder link,
-   the summary-sheet line, signed "Travisse". Plain text, no em dashes, no corporate filler.
+   Subject `Boostly print order: <Location name>`. Body (short, since 2026-10-12): one-line intro,
+   location folder link, quantities, offer, ship-to, master folder link, the summary-sheet line,
+   signed "Travisse". No file list, no vector-PDF explanation, no "let me know" closer. Plain
+   text, no em dashes, no corporate filler.
    An existing `draft.id` in handoff.json means no second draft unless `--redraft` (the old id
-   is kept under `draft.previous`).
+   is kept under `draft.previous`). To inspect or remove a stale draft by id:
+   `node $GMAIL_TOOLS_DIR/gmail.js drafts list boostly` and `drafts delete boostly <id>`
+   (confirm the subject first; delete only ids recorded in handoff.json).
 
 ## Vector requirement (why)
 
