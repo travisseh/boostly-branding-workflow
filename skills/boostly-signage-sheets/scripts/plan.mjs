@@ -299,10 +299,19 @@ const SHEET_FORMAT = {
   togoLabel: {
     // Always BLACK ink (text + QR modules): to-go labels print on a B&W
     // printer, so band-color ink would just dither to gray (Travisse 2026-08-31).
+    // Layout "A framed QR" (Travisse 2026-10-05, approved mockup
+    // togo-labels/mockups/build4.mjs variant A): TEXT ONLY, NO LOGO. Headline
+    // Figtree Bold, left aligned, vertically centered in a fixed 860x500
+    // box at x72 y56 (textAutoResize NONE, textAlignVertical CENTER), letter
+    // spacing -2px, line height 96%. Auto-fit: start at 150 and shrink in steps
+    // of 2 until the rendered text is <= 500 tall, <= 3 lines and the longest
+    // word is <= 860 wide; floor 56. No trailing arrow. The QR sits in a rounded
+    // white tile with a 3px inside black stroke, r28, 500x500 at x982 y56; the
+    // QR itself is 468 (16px padding) at x998 y72.
     w: 1538, h: 612, bg: '#FFFFFF',
-    textPromo: { x: 136, y: 141, size: 135, lh: 145, font: 'Figtree SemiBold', color: '#000000' },
-    textReview: { x: 56, y: 161, size: 135, lh: 145, font: 'Figtree SemiBold', color: '#000000' },
-    qrTile: { x: 982, y: 56, w: 500, r: 20, fill: '#FFFFFF', moduleColor: '#000000' },
+    headline: { x: 72, y: 56, w: 860, h: 500, font: 'Figtree Bold', color: '#000000', align: 'LEFT', valign: 'CENTER', autoResize: 'NONE', letterSpacing: -2, lineHeightPct: 96, fit: { startSize: 150, step: 2, minSize: 56, maxLines: 3 } },
+    logo: null,
+    qrTile: { x: 982, y: 56, w: 500, r: 28, fill: '#FFFFFF', stroke: '#000000', strokeWeight: 3, strokeAlign: 'INSIDE', padding: 16, moduleColor: '#000000' },
   },
   layout: {
     header: { title: [392, 0], prodLabel: [391, 578], logo: [391, 798, 1500] },
@@ -318,8 +327,8 @@ const SHEET_COPY = {
   bathroomPromo: { title: "Your phone's\nalready out...", body: 'Scan for a deal 👉' },
   bathroomReview: { title: 'Enjoyed your\nmeal?', body: 'Leave a review 👉' },
   pop: { title: 'Join the club!', body: 'Scan to join our VIP text club\nfor ongoing offers!' },
-  togoPromo: 'Join the\nclub!  →',
-  togoReview: 'Let us know\nhow we did  →',
+  togoPromo: 'Join the club!',          // text only, no arrow; builder auto-fits in the 860x500 box
+  togoReview: 'Let us know how we did',
 };
 
 // Specific-offer copy (Travisse 2026-09-03). "Get " + the offer with OFF/Off
@@ -327,10 +336,18 @@ const SHEET_COPY = {
 // Offers that already start with a verb ("Unlock the V.I.P Experience", "Had a
 // good time? Let us know!") are used verbatim on the POP only, stickers keep
 // the default, because "Get Unlock..." is nonsense. Review-only and bathroom
-// copy never change.
+// copy never change. The to-go SUBSCRIBE label headline (togoPromo) is the
+// table promo title with NO trailing arrow (Travisse 2026-10-05, style A; Karissa
+// was retyping it in the label printer); the review label keeps Cam's copy.
+// An offer typed as "Get 20% Off!" is normalized to the discount "20% Off" so
+// every surface reads "Get 20% Off"; phrase offers keep their own punctuation
+// ("Get 4 Free Breadsticks!").
 const GENERIC_OFFER = /^join the club!?$/i;
+const DISCOUNT_RE = /^\$?\d+(\.\d+)?\s*%?\s*off\b/i;
 function specificOfferCopy(offer) {
   if (!offer || GENERIC_OFFER.test(offer)) return {};
+  const typedGet = offer.match(/^get\s+(.+?)!?\s*$/i);
+  if (typedGet && DISCOUNT_RE.test(typedGet[1])) offer = typedGet[1];
   const startsWithVerb = /^(get|unlock|join|scan|had|order|free\b)/i.test(offer) && !/^free\b/i.test(offer);
   const isDiscount = /^\$?\d+(\.\d+)?\s*%?\s*off\b/i.test(offer) || /^free\b/i.test(offer);
   if (!isDiscount) {
@@ -343,12 +360,14 @@ function specificOfferCopy(offer) {
     return {
       tablePromo: { title: offer, body: SHEET_COPY.pop.body, layout: 'phrase' },
       pop: { ...SHEET_COPY.pop, title: offer },
+      togoPromo: offer,
     };
   }
   const title = 'Get ' + offer.replace(/\bOFF\b/g, 'Off').replace(/\s+/g, ' ').trim();
   return {
     tablePromo: { ...SHEET_COPY.tablePromo, title },
     pop: { title, body: 'Scan to join our text club\nfor ongoing offers!' },
+    togoPromo: title,
   };
 }
 

@@ -265,7 +265,11 @@ real request was processed.
     requiring me to specifically say that"; `fulfillment store-details <requestId> --confirm`,
     dry run then `--apply`; an empty or partial ship-to is reported, never invented), the
     Notion spot update, and the final `run-file validate` from the run dir and
-    run.json alone. It honors `HOLD.md` (no branding complete when the file says so) and
+    run.json alone. Right after the Slack post it also runs the print hand-off
+    (`~/.claude/skills/boostly-print-handoff`, `print-handoff.mjs --run-dir <dir>`): vector PDF
+    export of the section's print sheets, the location's Drive folder under the
+    customstickers.com master folder, the summary-sheet row, and a Gmail DRAFT to the vendor
+    that Travisse sends himself (2026-10-06; the vendor rejects rasterized PDFs). It honors `HOLD.md` (no branding complete when the file says so) and
     never wakes the large closeout agent. The rule itself is unchanged: once the applied branding is Travisse's
     approved pick and the Figma signage section is built and QR-verified, do not wait for a
     separate "go": post the final branding result in the request's Slack thread (when it has

@@ -64,6 +64,10 @@ Steps, in order:
    touch a section that is not yours. Retired files (`previous_files`) are read-only. `plan.mjs` (it gates the
    sticker logo on white and refuses a HOLD), `figma-recopy`, `figma-trim`, QR verification, shots
    under `signage/shots/`. Record the section node id and URL in the run.json `figma` block.
+   To-go labels (2026-10-05, style "A framed QR"): text only, no logo. The SUBSCRIBE
+   headline is the offer (plan.json copy.togoPromo, table promo title, no arrow), the REVIEW
+   headline is "Let us know how we did"; Figtree Bold auto-fit in the 860x500 box, QR in
+   the 3px-stroked r28 tile; layout in SHEET_FORMAT.togoLabel.
 
    **Image transport (2026-09-29): logo and QR images go into Figma with
    `mcp__plugin_figma_figma__upload_assets`, never as typed base64.** For a logo PNG: call

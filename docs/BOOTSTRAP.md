@@ -108,6 +108,11 @@ Order (one checkpoint each; stop and ask before each file edit):
    `BOOSTLY_V2_API_KEY` (and `BOOSTLY_V2_API_BASE` if Travisse says it differs). Travisse pastes each.
 7. Optional: `ASKELEPHANT_*`, `TINYPNG_API_KEY`, `REPLICATE_API_TOKEN`, `OPENAI_API_KEY`.
 8. `BOOSTLY_REPO_DIR`: where the Boostly app repo will be cloned (step 8).
+9. Print hand-off: `FIGMA_TOKEN` (the operator's own Figma personal access token; Travisse pastes),
+   `GMAIL_TOOLS_DIR` and `GOOGLE_TOOLS_DIR` (keep the defaults). The gmail-tools and google-tools CLIs
+   are not in this repo: Travisse shares them separately, and the operator authorizes gmail-tools for
+   her own Boostly Google identity under the account name `boostly` (its `draft` command must accept
+   `--cc`). Without them closeout-finish reports the print hand-off as failed and continues.
 
 After each edit: `source ~/.zshrc` (or open a new shell) so the key is exported.
 CHECKPOINT 3: list the keys that are set (names only) and the ones still empty.
@@ -301,7 +306,9 @@ Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
    location, writes ready links, renders proofs, builds the Figma section, and STOPS with a screenshot.
    Check the signage in Figma.
 5. Finish: after approving the signage, launch `closeout-finish` with the run dir. One Slack post in the
-   request thread, branding complete, store details confirmed when the ship-to is complete, Notion queue
+   request thread, then the print hand-off (vector PDFs to the customstickers.com Drive folder, summary
+   row, Gmail DRAFT to the vendor with Colin Dunn and Maren Dunn on cc; never sent, Travisse sends it),
+   branding complete, store details confirmed when the ship-to is complete, Notion queue
    entry spot-updated, run.json validated, and the site page rebuilt and pushed so it shows
    "Closed out".
 6. End of day: `review-checklist.py` once more; held links and ship-to gaps go to the CSM in Slack.

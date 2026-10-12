@@ -1,12 +1,12 @@
 # PATCHES: every change made to the copied skills and agents
 
 The files under `skills/`, `agents/`, and `tools/` are copies of Travisse's `~/.claude/skills`, `~/.claude/agents`,
-and `~/.claude/tools` taken on 2026-10-02. Logic is unchanged. Each entry below is one anchored text replacement
+and `~/.claude/tools` taken on 2026-10-02 and resynced from the live copies on 2026-10-12 (see the last section). Logic is unchanged. Each entry below is one anchored text replacement
 (the patch script refused to run when an anchor matched anything but once). Line numbers are in the patched copy.
 Env variables referenced here are documented in `setup/env.example`; every one keeps the old value as its default
 so the copy still runs on Travisse's machine unchanged.
 
-## Code patches (41)
+## Code patches (45)
 
 | File | Line | Change |
 |---|---|---|
@@ -49,8 +49,12 @@ so the copy still runs on Travisse's machine unchanged.
 | `agents/closeout-location.md` | 19 | agent working directory is the configured run root |
 | `agents/closeout-finish.md` | 16 | agent working directory is the configured run root |
 | `agents/discovery-transport.md` | 21 | agent working directory is the configured run root |
-| `agents/fulfill-location.md` | 102 | heartbeat location from env |
+| `agents/fulfill-location.md` | 110 | heartbeat location from env |
 | `agents/closeout-location.md` | 21 | heartbeat location from env |
+| `skills/boostly-print-handoff/scripts/lib/common.mjs` | 11 | FIGMA_TOKEN fallback file is the shared env file (BOOSTLY_BRANDING_ENV_FILE override), not Travisse's workspace .env |
+| `skills/boostly-print-handoff/scripts/lib/common.mjs` | 58 | error text names that file |
+| `skills/boostly-print-handoff/scripts/draft-email.mjs` | 13 | gmail-tools CLI from GMAIL_TOOLS_DIR (default ~/.config/gmail-tools) |
+| `skills/boostly-print-handoff/scripts/lib/drive.mjs` | 9 | google-tools auth.js from GOOGLE_TOOLS_DIR (default ~/.config/google-tools) |
 
 ## Added behaviour (not a path fix, reviewed separately)
 
@@ -98,6 +102,7 @@ Bulk text replacement in `.md` files only (SKILL.md, references, agents); no cod
 | `skills/boostly-instore-link-settings/references/derived-contract.md` | /Users/travisse/Programming/boostly -> $BOOSTLY_REPO_DIR x1 |
 | `skills/boostly-link-discovery/SKILL.md` | /Users/travisse/.codex/skills/ -> ~/.claude/skills/ x1 |
 | `skills/boostly-link-verifier/SKILL.md` | /Users/travisse/.codex/skills/ -> ~/.claude/skills/ x3 |
+| `skills/boostly-print-handoff/SKILL.md` | working directory /Users/travisse/Programming -> $BOOSTLY_RUN_ROOT; FIGMA_TOKEN source is the shared env file; gmail-tools and google-tools paths -> $GMAIL_TOOLS_DIR / $GOOGLE_TOOLS_DIR x3 |
 | `skills/message-me/SKILL.md` | /Users/travisse/.codex/skills/ -> ~/.claude/skills/ x2 |
 | `skills/v2-database/SKILL.md` | /Users/travisse/.codex/skills/ -> ~/.claude/skills/ x12 |
 
@@ -136,3 +141,29 @@ and the run root is `"$BOOSTLY_RUN_ROOT"`; the originals name Travisse's paths.
 | `skills/boostly-brand-design/SKILL.md` | `review-canvas.mjs --open` is the operator's own look; the shareable page is the site (script list and rule 2c) |
 | `agents/fulfill-location.md` | publish step after the Apple Note refresh; commit carve-out; site URL in the final report |
 | `agents/closeout-finish.md` | site rebuild and push after the note refresh in step 8; commit carve-out; site URL in the final report |
+
+## Resync 2026-10-12: live copies refreshed
+
+Every file under `skills/`, `agents/`, and `tools/` was diffed against the live `~/.claude` copy. Files whose
+only difference was a patch above were left alone (the patch is still the whole diff). Files the live copy
+had changed since 2026-10-02 were copied fresh and the patches above re-applied by anchored single-match
+replacement (every anchor still matched exactly once; line numbers above are current):
+
+| File | Live change | Patch re-applied |
+|---|---|---|
+| `skills/boostly-brand-design/scripts/review-canvas.mjs` | candidate source captions and link verdict chips (displayUrl, candidateSource, linkVerdict, overviewLinkChips), 2026-10-12 | none needed |
+| `skills/boostly-brand-design/scripts/review-canvas.test.ts` | tests for the above | none needed |
+| `skills/boostly-signage-sheets/scripts/plan.mjs` | to-go label style "A framed QR" (text only, auto-fit headline, togoPromo copy, DISCOUNT_RE normalization), 2026-10-05 | ENV_FILE from the shared env file |
+| `skills/boostly-signage-sheets/SKILL.md` | to-go label layout and copy rules | none needed |
+| `skills/boostly-box-fulfillment/SKILL.md` | print hand-off paragraph under closeout-finish | ~/.codex -> ~/.claude x2; review-site clone path and `--run-root "$BOOSTLY_RUN_ROOT"` |
+| `skills/image-generator/generate-image.ts`, `SKILL.md` | model pinning (gpt-image-2.5-sunburst and Nano Banana 2.1 only, `--provider nanobanana`) | none needed |
+| `agents/closeout-finish.md` | step 5b print hand-off, `print-handoff.log`, report line | working directory; review-site path |
+| `agents/closeout-location.md` | to-go label paragraph in the Figma step | working directory; heartbeat root |
+| `agents/fulfill-location.md`, `agents/discovery-transport.md` | none | re-copied, same patches |
+| `skills/boostly-print-handoff/` | NEW skill (2026-10-06): vector PDF export, Drive upload, summary row, Gmail draft with cc | the four code rows and the doc row above |
+
+`skills/v2-database/src/v2-db.ts` and `skills/message-me/scripts/message_me.py` keep the package versions (MCP
+backend, inbox stub): the live copies had not changed. The print hand-off depends on two CLIs that are NOT in
+this repo (`gmail-tools/gmail.js` with the `draft --cc` flag of 2026-10-12, and `google-tools/auth.js`); the
+env file points at them with `GMAIL_TOOLS_DIR` and `GOOGLE_TOOLS_DIR`, and `setup.sh --check` warns when they
+are missing. `FIGMA_TOKEN` was added to the env file for the REST export.

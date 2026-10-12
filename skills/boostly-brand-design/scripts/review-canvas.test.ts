@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { buildLinkRows, collectPreviews, evidenceWords, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
+import { buildLinkRows, candidateSource, collectPreviews, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
 
 test('parsePreviewName reads scene and letter and tolerates suffixes', () => {
   assert.deepEqual(parsePreviewName('signage-preview-K.png'), { kind: 'signage', scene: 'signage preview', letter: 'K', suffix: null, name: 'signage-preview-K' });
@@ -186,4 +186,51 @@ test('buildLinkRows: rejected decisions (reason_code + reason) render a grey rea
   assert.equal(by.ordering.status.kind, 'existing'); // the decision wins over the report's manual-review status
   assert.equal(by.youtube.status.kind, 'none');
   assert.equal(rows.filter((r) => r.status.kind === 'held').length, 0);
+});
+
+test('displayUrl strips scheme and www and middle-truncates long paths', () => {
+  assert.equal(displayUrl('https://www.bc.pizza/'), 'bc.pizza/');
+  assert.equal(displayUrl('http://bc.pizza/locations/harbor-springs/'), 'bc.pizza/locations/harbor-springs/');
+  const long = displayUrl('https://www.theknot.com/marketplace/catering-harbor-springs-mi/food-truck/some/very/long/path/that/keeps/going', 60);
+  assert.ok(long.length <= 60, long);
+  assert.ok(long.includes('…'));
+  assert.ok(long.startsWith('theknot.com/'));
+  assert.ok(long.endsWith('keeps/going'));
+});
+
+test('candidateSource: real URL wins, first-party falls back to the website, local files show the file name with no link', () => {
+  assert.deepEqual(candidateSource({ source_url: 'https://www.facebook.com/x/photos/123', provenance: 'facebook' }), { url: 'https://www.facebook.com/x/photos/123', text: 'facebook.com/x/photos/123' });
+  assert.deepEqual(candidateSource({ source: 'Instagram avatar from instagram.com/hsbcpizza', provenance: 'instagram' }), { url: 'https://instagram.com/hsbcpizza', text: 'instagram.com/hsbcpizza' });
+  assert.deepEqual(candidateSource({ source: 'franchisor site header logo bc-pizza-logo-2x.png', provenance: 'first_party_header' }, 'https://bc.pizza/'), { url: 'https://bc.pizza/', text: 'bc.pizza/' });
+  assert.deepEqual(candidateSource({ source: 'onboarding wizard attachment logo-final.png, white knockout', provenance: 'wizard', local_path: '/tmp/x/01-wizard.png' }, 'https://bc.pizza/'), { url: null, text: 'file logo-final.png' });
+  assert.deepEqual(candidateSource({ source: 'traced from the sign', provenance: 'gbp', local_path: '/tmp/x/03-gbp-trace.png' }, null), { url: null, text: 'file 03-gbp-trace.png' });
+  assert.deepEqual(candidateSource(null), { url: null, text: null });
+});
+
+test('linkVerdict gives a one-line closeout verdict per status and strips operator command text', () => {
+  const fb = linkVerdict({ status: { kind: 'ready' }, evidence: [], reason: "Page title 'Harbor Springs B.C. Pizza | Harbor Springs MI', 1.3K followers, intro 'Hometown, Handmade, Gourmet', address 930 State St Unit 9, Harbor Springs, MI 49740 (matches Places), phone (231) 526-2424 (matches Places), email x@y.z, website bc.pizza, avatar is the franchise badge. Discovery only surfaced facebook.com/tr (the site's tracking pixel): rejected. Write via branding set --facebook-url at closeout." });
+  assert.equal(fb, "Will be written at closeout. Matches the store's address and phone.");
+  assert.equal(linkVerdict({ status: { kind: 'rejected' }, evidence: [], reason: 'Meta pixel endpoint from the site\'s script tag, not a page.' }), 'Rejected: Meta pixel endpoint from the site\'s script tag, not a page.');
+  const held = linkVerdict({ status: { kind: 'held' }, evidence: [], reason: 'Question for Travisse: replace the stored ordering_url (the HungerRush login page) with the store page\'s Order Online link? The destination could not be read. Write via location set --ordering-url at closeout.' });
+  assert.equal(held, "Held: replace the stored ordering_url (the HungerRush login page) with the store page's Order Online link? Needs a yes to proceed.");
+  assert.equal(linkVerdict({ status: { kind: 'written' }, evidence: ['the website links to it'], reason: null }), "Written to the location. Linked from the store's own website.");
+  assert.equal(linkVerdict({ status: { kind: 'existing' }, evidence: [], reason: 'stored ordering_url renders the Toast menu' }), 'Already on the location, kept as is. stored ordering_url renders the Toast menu');
+  assert.equal(linkVerdict({ status: { kind: 'pending' }, evidence: [], reason: 'waiting on the live Chrome check' }), 'Waiting on the live browser check before a decision.');
+  assert.equal(linkVerdict({ status: { kind: 'none' }, evidence: [], reason: '' }), 'Nothing found.');
+  assert.equal(linkVerdict({ status: 'none', evidence: [], reason: 'No first-party gift card page found. Dry run recorded.' }), 'Nothing found. No first-party gift card page found.');
+  assert.ok(!/--|branding set|location set/.test(fb + held));
+});
+
+test('overviewLinkChips keeps written, live, ready, existing and held rows only, with bare hosts', () => {
+  const rows = buildLinkRows({ links: { candidates: [
+    { category: 'website', url: 'https://bc.pizza/', action: 'ready', reason: 'Places websiteUri' },
+    { category: 'ordering', url: 'https://bcpizzaus.hungerrush.com/Order/Menu/1009', action: 'hold', reason: 'Question for Travisse: replace it?' },
+    { category: 'ordering_rejected_stored_login_page', url: 'https://bcpizzaus.hungerrush.com/Account/LogOn', action: 'reject', reason: 'login wall' },
+    { category: 'facebook_rejected_pixel', url: 'https://www.facebook.com/tr', action: 'reject', reason: 'tracking pixel' },
+    { category: 'careers_jobs', url: 'https://bc.pizza/join-the-team/', action: 'ready', reason: 'linked from the store page' },
+    { category: 'events', url: null, action: 'none', reason: 'none' },
+  ] } });
+  const chips = overviewLinkChips(rows);
+  assert.deepEqual(chips.map((c) => [c.label, c.host, c.tag]), [['Website', 'bc.pizza/', null], ['Ordering', 'bcpizzaus.hungerrush.com/Order/Menu/1009', 'held'], ['Careers', 'bc.pizza/join-the-team/', null]]);
+  assert.ok(rows.every((r) => typeof r.verdict === 'string' && r.verdict.length));
 });

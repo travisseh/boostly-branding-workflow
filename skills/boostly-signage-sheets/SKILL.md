@@ -57,7 +57,15 @@ Per location:
   band-color bg with white ink + white QR modules + WHITE-KNOCKOUT logo, one
   white bg with band-color ink + color logo.
 - 2 to-go labels (1538x612, white): ALWAYS #000000 text and black QR modules
-  (B&W printer, never band color).
+  (B&W printer, never band color). Layout "A framed QR" (Travisse 2026-10-05):
+  TEXT ONLY, NO LOGO. Headline Figtree Bold, left aligned, vertically
+  centered in a fixed 860x500 box at x72 y56, letter spacing -2px, line height
+  96%, auto-fit from 150 down in steps of 2 (max 3 lines, longest word <= 860,
+  floor 56), no trailing arrow. QR in a rounded white tile, 3px inside black
+  stroke, r28, 500x500 at x982 y56, QR 468 inside (16px padding). SUBSCRIBE
+  headline = the table promo title (plan.json copy.togoPromo, "Get 20% Off",
+  "Get $10 Off $20+", phrase offers verbatim); REVIEW headline is exactly
+  "Let us know how we did". Geometry in SHEET_FORMAT.togoLabel.
 - Header above the section contents: "<Location> (<City>)" Inter Black 132,
   green Inter Bold 150 status label, 1500-wide logo. Generated sets say
   "GENERATED - REVIEW BEFORE PRINT"; flip to "PRODUCTION - DON'T DELETE"
@@ -95,7 +103,10 @@ Per location:
     fallback, not the preference; if the call transcript shows an agreed
     invite/signup offer and the request still says Join the Club, ask
     Travisse whether to use the specific number before building.
-  - Review stickers, bathroom strips, and to-go labels never change.
+  - Review stickers and bathroom strips never change. The to-go SUBSCRIBE
+    label headline is the table promo title (no arrow, no logo); the REVIEW
+    label keeps Cam's copy. "Get 20% Off!" typed as the offer is normalized to
+    the discount form "Get 20% Off".
   `specificOfferCopy()` in plan.mjs is the single implementation.
 
 All exact geometry (sheet dims, sticker anatomy, diagonal band path, QR tile
@@ -320,7 +331,10 @@ screenshot one sticker + one POP to confirm.
   body at y=520, QR untouched at 802); review-style phrases go on the POP
   only; generic restores Cam's defaults. Idempotent: every run re-lays out title and body, so you can
   go discount -> phrase -> generic without stale geometry. Review stickers,
-  bathroom, to-go never change.
+  bathroom, and the to-go REVIEW label never change; figma-recopy does not yet
+  touch the to-go SUBSCRIBE headline, set it in-plugin from plan.json
+  copy.togoPromo (style A auto-fit: Figtree Bold 150 down to 56 in steps
+  of 2, max 3 lines, 860x500 box, no arrow, no logo).
 - Trim (sheet counts):
   `node scripts/figma-trim.mjs --section <id> --tables N --stalls N [--allow-zero]`
   Deletes table/review pages beyond ceil(N/4), removes extra stickers from the

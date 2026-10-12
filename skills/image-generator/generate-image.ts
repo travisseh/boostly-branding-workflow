@@ -18,10 +18,17 @@ const SIZE_ALIASES: Record<string, AspectRatio> = {
 
 const RESOLUTIONS = ["1K", "2K", "4K"] as const;
 
-// OpenAI image model. Default is GPT-Image-2.5 Sunburst (announced 2026-09-08).
-// Override with --model <id> or OPENAI_IMAGE_MODEL. Previous default kept as a fallback option.
-const OPENAI_DEFAULT_MODEL = "gpt-image-2.5-sunburst-2026-09-08";
-const OPENAI_FALLBACK_MODEL = "gpt-image-2-2026-04-21";
+// Only these two models are allowed. Never fall back to older OpenAI or Gemini image models.
+const OPENAI_MODEL = "gpt-image-2.5-sunburst-2026-09-08"; // GPT-Image-2.5 Sunburst (2026-09-08)
+const GEMINI_MODEL = "gemini-nano-banana-2.1"; // Nano Banana 2.1 (2026-10-06)
+
+const PROVIDER_ALIASES: Record<string, "openai" | "gemini"> = {
+  openai: "openai",
+  chatgpt: "openai",
+  gemini: "gemini",
+  nanobanana: "gemini",
+  "nano-banana": "gemini",
+};
 
 const OPENAI_SIZE_MAP: Record<string, string> = {
   "1:1": "1024x1024",
@@ -47,9 +54,8 @@ Options:
   --ref <file>       Reference image path (for editing/context)
   --out <dir>        Output directory (default: ./generated)
   --name <name>      Output filename without extension (default: timestamp)
-  --provider <p>     Force provider: openai or gemini (default: openai with gemini fallback)
-  --model <id>       OpenAI image model id (default: ${OPENAI_DEFAULT_MODEL}; env OPENAI_IMAGE_MODEL)
-                     Previous model: ${OPENAI_FALLBACK_MODEL}
+  --provider <p>     Force provider: openai|chatgpt (${OPENAI_MODEL}) or nanobanana|gemini (${GEMINI_MODEL})
+                     Default: OpenAI first, Nano Banana 2.1 fallback
   --quality <q>      OpenAI quality override: low, medium, high, xhigh, max, auto (default: from --res)
   --size <WxH>       OpenAI custom size, e.g. 2048x2048 (multiples of 16, 1:3..3:1, max edge 3840; overrides --ratio)
   --background <b>   OpenAI background: transparent, opaque, auto (png/webp only for transparent)
@@ -65,7 +71,6 @@ function parseArgs(args: string[]) {
   let outDir = "./generated";
   let name: string | null = null;
   let provider: "openai" | "gemini" | null = null;
-  let model: string = process.env.OPENAI_IMAGE_MODEL || OPENAI_DEFAULT_MODEL;
   let quality: string | null = null;
   let size: string | null = null;
   let background: string | null = null;
@@ -98,17 +103,15 @@ function parseArgs(args: string[]) {
     } else if (arg === "--name") {
       name = args[++i];
     } else if (arg === "--provider") {
-      provider = args[++i] as "openai" | "gemini";
-      if (!["openai", "gemini"].includes(provider)) {
-        console.error(`Invalid provider: ${provider}. Use: openai, gemini`);
+      const val = args[++i]?.toLowerCase();
+      provider = PROVIDER_ALIASES[val] ?? null;
+      if (!provider) {
+        console.error(`Invalid provider: ${val}. Use: ${Object.keys(PROVIDER_ALIASES).join(", ")}`);
         process.exit(1);
       }
     } else if (arg === "--model") {
-      model = args[++i];
-      if (!model) {
-        console.error("--model requires a model id.");
-        process.exit(1);
-      }
+      console.error(`--model is not supported. Only ${OPENAI_MODEL} and ${GEMINI_MODEL} are allowed; use --provider.`);
+      process.exit(1);
     } else if (arg === "--quality") {
       quality = args[++i];
       if (!["low", "medium", "high", "xhigh", "max", "auto"].includes(quality)) {
@@ -149,7 +152,7 @@ function parseArgs(args: string[]) {
     process.exit(1);
   }
 
-  return { prompt, ratio, resolution, refImage, outDir, name, provider, model, quality, size, background, n };
+  return { prompt, ratio, resolution, refImage, outDir, name, provider, quality, size, background, n };
 }
 
 function getMimeType(filePath: string): string {
@@ -179,7 +182,6 @@ async function generateWithOpenAI(opts: {
   refImage: string | null;
   outDir: string;
   name: string | null;
-  model: string;
   quality?: string | null;
   size?: string | null;
   background?: string | null;
@@ -195,18 +197,18 @@ async function generateWithOpenAI(opts: {
 
   const size = opts.size ?? OPENAI_SIZE_MAP[opts.ratio];
   if (!size) {
-    console.error(`OpenAI doesn't support ratio ${opts.ratio}, falling back to Gemini.`);
+    console.error(`OpenAI doesn't support ratio ${opts.ratio}, falling back to Nano Banana 2.1.`);
     return false;
   }
 
   const quality = opts.quality ?? OPENAI_QUALITY_MAP[opts.resolution] ?? "medium";
 
-  console.log(`Provider: OpenAI (${opts.model})`);
+  console.log(`Provider: OpenAI (${OPENAI_MODEL})`);
   console.log(`Prompt: "${opts.prompt}"`);
   console.log(`Size: ${size} | Quality: ${quality}`);
 
   const requestParams: any = {
-    model: opts.model,
+    model: OPENAI_MODEL,
     prompt: opts.prompt,
     size,
     quality,
@@ -295,18 +297,19 @@ async function generateWithGemini(opts: {
     console.log(`Reference image: ${opts.refImage}`);
   }
 
-  console.log(`Provider: Gemini (gemini-3-pro-image-preview)`);
+  console.log(`Provider: Nano Banana 2.1 (${GEMINI_MODEL})`);
   console.log(`Prompt: "${opts.prompt}"`);
   console.log(`Ratio: ${opts.ratio} | Resolution: ${opts.resolution}`);
   console.log("Generating...\n");
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-pro-image-preview",
+    model: GEMINI_MODEL,
     contents: parts,
     config: {
       responseModalities: ["TEXT", "IMAGE"],
       imageConfig: {
         aspectRatio: opts.ratio,
+        imageSize: opts.resolution,
       },
     },
   });
@@ -343,9 +346,9 @@ async function generateWithGemini(opts: {
 }
 
 async function main() {
-  const { prompt, ratio, resolution, refImage, outDir, name, provider, model, quality, size, background, n } = parseArgs(process.argv.slice(2));
+  const { prompt, ratio, resolution, refImage, outDir, name, provider, quality, size, background, n } = parseArgs(process.argv.slice(2));
 
-  const opts = { prompt, ratio, resolution, refImage, outDir, name, model, quality, size, background, n };
+  const opts = { prompt, ratio, resolution, refImage, outDir, name, quality, size, background, n };
 
   if (provider === "gemini") {
     const ok = await generateWithGemini(opts);
@@ -363,7 +366,7 @@ async function main() {
   const openaiOk = await generateWithOpenAI(opts);
   if (openaiOk) return;
 
-  console.log("\nOpenAI failed or unavailable. Falling back to Gemini...\n");
+  console.log("\nOpenAI failed or unavailable. Falling back to Nano Banana 2.1...\n");
   const geminiOk = await generateWithGemini(opts);
   if (!geminiOk) {
     console.error("Both providers failed.");

@@ -104,6 +104,18 @@ Never use em dashes in anything you write.
    `--apply` (it overwrites the receipt); report the existing post. Never retry an `--apply`
    that may have posted: read `slack-post.json` and the thread first. Record the `slack`
    block in run.json with `run-file.ts set` and report the permalink.
+5b. Print hand-off to customstickers.com (skill `~/.claude/skills/boostly-print-handoff`, read its
+   SKILL.md "Commands" and "Hard rules"). Right after the Slack post, run
+   `node ~/.claude/skills/boostly-print-handoff/scripts/print-handoff.mjs --run-dir RUN_DIR`
+   (tee to `RUN_DIR/finish/print-handoff.log`). It exports the section's Print Sheet frames as
+   vector PDFs, uploads them to the location's Drive folder under the vendor master folder,
+   upserts the summary row, and creates a Gmail DRAFT to ckbrandsmktg@gmail.com with Colin Dunn
+   (colin@printiverse.com) and Maren Dunn (maren@customstickers.com) on cc. It never
+   sends; Travisse sends the draft. Read `RUN_DIR/print-handoff/handoff.json`: every kind must
+   say `vector: true` with pages equal to expected_pages, and `draft.id` must exist. A failed
+   export or a sheet_ids MISMATCH warning is reported, not worked around. Already done is not
+   an error: a recorded draft id is reused. Put the folder link, the page counts, and the draft
+   id in your report.
 6. Branding complete (skip when HOLD.md forbids it):
    `$L fulfillment branding <request_id> --complete --cookie-file "$CK/admin.cookie" --json`
    (dry run). Read `state_before`, `state_after`, `enters_physical_fulfillment`, and
@@ -153,7 +165,7 @@ Never use em dashes in anything you write.
 
 Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/finish/`
 (`secondary-logo-dry.json`, `secondary-logo-apply.json`, `secondary-logo-readback.json`,
-`slack-dry.log`, `slack-apply.log`, `branding-complete-dry.json`, `branding-complete-apply.json`,
+`slack-dry.log`, `slack-apply.log`, `print-handoff.log`, `branding-complete-dry.json`, `branding-complete-apply.json`,
 `fulfillment-after.json`, `store-details-dry.json`, `store-details-apply.json`, `notion-before.txt`, `notion-after.txt`, `run-validate.log`).
 
 ## Hard rules
@@ -177,6 +189,7 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
 ## Final report (all Travisse sees), under 150 words
 Secondary logo: sticker file, scope, attachment id from the readback (or the skip reason, or
 "failed" with the output); Slack permalink (or "no thread, nothing posted", or "already posted");
+print hand-off Drive folder link, PDF page counts, and Gmail draft id (not sent), or what failed;
 branding complete status readback with state before and after (or "skipped: HOLD.md"); Notion entry number and
 whether it was updated in place or appended; `run-file validate` result; the review site URL
 (`https://fulfillment-reviews.vercel.app/<run dir name>/`) after the rebuild, or what failed; links written, links

@@ -240,6 +240,81 @@ function firstSentence(text, max = 220) {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
+/** Pure: a URL as bare host/path (no scheme, no www.), middle-truncated to about `max` chars. */
+export function displayUrl(url, max = 60) {
+  const t = String(url ?? '').replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, (m) => m);
+  if (t.length <= max) return t;
+  const head = Math.ceil((max - 1) * 0.6);
+  const tail = max - 1 - head;
+  return `${t.slice(0, head)}…${t.slice(t.length - tail)}`;
+}
+
+/**
+ * Pure: where a logo candidate came from, for the caption. A real URL (source_url and friends, or one
+ * written into the source text) wins; a first-party candidate without one points at the website; a
+ * local file (wizard upload, attachment) shows its file name with no link. (2026-10-12, Travisse.)
+ */
+export function candidateSource(c, website = null) {
+  const src = String(c?.source ?? '');
+  for (const k of ['source_url', 'url', 'page_url', 'origin_url']) if (typeof c?.[k] === 'string' && /^https?:\/\//.test(c[k])) return { url: c[k], text: displayUrl(c[k]) };
+  const m = src.match(/https?:\/\/[^\s)\]'"]+/) ?? src.match(/\b(?:www\.)?(?:facebook|instagram|yelp|x|twitter|tiktok)\.com\/[\w.\-/?=&%]+/i);
+  if (m) { const url = /^https?:/.test(m[0]) ? m[0] : `https://${m[0]}`; return { url, text: displayUrl(url) }; }
+  if (/^first_party/.test(String(c?.provenance ?? '')) && website) return { url: website, text: displayUrl(website) };
+  const file = src.match(/[\w][\w.\-]*\.(?:png|jpe?g|svg|webp|gif|pdf|ai|eps)\b/i)?.[0] ?? (c?.local_path ? path.basename(c.local_path) : null);
+  return { url: null, text: file ? `file ${file}` : null };
+}
+
+// Operator instructions inside a link reason ("Write via branding set --facebook-url at closeout",
+// "Dry run recorded", "see website_bootstrap") are for the closeout agent, not the reviewer.
+const OPERATOR_SENTENCE = /--[a-z][\w-]*|\b(?:branding|location|boostly-links|links?)\s+set\b|\bdry run\b|\bsee [\w]+_[\w.]+\b|\bwrite (?:via|with|at)\b|\bcloseout (?:applies|writes|will write)\b|\brun\.json\b/i;
+const sentencesOf = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z"'(])/).map((x) => x.trim()).filter(Boolean);
+const reviewerSentences = (reason) => sentencesOf(reason)
+  .map((x) => x.replace(/^(?:question for travisse|note|hold|held|rejected?|ready|write|skip)\s*:\s*/i, '').trim())
+  .filter((x) => x && !OPERATOR_SENTENCE.test(x));
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
+/**
+ * Pure: one plain-English line per link row saying what happens at closeout and why. Built from the
+ * status kind, the identity signals in the evidence and reason text, and the first reviewer-facing
+ * sentence of the reason. Deterministic; never edits run data. (2026-10-12, Travisse.)
+ */
+export function linkVerdict(row) {
+  const kind = typeof row?.status === 'string' ? row.status : row?.status?.kind ?? 'none';
+  const text = [...(row?.evidence ?? []), String(row?.reason ?? '')].join(' ; ');
+  const matched = [];
+  if (/address on the page matches|\baddress\b[^.;]{0,80}\bmatch(?:es|ing)?\b/i.test(text)) matched.push('address');
+  if (/phone on the page matches|\bphone\b[^.;]{0,60}\bmatch(?:es|ing)?\b|\(matches places\)/i.test(text)) matched.push('phone');
+  let signal = null;
+  if (matched.length) signal = `Matches the store's ${matched.join(' and ')}.`;
+  else if (/the website links to it|\blinked (?:as|from)\b|\bsite backlink\b|official_website_links_to_candidate/i.test(text)) signal = "Linked from the store's own website.";
+  else if (/title matches the business|url slug names the business|\bpage title\b|\btitle "/i.test(text)) signal = 'Name matches the business.';
+  const why = reviewerSentences(row?.reason);
+  const first = why[0] ? clip(why[0], 150) : null;
+  if (kind === 'written') return ['Written to the location.', signal ?? first].filter(Boolean).join(' ');
+  if (kind === 'ready' || kind === 'live') return ['Will be written at closeout.', signal ?? first].filter(Boolean).join(' ');
+  if (kind === 'existing') return ['Already on the location, kept as is.', signal ?? first].filter(Boolean).join(' ');
+  if (kind === 'held') {
+    const body = first ?? 'needs a human decision';
+    return `Held: ${body}${/needs a yes|needs a human|needs a decision/i.test(body) ? '' : ' Needs a yes to proceed.'}`;
+  }
+  if (kind === 'pending') return 'Waiting on the live browser check before a decision.';
+  if (kind === 'rejected') return `Rejected: ${first ?? 'not this business.'}`;
+  return ['Nothing found.', first].filter(Boolean).join(' ');
+}
+
+/** Pure: the short link chips for the top of the page: written, live, ready, and existing rows, plus held rows tagged "held". */
+export function overviewLinkChips(rows) {
+  const short = { ordering: 'Ordering', careers_jobs: 'Careers' };
+  const out = [];
+  for (const r of rows ?? []) {
+    const kind = r.status?.kind;
+    if (!r.url || !/^https?:\/\//.test(r.url)) continue;
+    if (!['written', 'live', 'ready', 'existing', 'held'].includes(kind)) continue;
+    out.push({ label: short[r.category] ?? r.label, url: r.url, host: displayUrl(r.url, 44), tag: kind === 'held' ? 'held' : null });
+  }
+  return out;
+}
+
 /** Plain-words source label for a logo candidate: provenance first, then the earliest-mentioned source, plus the treatment phrase. */
 function candidateSourceLabel(c) {
   const src = String(c.source ?? '');
@@ -335,7 +410,7 @@ export async function logoZoom3x({ runDir, logoFile, primary, outFile, run }) {
 // ---------------------------------------------------------------------------------------------
 /** Pure: read scene and letter from a preview file name; null when it is not one. Tolerates suffixes (box-K-red.png). */
 export function parsePreviewName(basename) {
-  const m = /^([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*?)-([A-Za-z])(?:-([A-Za-z0-9][\w.-]*))?\.png$/.exec(basename);
+  const m = /^([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*?)-([A-Za-z]{1,2})(?:-([A-Za-z0-9][\w.-]*))?\.png$/.exec(basename); // letter may be two chars (AA..AZ sheet cells, 2026-10-12)
   if (!m) return null;
   const [, scene, letterRaw, suffix] = m;
   const letter = letterRaw.toUpperCase();
@@ -617,7 +692,7 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
     }
     return style;
   };
-  return [...rows.values()].sort((a, b) => order(a.category) - order(b.category) || a.category.localeCompare(b.category)).map(({ reportUrl, decided, ...r }) => ({ ...r, url: urlText(r.url), status: chipFor(r) }));
+  return [...rows.values()].sort((a, b) => order(a.category) - order(b.category) || a.category.localeCompare(b.category)).map(({ reportUrl, decided, ...r }) => ({ ...r, url: urlText(r.url), status: chipFor(r), verdict: linkVerdict(r) }));
 }
 
 /** A link row's URL as text. Run files sometimes carry an object or a list there (2026-09-29, crunchicken-2). */
@@ -1069,7 +1144,7 @@ async function renderSectionBlocks(sec, blocks) {
         const items = [];
         for (const r of part.rows) {
           items.push({ text: `${r.label}:  ${r.status.kind === 'rejected' ? 'REJECTED' : r.status.words.toUpperCase()}${r.url ? `   ${r.url}` : ''}`, size: 21, bold: true, color: r.status.chip, gap: 12 });
-          if (r.reason) items.push({ text: r.reason.slice(0, 260), size: 16, color: '#444444', indent: 24, gap: 3 });
+          if (r.verdict) items.push({ text: r.verdict.slice(0, 260), size: 16, color: '#444444', indent: 24, gap: 3 });
           if (r.evidence.length) items.push({ text: `Evidence: ${r.evidence.join('; ').slice(0, 260)}`, size: 16, color: '#666666', indent: 24, gap: 3 });
         }
         if (!items.length) items.push({ text: 'No link rows.', size: 18, color: '#666666' });
@@ -1121,7 +1196,10 @@ function renderHtml(sections, { title, reviewDir }) {
   // Escape, then turn every http(s) URL into a real link (trailing punctuation stays outside).
   const ext = (url, label) => `<a class="ext" href="${esc(url)}" target="_blank" rel="noopener">${label}</a>`;
   const linkify = (text) => esc(text ?? '').replace(/\n/g, '<br>').replace(/https?:\/\/[^\s<]+?(?=[.,;:)\]'"]*(?:\s|<br>|$))/g, (u) => ext(u, u));
-  const linksHtml = (links) => links?.length ? `<p class="links">${links.map((l) => ext(l.url, esc(l.label) + ' &#8599;')).join(' ')}</p>` : '';
+  // Link chips: a plain label plus the bare host/path for link rows (held ones tagged), label + arrow for the rest.
+  const linksHtml = (links) => links?.length ? `<p class="links">${links.map((l) => l.host
+    ? `<a class="ext chip${l.tag ? ` ${esc(l.tag)}` : ''}" href="${esc(l.url)}" target="_blank" rel="noopener"><b>${esc(l.label)}</b> ${esc(l.host)}${l.tag ? ` <em>${esc(l.tag)}</em>` : ''}</a>`
+    : ext(l.url, esc(l.label) + ' &#8599;')).join(' ')}</p>` : '';
   const textHtml = (items, secId) => items.map((it0) => {
     const it = typeof it0 === 'string' ? { text: it0 } : it0;
     const size = it.size ?? 22;
@@ -1129,8 +1207,15 @@ function renderHtml(sections, { title, reviewDir }) {
     const id = secId ? subId(secId, it) : null;
     return `<p${id ? ` id="${id}"` : ''} style="${style}">${linkify(it.text)}</p>`;
   }).join('\n');
-  const figure = (file, label, { frame, bg, bold, url, pageHref, pageLabel } = {}) =>
-    `<figure${bg ? ` style="background:${bg}"` : ''}${frame ? ` class="framed"` : ''}><a href="${pageHref ? esc(pageHref) : href(file)}" target="_blank"${pageHref ? ' rel="noopener"' : ''} title="${pageHref ? `open the source page: ${esc(pageHref)}` : 'open the file'}"><img src="${href(file)}" loading="lazy" alt="${esc(label ?? '')}"></a><figcaption${bold ? ' style="font-weight:700"' : ''}>${pageHref ? `${ext(pageHref, `<b>${esc(pageLabel ?? pageHref)}</b> &#8599;`)}<br>` : ''}${linkify(label)}${url ? `<br>${ext(url, 'source &#8599;')}` : ''}</figcaption></figure>`;
+  // Caption source line: the real source URL (host/path, middle-truncated) as an external link, or the
+  // file name with no link when the candidate came from a local file (2026-10-12).
+  const sourceHtml = (source, url) => {
+    const src = source ?? (url ? { url, text: displayUrl(url) } : null);
+    if (!src?.text && !src?.url) return '';
+    return src.url ? `<br>${ext(src.url, `${esc(src.text ?? displayUrl(src.url))} &#8599;`)}` : `<br><span class="src">${esc(src.text)}</span>`;
+  };
+  const figure = (file, label, { frame, bg, bold, url, source, pageHref, pageLabel, hidden } = {}) =>
+    `<figure${bg ? ` style="background:${bg}"` : ''}${frame || hidden ? ` class="${[frame ? 'framed' : null, hidden ? 'more' : null].filter(Boolean).join(' ')}"` : ''}><a href="${pageHref ? esc(pageHref) : href(file)}" target="_blank"${pageHref ? ' rel="noopener"' : ''} title="${pageHref ? `open the source page: ${esc(pageHref)}` : 'open the file'}"><img src="${href(file)}" loading="lazy" alt="${esc(label ?? '')}"></a><figcaption${bold ? ' style="font-weight:700"' : ''}>${pageHref ? `${ext(pageHref, `<b>${esc(pageLabel ?? pageHref)}</b> &#8599;`)}<br>` : ''}${linkify(label)}${sourceHtml(source, url)}</figcaption></figure>`;
   const out = [];
   for (const [i, sec] of sections.entries()) {
     const secId = sec.id || `section-${i + 1}`;
@@ -1142,8 +1227,17 @@ function renderHtml(sections, { title, reviewDir }) {
       if (part.type === 'text') out.push(textHtml(part.items, secId));
       else if (part.type === 'gray') out.push(`<div class="gray">${linkify(part.text)}</div>`);
       else if (part.type === 'image') out.push(`<div class="shot${part.zoom ? ' zoom' : ''}"${part.zoom ? ' title="click to toggle native size"' : ''}><a href="${href(part.file)}" target="_blank"><img src="${href(part.file)}" loading="lazy" alt="${esc(part.alt ?? part.caption ?? '')}"></a></div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}`);
-      else if (part.type === 'links') out.push(`<table class="links"><thead><tr><th>Category</th><th>URL</th><th>Status</th><th>Evidence</th></tr></thead><tbody>${part.rows.map((r) => `<tr class="st-${esc(r.status.kind)}"><td class="cat">${esc(r.label)}</td><td class="url">${r.url ? ext(r.url, esc(r.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 72))) : '<span class="none">none</span>'}</td><td><span class="chip" style="background:${esc(r.status.chip)}">${esc(r.status.words)}</span>${r.reason && !(r.status.kind === 'rejected' && r.status.words === `rejected: ${r.reason}`) ? `<div class="why">${linkify(r.reason)}</div>` : ''}</td><td class="ev">${r.evidence.length ? linkify(r.evidence.join('; ')) : '<span class="none">no evidence recorded</span>'}</td></tr>`).join('\n')}</tbody></table>`);
-      else if (part.type === 'grid') out.push(`<div class="grid cols${part.cols ?? 3}">${part.items.map((it) => figure(it.file, it.label, { frame: it.frame, bg: it.bg ?? part.bg, bold: it.bold, url: it.url, pageHref: it.href, pageLabel: it.hrefLabel })).join('\n')}</div>`);
+      // Links table: one plain-English verdict per row (linkVerdict); the raw reason and evidence stay behind a collapsed "raw evidence".
+      else if (part.type === 'links') out.push(`<table class="links"><thead><tr><th>Category</th><th>URL</th><th>Status</th><th>Verdict</th></tr></thead><tbody>${part.rows.map((r) => {
+        const raw = [r.reason, ...(r.evidence ?? [])].filter(Boolean);
+        return `<tr class="st-${esc(r.status.kind)}"><td class="cat">${esc(r.label)}</td><td class="url">${r.url ? ext(r.url, esc(displayUrl(r.url, 72))) : '<span class="none">none</span>'}</td><td><span class="chip" style="background:${esc(r.status.chip)}">${esc(r.status.kind === 'rejected' ? 'rejected' : r.status.words)}</span></td><td class="ev"><div class="verdict">${esc(r.verdict ?? linkVerdict(r))}</div>${raw.length ? `<details><summary>raw evidence</summary><div class="raw">${raw.map((x) => linkify(x)).join('<br>')}</div></details>` : '<span class="none">no evidence recorded</span>'}</td></tr>`;
+      }).join('\n')}</tbody></table>`);
+      // Grid: items past `showFirst` start hidden behind a "Show all N" toggle (inline JS, no library).
+      else if (part.type === 'grid') {
+        const n = part.items.length;
+        const first = Number.isFinite(part.showFirst) && part.showFirst < n ? part.showFirst : n;
+        out.push(`<div class="grid cols${part.cols ?? 3}">${part.items.map((it, i) => figure(it.file, it.label, { frame: it.frame, bg: it.bg ?? part.bg, bold: it.bold, url: it.url, source: it.source, pageHref: it.href, pageLabel: it.hrefLabel, hidden: i >= first })).join('\n')}</div>${first < n ? `<p class="show-all"><button type="button" class="show-all" data-all="Show all ${n}" data-less="Show fewer (${first} of ${n})">Show all ${n}</button></p>` : ''}`);
+      }
       else if (part.type === 'header') out.push(`<div class="hdr"><div>${textHtml(part.items)}</div>${part.cell ? `<div class="cell${part.cell.hold ? ' hold' : ''}"><a href="${href(part.cell.file)}" target="_blank"><img src="${href(part.cell.file)}" alt="default cell"></a><p>${esc(part.cell.caption)}</p>${part.zoom && existsSync(part.zoom.file) ? `<a href="${href(part.zoom.file)}" target="_blank" title="open the 3x crop"><img class="zoom3x${part.zoom.pass === false ? ' bad' : ''}" src="${href(part.zoom.file)}" alt="logo at 3x"></a><p><b>Logo at 3x (what prints).</b> ${esc(part.zoom.line)}</p>` : ''}</div>` : ''}</div>`);
     }
     out.push('</section>');
@@ -1216,6 +1310,19 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
   p.links { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 16px; font-size: 15px; }
   p.links a.ext { background: #eef3fc; border: 1px solid #c9d8f5; border-radius: 4px; padding: 3px 10px; text-decoration: none; word-break: normal; }
   p.links a.ext:hover { background: #dce7fb; }
+  p.links a.chip b { font-weight: 700; margin-right: 4px; }
+  p.links a.chip.held { background: #fff4d6; border-color: #e3c37a; }
+  p.links a.chip em { font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #8a5a00; margin-left: 4px; }
+  figcaption .src { color: #666; }
+  .grid figure.more { display: none; }
+  .grid.expanded figure.more { display: block; }
+  p.show-all { margin: 10px 0 0; }
+  button.show-all { font: inherit; font-size: 14px; font-weight: 700; background: #f4f4f4; border: 1px solid #bbb; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+  button.show-all:hover { background: #e6e6e6; }
+  table.links .verdict { color: #222; max-width: 560px; }
+  table.links details { margin-top: 5px; font-size: 13px; color: #666; max-width: 560px; }
+  table.links details summary { cursor: pointer; color: #0b57d0; }
+  table.links .raw { margin-top: 4px; }
   table.links { border-collapse: collapse; width: 100%; font-size: 15px; margin-top: 8px; }
   table.links th { text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #666; padding: 6px 10px; border-bottom: 2px solid #ddd; }
   table.links td { padding: 9px 10px; border-bottom: 1px solid #e6e6e6; vertical-align: top; }
@@ -1227,7 +1334,6 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
   table.links .none { color: #999; }
   table.links tr.st-held td { background: #fff8e8; }
   table.links tr.st-rejected td { color: #777; }
-  table.links tr.st-rejected .chip { text-transform: none; letter-spacing: 0; white-space: normal; }
   table.links tr.st-written td { background: #eef7ee; }
 </style></head><body id="top">
 ${navHtml}
@@ -1235,6 +1341,15 @@ ${out.join('\n')}
 <script>
   for (const el of document.querySelectorAll('.shot.zoom')) {
     el.addEventListener('click', (ev) => { ev.preventDefault(); el.classList.toggle('native'); });
+  }
+  // "Show all N" on capped photo grids: reveal the hidden figures in the grid just above the button.
+  for (const btn of document.querySelectorAll('button.show-all')) {
+    btn.addEventListener('click', () => {
+      const grid = btn.parentElement.previousElementSibling;
+      if (!grid) return;
+      const open = grid.classList.toggle('expanded');
+      btn.textContent = open ? btn.dataset.less : btn.dataset.all;
+    });
   }
   // Sidebar: highlight the section in view, jump instantly on click (no scroll animation, Travisse 2026-09-29), hamburger below 1000px.
   (() => {
@@ -1319,24 +1434,21 @@ async function main() {
   const overviewLinks = [
     accountId ? { label: 'Boostly account', url: `https://new.boostly.com/admin/accounts/${accountId}` } : null,
     req.request_id && req.source === 'v2-db' ? { label: 'Fulfillment request', url: `https://new.boostly.com/admin/fulfillment/${req.request_id}` } : null,
-    website ? { label: 'Website', url: website } : null,
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
-    ...(Array.isArray(run.links?.candidates) ? run.links.candidates : [])
-      .filter((l) => typeof l?.url === 'string' && /^https?:\/\//.test(l.url))
-      .map((l) => ({ label: `${l.category ?? 'link'}: ${l.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 48)}`, url: l.url })),
   ].filter(Boolean);
+  // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
+  // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never
+  // appear here (they stay in the Links table). Falls back to the request website when the run has no link rows.
+  const linkSources = await collectLinkSources(runDir, run);
+  const linkRows = buildLinkRows({ links: linkSources.links, categoryResults: linkSources.report?.report?.category_results ?? [], pendingUrls: linkSources.pendingUrls });
+  const linkChips = overviewLinkChips(linkRows);
+  if (!linkChips.some((c) => c.label === 'Website') && website) linkChips.unshift({ label: 'Website', url: website, host: displayUrl(website, 44), tag: null });
+  overviewLinks.push(...linkChips);
   const gbpLinks = [
     placeId ? { label: 'Google Maps place', url: `https://www.google.com/maps/place/?q=place_id:${placeId}` } : null,
     { label: 'Google search', url: `https://www.google.com/search?q=${gq(`${name} ${city}`.trim())}` },
   ].filter(Boolean);
-  const candidateUrl = (c) => {
-    for (const k of ['source_url', 'url', 'page_url', 'origin_url']) if (typeof c[k] === 'string' && /^https?:\/\//.test(c[k])) return c[k];
-    const src = String(c.source ?? '');
-    const m = src.match(/https?:\/\/[^\s)\]'"]+/) ?? src.match(/\b(?:www\.)?(?:facebook|instagram|yelp|x|twitter|tiktok)\.com\/[\w.\-/?=&%]+/i);
-    if (m) return /^https?:/.test(m[0]) ? m[0] : `https://${m[0]}`;
-    return /^first_party/.test(String(c.provenance ?? '')) && website ? website : null;
-  };
   const defaultLetter = sheet?.fable_default_letter ?? run.variants?.fable_default_letter ?? null;
   const fableMark = (sheet?.marks ?? []).find((m) => m.status === 'fable_pick' && m.letter === defaultLetter);
   const rationaleLine = fableMark?.note ? fableMark.note.replace(/^Fable( default)?:\s*/i, '') : firstSentence(decision?.rationale);
@@ -1404,16 +1516,9 @@ async function main() {
     }
   }
   usage.logo_3x = zoom ? { file: zoom.file ? rel(runDir, zoom.file) : null, logo: zoom.logo ?? null, edge_quality: zoom.edge_quality, line: zoom.line } : null;
-  const gateRows = gateSummaryForRows(run, sheet, runDir);
-  const gateItems = [{ text: 'Gates, per row of the sheet', size: 28, bold: true, gap: 18 }];
-  for (const g of gateRows) {
-    gateItems.push({ text: g.text, size: 21, gap: 8, color: g.blocking ? '#B71C1C' : g.fails?.length ? '#8A5A00' : GREEN, bold: true });
-    for (const f of g.fails ?? []) gateItems.push({ text: f, size: 18, color: '#333333', indent: 28, gap: 2 });
-  }
-  if (!gateRows.length) gateItems.push({ text: 'No variant sheet rows found; nothing to summarize.', size: 20, color: '#666666' });
+  // The per-row gate summary is no longer rendered (Travisse, 2026-10-12); the gate results stay in run.json.
   sections.push({ id: 'header', links: overviewLinks, parts: [
     { type: 'header', items: headerItems, cell: defaultCell && existsSync(cellFile) ? { file: cellFile, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source (native sheet pixels, click to open)` : `Fable's default cell ${defaultLetter} (native sheet pixels, click to open)` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
-    { type: 'text', items: gateItems },
   ] });
 
   // ---- captures (collected first so failures never block the composition) ------------------
@@ -1477,7 +1582,8 @@ async function main() {
     usage.website = { mode: 'failed', reason: websiteCapture?.error ?? (website ? 'skipped' : 'no website URL') };
     websiteParts.push({ type: 'gray', text: `Website not captured. ${usage.website.reason}` });
   }
-  sections.push({ id: 'website', title: 'Website', subtitle: website ?? 'no website on the request', links: website ? [{ label: 'Open website', url: website }] : [], parts: websiteParts });
+  // The subtitle URL is itself the link (linkify gives it target=_blank rel=noopener); no separate "Open website" button (2026-10-12).
+  sections.push({ id: 'website', title: 'Website', subtitle: website ?? 'no website on the request', links: [], parts: websiteParts });
 
   // ---- 3. Google Business Profile ---------------------------------------------------------
   const gbpParts = [];
@@ -1485,34 +1591,56 @@ async function main() {
   for (const text of [decision?.rationale, decision?.composition, evidence.in_store_observations]) {
     for (const m of String(text ?? '').matchAll(/gbp-photo-(\d{2})/g)) cited.add(Number(m[1]));
   }
+  // Photo ordering signal (2026-10-12, Travisse): gbp-photos.json carries no photo-type tag, but most Place
+  // photos (403 of 550 across runs-prod) share a sha256 with a brand-environment candidate in the SearchAPI
+  // manifest (evidence.brand_environment.manifest, plus selected_candidates), and those carry `subtype`
+  // (storefront, interior_fixture, menu_signage, branded_collateral, or plain vibe), `classification`
+  // (brand_environment, mixed, unclassified) and Google's `category` (Vibe, By owner, All). Order: tagged
+  // environment photos first, then Google's Vibe category, then Fable-cited photos, then everything else
+  // (dish photos land there; at most 3 of them stay visible). With no tag match at all: Fable-cited first and
+  // 6 visible. The rest sit behind the "Show all N" toggle.
+  const be = evidence.brand_environment ?? {};
+  const beManifest = be.manifest ? await readJson(be.manifest, null) : null;
+  const ENV_SUBTYPES = new Set(['storefront', 'interior_fixture', 'exterior', 'signage', 'menu_signage', 'branded_collateral', 'interior']);
+  const photoTag = new Map();
+  for (const c of [...(be.selected_candidates ?? []), ...(beManifest?.candidates ?? [])]) {
+    if (!c?.sha256 || photoTag.has(c.sha256)) continue;
+    const sub = String(c.subtype ?? '').toLowerCase();
+    const cls = String(c.classification ?? '').toLowerCase();
+    const cat = String(c.category ?? '').toLowerCase();
+    const tier = ENV_SUBTYPES.has(sub) || cls === 'brand_environment' || cls === 'mixed' ? 0 : sub === 'vibe' || cat === 'vibe' ? 1 : null;
+    if (tier !== null) photoTag.set(c.sha256, { tier, word: tier === 0 ? sub.replace(/_/g, ' ') || cls.replace(/_/g, ' ') : 'vibe' });
+  }
+  const photoTier = (p) => { const t = photoTag.get(p.sha256); return t ? t.tier : cited.has(p.index) ? 2 : 3; };
   const gbpPhotos = (gbpManifest?.photos ?? []).map((p) => {
     const file = [abs(runDir, p.file), path.join(runDir, 'gbp-photos', path.basename(p.file ?? ''))].find((f) => f && existsSync(f));
     const author = p.author_attributions?.[0]?.displayName ?? '';
     const owner = author && author.toLowerCase().replace(/[^a-z]/g, '').startsWith(name.toLowerCase().replace(/[^a-z]/g, '').slice(0, 8));
     const isCited = cited.has(p.index);
     const size = p.width_px && p.height_px ? `  ${p.width_px}x${p.height_px}` : '';
-    return file ? { file, label: `#${p.index}${owner ? ' owner photo' : author ? ` by ${author}` : ''}${size}${isCited ? '  <- cited by Fable' : ''}`, frame: isCited ? GREEN : null, bold: isCited } : null;
-  }).filter(Boolean);
+    const tag = photoTag.get(p.sha256);
+    return file ? { file, tier: photoTier(p), index: p.index, label: `#${p.index}${owner ? ' owner photo' : author ? ` by ${author}` : ''}${tag ? `  · ${tag.word}` : ''}${size}${isCited ? '  <- cited by Fable' : ''}`, frame: isCited ? GREEN : null, bold: isCited } : null;
+  }).filter(Boolean).sort((a, b) => a.tier - b.tier || a.index - b.index);
   if (gbpPhotos.length) {
-    usage.gbp_photos = { mode: 'cached evidence', count: gbpPhotos.length };
-    gbpParts.push({ type: 'text', items: [{ text: `Place photos already downloaded for this run (${gbpPhotos.length}), at the size the run fetched. Green frame = a photo Fable cited for the sign or interior.`, size: 20 }] });
-    gbpParts.push({ type: 'grid', items: gbpPhotos, cols: 3, cellH: 420, labelH: 40 });
+    const tagged = gbpPhotos.some((p) => p.tier <= 1);
+    const showFirst = tagged ? gbpPhotos.filter((p) => p.tier <= 2).length + Math.min(3, gbpPhotos.filter((p) => p.tier === 3).length) : Math.min(6, gbpPhotos.length);
+    usage.gbp_photos = { mode: 'cached evidence', count: gbpPhotos.length, ordering: tagged ? 'brand-environment subtype by sha256, then Vibe, then Fable-cited' : 'Fable-cited first (no brand-environment tag matched)', visible: showFirst };
+    gbpParts.push({ type: 'text', items: [{ text: `Place photos already downloaded for this run (${gbpPhotos.length}), ${tagged ? 'storefront, interior and signage photos first, then the rest' : 'photos Fable cited first, then the rest'}. Green frame = a photo Fable cited for the sign or interior.`, size: 20 }] });
+    gbpParts.push({ type: 'grid', items: gbpPhotos, cols: 3, cellH: 420, labelH: 40, showFirst });
   } else {
     usage.gbp_photos = { mode: 'none' };
     gbpParts.push({ type: 'gray', text: 'No Place photos were downloaded for this run (gbp-photos/gbp-photos.json missing or empty).', height: 110 });
   }
-  const be = evidence.brand_environment ?? {};
   let vibe = (be.selected_candidates ?? []).filter((c) => c.local_path && existsSync(c.local_path));
   let vibeLabel = 'Google Maps "Vibe" photos from the evidence build (Google\'s own in-store/atmosphere category)';
   if (!vibe.length) {
-    const manifest = be.manifest ? await readJson(be.manifest, null) : null;
-    vibe = (manifest?.candidates ?? []).filter((c) => c.local_path && existsSync(c.local_path)).slice(0, 12);
+    vibe = (beManifest?.candidates ?? []).filter((c) => c.local_path && existsSync(c.local_path)).slice(0, 12);
     vibeLabel = 'In-store photos (search results): Google Maps photos fetched by the evidence build, no Vibe category was available';
   }
   if (vibe.length) {
     usage.vibe_photos = { mode: 'cached evidence', count: vibe.length, source: be.source ?? null };
     const items = vibe.slice(0, 12).map((c) => ({ file: c.local_path, label: `${c.category ?? 'photo'}${c.subtype && c.subtype !== 'vibe' ? ` / ${c.subtype}` : ''}${c.classification && c.classification !== 'unclassified' ? ` · ${c.classification}` : ''}${c.width ? `  ${c.width}x${c.height}` : ''}` }));
-    gbpParts.push({ type: 'text', items: [{ text: vibeLabel, size: 20, gap: 10 }] }, { type: 'grid', items, cols: 3, cellH: 420, labelH: 40 });
+    gbpParts.push({ type: 'text', items: [{ text: vibeLabel, size: 20, gap: 10 }] }, { type: 'grid', items, cols: 3, cellH: 420, labelH: 40, showFirst: 6 });
   } else {
     usage.vibe_photos = { mode: 'none', reason: be.reason ?? 'no brand-environment photos in the evidence' };
     gbpParts.push({ type: 'gray', text: `No in-store (Vibe) photos in the evidence: ${usage.vibe_photos.reason}`, height: 100 });
@@ -1557,7 +1685,7 @@ async function main() {
     .sort((a, b) => path.basename(a.local_path).localeCompare(path.basename(b.local_path)))
     .map((c) => {
       const isChosen = chosen && path.resolve(c.local_path) === chosen;
-      return { file: c.local_path, label: `${path.basename(c.local_path)}  ${c.width}x${c.height}\n${candidateSourceLabel(c)}${isChosen ? '\nFABLE\'S PICK' : ''}`, frame: isChosen ? GREEN : null, bold: isChosen, bg: LOGO_BG, url: candidateUrl(c) };
+      return { file: c.local_path, label: `${path.basename(c.local_path)}  ${c.width}x${c.height}\n${candidateSourceLabel(c)}${isChosen ? '\nFABLE\'S PICK' : ''}`, frame: isChosen ? GREEN : null, bold: isChosen, bg: LOGO_BG, source: candidateSource(c, website) };
     });
   const rawFiles = [];
   try {
@@ -1588,7 +1716,6 @@ async function main() {
   sections.push({ id: 'sheet', title: 'Variant sheet', subtitle: `${defaultLetter ? `Fable's default ${defaultLetter} framed in green. ` : ''}Reply with one letter.`, links: accountId ? [{ label: 'Boostly account branding', url: `https://new.boostly.com/admin/accounts/${accountId}` }] : [], parts: sheetParts });
 
   // ---- 7. links: the link automation results, one row per category ---------------------------
-  const linkSources = await collectLinkSources(runDir, run);
   const linkSec = linksSection({ runDir, sources: linkSources });
   if (linkSec) sections.push(linkSec);
   usage.links = linkSec ? { mode: `run data: ${linkSec.parts[1].rows.filter((r) => r.status.kind === 'held').length} held, ${linkSec.parts[1].rows.filter((r) => r.status.kind === 'written').length} written, ${linkSec.parts[1].rows.filter((r) => r.status.kind === 'pending').length} pending`, rows: linkSec.parts[1].rows.length, held: linkSec.parts[1].rows.filter((r) => r.status.kind === 'held').length, written: linkSec.parts[1].rows.filter((r) => r.status.kind === 'written').length, pending: linkSec.parts[1].rows.filter((r) => r.status.kind === 'pending').length, report: linkSources.report ? rel(runDir, linkSources.report.file) : null } : { mode: 'none' };
@@ -1657,6 +1784,14 @@ async function compare({ args, runDir, reviewDir, run, sheet, openOutputs }) {
       if (file && existsSync(file)) pieces.push({ buffer: await fitImage(file, colW, h, { bg: GRAY_BG }), width: colW, height: h });
       else pieces.push(await grayBox(`${what} render missing`, { height: h, width: colW }));
       pieces.push(await spacer(8));
+    }
+    // Five columns: a text block or a fitted image can come back a pixel or two wider than colW
+    // (font metrics, rounding), and sharp refuses to composite anything larger than the base.
+    // Measure every piece and clamp it to the column width before stacking.
+    for (const p of pieces) {
+      const meta = await sharp(p.buffer).metadata();
+      if (meta.width > colW) { p.buffer = await sharp(p.buffer).resize({ width: colW }).png().toBuffer(); const m2 = await sharp(p.buffer).metadata(); p.width = m2.width; p.height = m2.height; }
+      else { p.width = meta.width; p.height = meta.height; }
     }
     columns.push(pieces);
   }
