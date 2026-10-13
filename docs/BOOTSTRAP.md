@@ -180,10 +180,15 @@ the operator's Figma account. There is no key to store. Verify with the `whoami`
 or `claude mcp list` showing `plugin:figma:figma` connected. The closeout agent needs `use_figma`,
 `get_metadata`, `get_screenshot`, and `upload_assets`. CHECKPOINT 7: Figma connected as the operator.
 
-## 8. Badge preview harness (Boostly app repo on port 3457)
+## 8. Badge preview harness (Boostly app repo on port 3457): OPTIONAL, close-out proofs only
 
-The variant sheet renders real tap cards through a dev page in the Boostly app. This is the one
-dependency outside this repo.
+Since 2026-10-13 the variant sheet, the review canvas and the signage previews need no Boostly dev
+server: the cells are drawn by the browser from the vendored templates
+(`skills/boostly-brand-design/templates/sheet-templates.js`, the production badge markup copied from
+the app) and the sheet JSON. The only step that still renders through the app is the close-out
+production-parity proof (`render-effective-proof.ts` / `harness/screenshot.mjs`). Skip this section for
+the fulfill stage and the dry run; set it up before the first close-out. `setup.sh --check` reports a
+missing repo or harness as WARN, not MISSING.
 
 ```bash
 set -a; . ~/.config/boostly-branding/.env; set +a
@@ -196,9 +201,9 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3457/public/badge-prev
 ```
 
 The app's own `.env` needs are Boostly engineering's; if `npm run dev` fails on missing env, ask Travisse
-which minimal `.env.local` the app needs for this page. Known issue (2026-09-23): the sibling
-`signage-preview-harness` page can 500 when `_components/signage-previews.tsx` is absent on main; only
-the badge preview page is required here. CHECKPOINT 8: the curl prints 200.
+which minimal `.env.local` the app needs for this page. The `signage-preview-harness` page is no longer
+used (signage previews come from `scripts/signage-preview.mjs`). CHECKPOINT 8: the curl prints 200, or
+"skipped until the first close-out".
 
 ## 9. Public review site (Boostly/fulfillment-reviews)
 

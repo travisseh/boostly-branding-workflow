@@ -191,3 +191,21 @@ The gmail-tools CLI the operator receives from Travisse must be the 2026-10-12 b
 
 - `tools/google-cli/google-tools/auth.js` line 32: the `boostly` login hint reads `BOOSTLY_GOOGLE_EMAIL` (another operator's address) before Travisse's default.
 - `tools/google-cli/` added 2026-10-12: copies of ~/.config/gmail-tools (gmail.js, package.json, package-lock.json), ~/.config/google-tools (auth.js, google.js), ~/.config/google-calendar-tools (calendar.js) plus install.sh. No tokens, no keys.
+
+## 2026-10-13: client-side card, sticker and signage previews
+
+Live copies refreshed for the change Travisse approved on 2026-10-13 (review previews stop being Playwright
+screenshots of the Boostly app). Copied from `~/.claude/skills/boostly-brand-design` and `~/.claude/agents`:
+
+| File | Live change | Patch re-applied |
+|---|---|---|
+| `skills/boostly-brand-design/templates/sheet-templates.js` | NEW: vendored badge card (boostly `generate-badge-html.ts` @ 8bf7a2e), sticker mock, POP tile, signage row, sheet montage, compare view; pure functions of JSON, Node + browser | none |
+| `skills/boostly-brand-design/scripts/render-preview.mjs` | NEW: the one in-memory raster path (Playwright `setContent`, relative paths served from disk, no server) | none |
+| `skills/boostly-brand-design/scripts/signage-preview.mjs` | NEW: `review/signage-preview-<L>.json` spec per cell (`--png` for the raster) | none |
+| `skills/boostly-brand-design/scripts/variant-sheet.mjs` | schema 3 `view` per cell, `variant-sheet.html` instead of per-cell PNGs, `--raster`, `render --cell`, `--url-base` ignored; the harness is gone | the line-696 `BOOSTLY_REPO_DIR` error-text patch no longer applies (the HARNESS DOWN message was removed) |
+| `skills/boostly-brand-design/scripts/review-canvas.mjs` | sheet, default cell and signage previews drawn from templates; `--png` (opt-in tall PNG), `--no-record`; on-page select + compare; `review/sheet-templates.js` copied next to the page | none needed (`REVIEW_CANVAS_CHROME_LIVE` block identical) |
+| `skills/boostly-brand-design/harness/mockups/ai-mockup.mjs` | renders missing card/sticker/POP tiles and the signage raster on demand (`variant-sheet.mjs render`, `signage-preview.mjs --png`) | none (`$HOME` form kept) |
+| `skills/boostly-brand-design/scripts/variant-sheet.test.ts`, `scripts/sheet-templates.test.ts` | HTML-sheet tests; template and JSON-contract tests (143 tests pass on the live copy) | none |
+| `skills/boostly-brand-design/SKILL.md` | script list, rules 2/2b/2c/2d, workflow step 1 | `$BOOSTLY_RUN_ROOT`, `$BOOSTLY_REPO_DIR` substitutions untouched (hunks applied in place) |
+| `agents/fulfill-location.md`, `agents/closeout-location.md` | canvas step says no dev server; signage preview via `signage-preview.mjs` | working directory and heartbeat patches untouched (hunks applied in place) |
+| `setup/setup.sh`, `setup/env.example`, `docs/BOOTSTRAP.md` | Boostly repo + :3457 harness are WARN / optional (close-out proofs only) | package-only |

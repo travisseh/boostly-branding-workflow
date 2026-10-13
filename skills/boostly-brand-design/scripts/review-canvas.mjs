@@ -3,12 +3,19 @@
 // (open the website, open the GBP and look for in-store photos, image-search the logo).
 //
 //   node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly]
-//                          [--scale 2] [--no-html] [--record-only]
+//                          [--scale 2] [--no-html] [--record-only] [--png] [--no-record]
 //
-// Outputs, both under <run_dir>/review/:
-//   review-canvas.png   one tall PNG, 1600px * --scale wide (default 3200px), photos embedded large
-//   review-canvas.html  the same sections as a self-contained page (inline CSS, relative image paths,
-//                       every image at native resolution, click to open the file, zoomable sheet)
+// Outputs under <run_dir>/review/:
+//   review-canvas.html  the review page (inline CSS, relative image paths, every image at native
+//                       resolution, click to open the file). The variant sheet, the default cell and the
+//                       signage previews are drawn by the browser from the vendored templates
+//                       (templates/sheet-templates.js, copied next to the page as sheet-templates.js) and
+//                       the sheet JSON: no app screenshots (Travisse 2026-10-13). Click cells to select
+//                       them and "Compare selected" for a side-by-side; click the sheet background to
+//                       toggle native size.
+//   review-canvas.png   only with --png: one tall PNG, 1600px * --scale wide, for the operator's own
+//                       look in Preview (--open). The sheet and signage rasters it needs are rendered once in
+//                       memory through scripts/render-preview.mjs (no dev server). Nothing else reads it.
 // Sections: header + gate summary, website, Google Business Profile (downloaded Place photos, Google
 // "Vibe" photos from the SearchAPI evidence, live Maps photo view), logo image search, logo
 // candidates, the variant sheet with Fable's default cell marked, Links (the link automation results
@@ -26,7 +33,8 @@
 // thumbnail URLs, close the tab, re-fetch the public gstatic thumbnails). Fallbacks: headless
 // Google, Bing, DuckDuckGo, then a labeled gray box.
 // The canvas record lands in run.json under variants.review_canvas through run-file (the run
-// schema has no top-level review block). No production writes; nothing printed that could be a secret.
+// schema has no top-level review block; --no-record skips it). No production writes; nothing printed
+// that could be a secret.
 
 import fs from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
@@ -34,8 +42,10 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import templates from '../templates/sheet-templates.js';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const TEMPLATES_FILE = path.resolve(SCRIPT_DIR, '..', 'templates', 'sheet-templates.js');
 const HARNESS_DIR = path.resolve(SCRIPT_DIR, '..', 'harness');
 const require = createRequire(path.join(HARNESS_DIR, 'package.json'));
 const sharp = require('sharp');
@@ -58,7 +68,7 @@ const GREEN = '#1B5E20';
 // args
 // ---------------------------------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { command: 'canvas', open: false, skipGoogle: false, googleBudgetMs: 90_000, liveChrome: false, chromeProfile: 'boostly', scale: 2, html: true, recordOnly: false, cells: null, pngBudgetMb: 25 };
+  const args = { command: 'canvas', open: false, skipGoogle: false, googleBudgetMs: 90_000, liveChrome: false, chromeProfile: 'boostly', scale: 2, html: true, recordOnly: false, cells: null, pngBudgetMb: 25, png: false, record: true };
   if (argv[0] && !argv[0].startsWith('--')) {
     if (argv[0] !== 'compare') throw new Error(`Unknown subcommand ${argv[0]}; the only subcommand is "compare"`);
     args.command = argv.shift();
@@ -79,7 +89,11 @@ function parseArgs(argv) {
     else if (a === '--no-html') args.html = false;
     else if (a === '--record-only') args.recordOnly = true;
     else if (a === '--png-budget-mb') args.pngBudgetMb = Number(argv[++i]);
-    else if (a === '--help' || a === '-h') { console.log('node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly] [--scale 2] [--no-html] [--record-only] [--png-budget-mb 25]\nnode review-canvas.mjs compare --run <run_dir> --cells K,M,L [--open] [--scale 2]'); process.exit(0); }
+    // --png (2026-10-13): the tall review-canvas.png is opt-in; the HTML page is the review surface.
+    else if (a === '--png') args.png = true;
+    else if (a === '--no-png') args.png = false;
+    else if (a === '--no-record') args.record = false;
+    else if (a === '--help' || a === '-h') { console.log('node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly] [--scale 2] [--no-html] [--record-only] [--png] [--png-budget-mb 25] [--no-record]\nnode review-canvas.mjs compare --run <run_dir> --cells K,M,L [--open] [--png] [--scale 2]'); process.exit(0); }
     else throw new Error(`Unknown argument ${a}`);
   }
   if (!args.run) throw new Error('Usage: node review-canvas.mjs --run <run_dir> [--open]  |  node review-canvas.mjs compare --run <run_dir> --cells K,M,L');
@@ -404,8 +418,11 @@ export async function logoZoom3x({ runDir, logoFile, primary, outFile, run }) {
 // gate summary
 // ---------------------------------------------------------------------------------------------
 // ---------------------------------------------------------------------------------------------
-// Previews: harness signage shots and AI mockups written next to the canvas (2026-09-21).
-//   review/signage-preview-<L>.png                 harness/mockups/_signage-shot.mjs
+// Previews: signage previews and AI mockups written next to the canvas (2026-09-21).
+//   review/signage-preview-<L>.json                scripts/signage-preview.mjs (drawn by the browser from the
+//                                                  template; preferred since 2026-10-13)
+//   review/signage-preview-<L>.png                 legacy harness/mockups/_signage-shot.mjs shot, or the
+//                                                  signage-preview.mjs --png raster (shown only without a json)
 //   review/mockups/<scene>-<L>[-suffix].png        harness/mockups/ai-mockup.mjs (+ prompts.md)
 // ---------------------------------------------------------------------------------------------
 /** Pure: read scene and letter from a preview file name; null when it is not one. Tolerates suffixes (box-K-red.png). */
@@ -456,14 +473,18 @@ export function parsePromptsVerdicts(md) {
   return out;
 }
 
-/** Files under review/ grouped by letter: { K: { signage: file|null, mockups: [{ file, scene, suffix, name }] } }. */
+/** Files under review/ grouped by letter: { K: { signage: png|null, signage_spec: { file, spec }|null, mockups: [{ file, scene, suffix, name }] } }. */
 export async function collectPreviews(reviewDir) {
   const letters = {};
-  const at = (letter) => (letters[letter] ??= { signage: null, mockups: [] });
-  const list = async (dir) => { try { return (await fs.readdir(dir)).filter((f) => /\.png$/i.test(f)).sort(); } catch { return []; } };
+  const at = (letter) => (letters[letter] ??= { signage: null, signage_spec: null, mockups: [] });
+  const list = async (dir, ext = /\.png$/i) => { try { return (await fs.readdir(dir)).filter((f) => ext.test(f)).sort(); } catch { return []; } };
   for (const f of await list(reviewDir)) {
     const p = parsePreviewName(f);
     if (p?.kind === 'signage') at(p.letter).signage = path.join(reviewDir, f);
+  }
+  for (const f of await list(reviewDir, /^signage-preview-[A-Za-z]{1,2}\.json$/)) {
+    const letter = /^signage-preview-([A-Za-z]{1,2})\.json$/.exec(f)[1].toUpperCase();
+    try { at(letter).signage_spec = { file: path.join(reviewDir, f), spec: JSON.parse(await fs.readFile(path.join(reviewDir, f), 'utf8')) }; } catch { /* a broken spec falls back to the png */ }
   }
   const mockupDir = path.join(reviewDir, 'mockups');
   for (const f of await list(mockupDir)) {
@@ -502,13 +523,15 @@ export function previewsSection({ runDir, reviewDir, previews, sheet, run, prove
     const cell = sheet?.cells?.[letter];
     const hexes = cell ? `card ${cell.primary} on ${cell.secondary}, text ${cell.text}${cell.secondary_source && provenanceWords ? ` (band ${provenanceWords(cell.secondary_source, cell.secondary_label)})` : ''}` : 'cell not on the sheet';
     const status = pickStatus(letter, sheet, run);
-    const counts = `${group.signage ? 'signage preview' : 'no signage preview'}, ${group.mockups.length} AI mockup${group.mockups.length === 1 ? '' : 's'}`;
+    const counts = `${group.signage_spec || group.signage ? 'signage preview' : 'no signage preview'}, ${group.mockups.length} AI mockup${group.mockups.length === 1 ? '' : 's'}`;
     const rowLabel = cell?.row_label ? String(cell.row_label).slice(0, 110) + (cell.row_label.length > 110 ? '...' : '') : null;
     parts.push({ type: 'text', items: [
       { text: `Cell ${letter}${status.length ? `  ${status.join(', ')}` : ''}`, size: 28, bold: true, color: status.includes('TRAVISSE PICK') ? '#B7791F' : status.includes('FABLE PICK') ? GREEN : '#111111', gap: 14 },
       { text: `${rowLabel ? `${rowLabel}. ` : ''}${hexes}. ${counts}.`, size: 18, color: '#444444', gap: 4 },
     ], gapAfter: 6 });
-    if (group.signage) parts.push({ type: 'image', file: group.signage, native: true, maxH: 900, alt: `signage preview ${letter}`, caption: `${rel(runDir, group.signage)}: harness signage preview (POP, sticker, card, to-go), click to open.` });
+    // The JSON spec is drawn by the browser from the template; a legacy png (or a --png raster) is shown only when no spec exists.
+    if (group.signage_spec) parts.push({ type: 'signage', letter, spec: group.signage_spec.spec, file: group.signage, caption: `${rel(runDir, group.signage_spec.file)}: signage preview drawn from the template (POP sign, tap card, table sticker, bathroom sticker); card ${group.signage_spec.spec.primary}, accent ${group.signage_spec.spec.accent}.` });
+    else if (group.signage) parts.push({ type: 'image', file: group.signage, native: true, maxH: 900, alt: `signage preview ${letter}`, caption: `${rel(runDir, group.signage)}: signage preview (POP, sticker, card, to-go), click to open.` });
     if (group.mockups.length) {
       parts.push({ type: 'grid', cols: 4, cellH: 300, labelH: 96, labelSize: 15, bg: GRAY_BG, items: group.mockups.map((m) => {
         const v = previews.verdicts.get(m.name.toLowerCase());
@@ -517,7 +540,7 @@ export function previewsSection({ runDir, reviewDir, previews, sheet, run, prove
       }) });
     }
   }
-  return { id: 'previews', title: 'Previews', subtitle: 'harness signage preview and AI mockups per letter; previews, not proofs (QR drift, invented phone content). Click any image to open the native file.', links, sizeGated: true, parts };
+  return { id: 'previews', title: 'Previews', subtitle: 'signage preview and AI mockups per letter; previews, not proofs (QR drift, invented phone content). Click any image to open the native file.', links, sizeGated: true, parts };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1178,6 +1201,13 @@ async function renderSectionBlocks(sec, blocks) {
         blocks.push(b);
         const cap = [part.caption, b.cropped ? `Top ${part.maxH ?? 1100}px of a taller image; the HTML page and the file itself show all of it.` : null].filter(Boolean).join(' ');
         if (cap) blocks.push(await textBlock([{ text: cap, size: 17, color: '#666666', gap: 6 }]));
+      } else if (part.type === 'sheet' || part.type === 'signage') {
+        // HTML-first parts: the PNG shows their raster when --png rendered one, else says where to look.
+        if (part.file && existsSync(part.file)) {
+          const b = await imageBlock(part.file, { maxH: part.type === 'sheet' ? 4000 : 900, native: true });
+          blocks.push(b);
+          if (part.caption) blocks.push(await textBlock([{ text: part.caption, size: 17, color: '#666666', gap: 6 }]));
+        } else blocks.push(await grayBox(`${part.type === 'sheet' ? 'variant sheet' : `signage preview ${part.letter}`}: drawn in review-canvas.html; run with --png for a raster here.`, { height: 110 }));
       } else if (part.type === 'grid') blocks.push(await imageGrid(part.items, { cols: part.cols, cellH: part.cellH, labelH: part.labelH, labelSize: part.labelSize, bg: part.bg }), await spacer(12));
       else if (part.type === 'links') {
         const items = [];
@@ -1193,6 +1223,7 @@ async function renderSectionBlocks(sec, blocks) {
         const textW = part.cell ? CW() - cellW - L(30) : CW();
         const text = await textBlock(part.items, { width: textW });
         if (!part.cell) { blocks.push(text); continue; }
+        if (!part.cell.file) { blocks.push(text); continue; }
         const meta = await sharp(part.cell.file).metadata();
         const scale = Math.min(cellW / meta.width, L(520) / meta.height);
         const cw = Math.round(meta.width * scale); const chh = Math.round(meta.height * scale);
@@ -1220,8 +1251,11 @@ async function renderSectionBlocks(sec, blocks) {
   }
 }
 
-function renderHtml(sections, { title, reviewDir }) {
+function renderHtml(sections, { title, reviewDir, runDir = path.dirname(reviewDir) }) {
   const href = (file) => path.relative(reviewDir, file).split(path.sep).map(encodeURIComponent).join('/');
+  // run-dir-relative logo paths (sheet views, signage specs) -> src relative to the page
+  const src = (relPath) => href(path.join(runDir, relPath));
+  let sheetJson = null;
   // Sidebar entries: one per section, plus a sub-entry for each bold sub-heading inside it
   // (sizes 22-30 are the in-section headings; the business name and h2 titles are bigger).
   const nav = [];
@@ -1283,7 +1317,17 @@ function renderHtml(sections, { title, reviewDir }) {
         const first = Number.isFinite(part.showFirst) && part.showFirst < n ? part.showFirst : n;
         out.push(`<div class="grid cols${part.cols ?? 3}">${part.items.map((it, i) => figure(it.file, it.label, { frame: it.frame, bg: it.bg ?? part.bg, bold: it.bold, url: it.url, source: it.source, pageHref: it.href, pageLabel: it.hrefLabel, hidden: i >= first })).join('\n')}</div>${first < n ? `<p class="show-all"><button type="button" class="show-all" data-all="Show all ${n}" data-less="Show fewer (${first} of ${n})">Show all ${n}</button></p>` : ''}`);
       }
-      else if (part.type === 'header') out.push(`<div class="hdr"><div>${textHtml(part.items)}</div>${part.cell ? `<div class="cell${part.cell.hold ? ' hold' : ''}"><a href="${href(part.cell.file)}" target="_blank"><img src="${href(part.cell.file)}" alt="default cell"></a><p>${esc(part.cell.caption)}</p>${part.zoom && existsSync(part.zoom.file) ? `<a href="${href(part.zoom.file)}" target="_blank" title="open the 3x crop"><img class="zoom3x${part.zoom.pass === false ? ' bad' : ''}" src="${href(part.zoom.file)}" alt="logo at 3x"></a><p><b>Logo at 3x (what prints).</b> ${esc(part.zoom.line)}</p>` : ''}</div>` : ''}</div>`);
+      // Variant sheet: the montage drawn from the sheet view (templates), the view as an inline JSON block, selection + compare UI.
+      else if (part.type === 'sheet') {
+        sheetJson = JSON.stringify(part.view).replace(/<\//g, '<\\/');
+        out.push(`<div class="sheet-wrap" id="sheet-wrap" title="click the grey background to toggle native size"><div class="sheet-zoom" id="sheet-zoom">${templates.sheetHtml(part.view, { src, focus: part.focus, selectable: true })}</div></div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}<p class="compare-bar"><button type="button" id="compare-btn" disabled>Compare selected</button> <button type="button" id="compare-clear">Clear</button> <span id="compare-count">click 2 to 5 cells</span></p><div id="compare-panel" class="compare-panel"></div>`);
+      }
+      // Signage preview drawn from its JSON spec (scripts/signage-preview.mjs).
+      else if (part.type === 'signage') {
+        const sp = part.spec;
+        out.push(`<div class="signage-wrap">${templates.signagePreviewHtml({ logoUrl: sp.logo ? src(sp.logo) : null, logoLightUrl: sp.logo_light ? src(sp.logo_light) : null, primary: sp.primary, accent: sp.accent, offer: sp.offer, bathroomCopy: sp.bathroom_copy ?? null })}</div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}`);
+      }
+      else if (part.type === 'header') out.push(`<div class="hdr"><div>${textHtml(part.items)}</div>${part.cell ? `<div class="cell${part.cell.hold ? ' hold' : ''}">${part.cell.html ? `<div class="cell-html">${part.cell.html}</div>` : `<a href="${href(part.cell.file)}" target="_blank"><img src="${href(part.cell.file)}" alt="default cell"></a>`}<p>${esc(part.cell.caption)}</p>${part.zoom && existsSync(part.zoom.file) ? `<a href="${href(part.zoom.file)}" target="_blank" title="open the 3x crop"><img class="zoom3x${part.zoom.pass === false ? ' bad' : ''}" src="${href(part.zoom.file)}" alt="logo at 3x"></a><p><b>Logo at 3x (what prints).</b> ${esc(part.zoom.line)}</p>` : ''}</div>` : ''}</div>`);
     }
     out.push('</section>');
   }
@@ -1294,8 +1338,22 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
 </ol></nav>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title>
+<script src="sheet-templates.js"></script>
 <style>
   :root { color-scheme: light; scroll-behavior: auto; }
+  ${templates.SHEET_CSS}
+  .cell-html .bs-cell { border: 6px solid #1b5e20; box-sizing: content-box; }
+  .cell.hold .cell-html .bs-cell { border-color: #B71C1C; }
+  .sheet-wrap { border: 1px solid #ddd; overflow: auto; background: #C8C8C8; cursor: zoom-in; }
+  .sheet-wrap.native { cursor: zoom-out; }
+  .sheet-zoom { width: max-content; }
+  .compare-bar { margin: 10px 0 0; font-size: 15px; }
+  .compare-bar button { font: inherit; font-size: 14px; font-weight: 700; background: #f4f4f4; border: 1px solid #bbb; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+  .compare-bar button[disabled] { color: #999; cursor: default; }
+  .compare-bar span { color: #666; margin-left: 8px; }
+  .compare-panel { margin-top: 12px; overflow: auto; }
+  .compare-panel h3 { font-size: 22px; margin: 8px 0; }
+  .signage-wrap { overflow: auto; border: 1px solid #ddd; }
   body { margin: 0; padding: 32px 40px 80px 280px; background: #fff; color: #111; font-family: Helvetica, Arial, sans-serif; font-size: 18px; line-height: 1.35; max-width: 2040px; box-sizing: border-box; }
   h2 { font-size: 34px; margin: 0 0 4px; }
   section { padding: 28px 0; border-bottom: 3px solid #ccc; scroll-margin-top: 16px; }
@@ -1325,7 +1383,7 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
   .hdr { display: flex; gap: 30px; align-items: flex-start; }
   .hdr > div:first-child { flex: 1; }
   .cell { flex: 0 0 auto; max-width: 520px; }
-  .cell img { display: block; max-width: 100%; border: 6px solid #1b5e20; box-sizing: border-box; }
+  .cell > a > img { display: block; max-width: 100%; border: 6px solid #1b5e20; box-sizing: border-box; }
   .cell p { color: #1b5e20; font-weight: 700; font-size: 16px; }
   .shot { border: 1px solid #ddd; overflow: auto; max-height: 90vh; }
   .shot img { display: block; width: 100%; height: auto; }
@@ -1335,7 +1393,7 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
   .shot.zoom img { cursor: zoom-in; }
   .cell img.zoom3x { margin-top: 10px; border: 3px solid #444; image-rendering: pixelated; }
   .cell img.zoom3x.bad { border-color: #B71C1C; }
-  .cell.hold img:first-of-type { border-color: #B71C1C; }
+  .cell.hold > a > img:first-of-type { border-color: #B71C1C; }
   .shot.zoom.native img { width: auto; max-width: none; cursor: zoom-out; }
   .grid { display: grid; gap: 14px; }
   .grid.cols3 { grid-template-columns: repeat(3, 1fr); }
@@ -1383,10 +1441,48 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
 </style></head><body id="top">
 ${navHtml}
 ${out.join('\n')}
+${sheetJson ? `<script type="application/json" id="variant-sheet-view">${sheetJson}</script>` : ''}
 <script>
   for (const el of document.querySelectorAll('.shot.zoom')) {
     el.addEventListener('click', (ev) => { ev.preventDefault(); el.classList.toggle('native'); });
   }
+  // Variant sheet (2026-10-13): fit the montage to the content width (CSS zoom), click the background for native size,
+  // click cells to select them, Compare selected renders the compare view from the inline JSON with the templates.
+  (() => {
+    const wrap = document.getElementById('sheet-wrap');
+    const zoom = document.getElementById('sheet-zoom');
+    const data = document.getElementById('variant-sheet-view');
+    if (!wrap || !zoom || !data) return;
+    const sheet = zoom.querySelector('.bs-sheet');
+    let native = false;
+    const fit = () => { const w = sheet.offsetWidth; const avail = wrap.clientWidth; zoom.style.zoom = native ? 1 : Math.min(1, avail / w); wrap.classList.toggle('native', native); };
+    window.addEventListener('resize', fit);
+    fit();
+    wrap.addEventListener('click', (ev) => { if (ev.target.closest('.bs-cell')) return; native = !native; fit(); });
+    const view = JSON.parse(data.textContent);
+    const logoUrl = {};
+    for (const img of zoom.querySelectorAll('img[data-logo]')) logoUrl[img.dataset.logo] ??= img.getAttribute('src');
+    const src = (rel) => logoUrl[rel] ?? rel;
+    const selected = [];
+    const btn = document.getElementById('compare-btn');
+    const count = document.getElementById('compare-count');
+    const panel = document.getElementById('compare-panel');
+    const update = () => { btn.disabled = selected.length < 2 || selected.length > 5; count.textContent = selected.length ? selected.join(', ') + ' selected' + (selected.length > 5 ? ' (at most 5)' : selected.length < 2 ? ' (pick one more)' : '') : 'click 2 to 5 cells'; };
+    for (const cell of zoom.querySelectorAll('.bs-cell.selectable')) cell.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const l = cell.dataset.letter; const i = selected.indexOf(l);
+      if (i >= 0) selected.splice(i, 1); else selected.push(l);
+      cell.classList.toggle('selected', i < 0);
+      update();
+    });
+    btn.addEventListener('click', () => {
+      if (!window.BoostlySheet) { panel.innerHTML = '<p class="cap">sheet-templates.js did not load next to this page.</p>'; return; }
+      panel.innerHTML = '<h3>Compare ' + selected.join(', ') + '</h3>' + window.BoostlySheet.compareHtml(view, selected.slice(), { src, colW: 300 });
+      panel.scrollIntoView({ behavior: 'instant', block: 'start' });
+    });
+    document.getElementById('compare-clear').addEventListener('click', () => { selected.length = 0; for (const c of zoom.querySelectorAll('.bs-cell.selected')) c.classList.remove('selected'); panel.innerHTML = ''; update(); });
+    update();
+  })();
   // "Show all N" on capped photo grids: reveal the hidden figures in the grid just above the button.
   for (const btn of document.querySelectorAll('button.show-all')) {
     btn.addEventListener('click', () => {
@@ -1442,7 +1538,7 @@ async function main() {
   const htmlFile = path.join(reviewDir, 'review-canvas.html');
   const openOutputs = (record) => {
     if (!args.open) return;
-    spawnSync('open', ['-a', 'Preview', canvasFile]);
+    if (record?.png && existsSync(canvasFile)) spawnSync('open', ['-a', 'Preview', canvasFile]);
     if (record?.html && existsSync(htmlFile)) spawnSync('open', [htmlFile]);
   };
 
@@ -1503,23 +1599,31 @@ async function main() {
   const usage = { website: null, gbp_photos: null, vibe_photos: null, maps_view: null, logo_search: null, candidates: null, sheet: null, logo_3x: null, links: null, previews: null };
   const sections = [];
 
-  // ---- default cell crop and marked sheet (native size, saved for both outputs) --------------
-  const { sheetGeometry, provenanceWords } = await import(path.join(SCRIPT_DIR, 'variant-sheet.mjs'));
+  // ---- sheet view (schema 3): every cell drawn by the browser from its view; the raster only behind --png ----
+  const { sheetGeometry, provenanceWords, sheetView, normalizeManifest, composeSheet } = await import(path.join(SCRIPT_DIR, 'variant-sheet.mjs'));
+  const variantsDir = path.dirname(sheetJsonPath);
+  if (sheet && !sheet.run_dir) sheet.run_dir = runDir;
+  const sheetData = sheet ? sheetView(normalizeManifest(sheet, variantsDir)) : null;
+  const srcFromReview = (relPath) => path.relative(reviewDir, path.join(runDir, relPath)).split(path.sep).map(encodeURIComponent).join('/');
   // HOLD (2026-09-21): a small-source trace has no default letter; the held cell is framed red instead
   const hold = sheet?.hold?.letter ? sheet.hold : null;
   const focusLetter = defaultLetter ?? hold?.letter ?? null;
+  const focus = focusLetter && sheetData?.cells?.[focusLetter] ? { letter: focusLetter, hold: Boolean(hold && !defaultLetter) } : null;
   let defaultCell = null;
   if (sheet && focusLetter && sheet.cells?.[focusLetter]) {
     const geometry = sheetGeometry(sheet);
     const cell = sheet.cells[focusLetter];
     const r = sheet.rows.findIndex((row) => row.key === cell.row);
     const c = cell.column_index ?? sheet.columns.findIndex((col) => col.hex === cell.secondary);
-    if (r >= 0 && c >= 0) defaultCell = { letter: focusLetter, cell, x: 120 + c * geometry.cellW, y: 44 + r * geometry.cellH, w: geometry.cellW, h: geometry.cellH };
+    if (r >= 0 && c >= 0) defaultCell = { letter: focusLetter, cell, view: sheetData.cells[focusLetter], x: 120 + c * geometry.cellW, y: 44 + r * geometry.cellH, w: geometry.cellW, h: geometry.cellH };
   }
+  // --png: the tall PNG needs sheet pixels. One in-memory render of the sheet html (render-preview.mjs) into
+  // variants/variant-sheet.png, then the default-cell crop and the marked sheet are cut from it as before.
   const cellFile = path.join(reviewDir, 'default-cell.png');
   const markedSheetFile = path.join(reviewDir, 'variant-sheet-marked.png');
   let sheetMeta = null;
-  if (existsSync(sheetPng)) {
+  if (args.png && sheet) {
+    await composeSheet(sheet, variantsDir, { raster: true });
     sheetMeta = await sharp(sheetPng).metadata();
     if (defaultCell) {
       await sharp(sheetPng).extract({ left: defaultCell.x, top: defaultCell.y, width: defaultCell.w, height: defaultCell.h }).png().toFile(cellFile);
@@ -1566,7 +1670,7 @@ async function main() {
   usage.logo_3x = zoom ? { file: zoom.file ? rel(runDir, zoom.file) : null, logo: zoom.logo ?? null, edge_quality: zoom.edge_quality, line: zoom.line } : null;
   // The per-row gate summary is no longer rendered (Travisse, 2026-10-12); the gate results stay in run.json.
   sections.push({ id: 'header', links: overviewLinks, parts: [
-    { type: 'header', items: headerItems, cell: defaultCell && existsSync(cellFile) ? { file: cellFile, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source (native sheet pixels, click to open)` : `Fable's default cell ${defaultLetter} (native sheet pixels, click to open)` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
+    { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source` : `Fable's default cell ${defaultLetter}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
   ] });
 
   // ---- captures (collected first so failures never block the composition) ------------------
@@ -1751,15 +1855,15 @@ async function main() {
   }
   sections.push({ id: 'candidates', title: 'Logo candidates', subtitle: 'from the evidence packet; green frame = the file Fable chose. Gray background so white knockouts stay visible.', links: website ? [{ label: 'Website', url: website }] : [], parts: candParts });
 
-  // ---- 6. variant sheet -------------------------------------------------------------------
+  // ---- 6. variant sheet: drawn by the browser from the sheet view (no png on the default path) ----------
   const sheetParts = [];
-  if (sheetMeta) {
-    usage.sheet = { mode: 'cached', file: rel(runDir, sheetPng), native: `${sheetMeta.width}x${sheetMeta.height}`, revision: sheet?.revision ?? null };
-    const shown = Math.min(CW(), sheetMeta.width);
-    sheetParts.push({ type: 'image', file: markedSheetFile, native: true, maxH: 4000, zoom: true, eager: true, bust: true, alt: 'variant sheet', caption: `${rel(runDir, sheetPng)} at ${shown === sheetMeta.width ? 'native size' : `${shown} of ${sheetMeta.width}px wide`}, revision ${sheet?.revision ?? '?'}. In the HTML page click the sheet to toggle native size.` });
+  if (sheetData) {
+    const n = Object.keys(sheetData.cells).length;
+    usage.sheet = { mode: 'html', file: rel(runDir, sheetJsonPath), revision: sheet?.revision ?? null, cells: n, png: sheetMeta ? rel(runDir, sheetPng) : null, native: sheetMeta ? `${sheetMeta.width}x${sheetMeta.height}` : null };
+    sheetParts.push({ type: 'sheet', view: sheetData, focus, file: sheetMeta ? markedSheetFile : null, caption: `${rel(runDir, sheetJsonPath)} revision ${sheet?.revision ?? '?'}: ${n} cells drawn by the browser from the sheet JSON and the badge, sticker and POP templates (no app screenshots). Click cells to select two to five of them and Compare selected; click the grey background to toggle native size.` });
   } else {
     usage.sheet = { mode: 'missing' };
-    sheetParts.push({ type: 'gray', text: 'variants/variant-sheet.png is missing; run variant-sheet.mjs build first.', height: 110 });
+    sheetParts.push({ type: 'gray', text: 'variants/variant-sheet.json is missing; run variant-sheet.mjs build first.', height: 110 });
   }
   sections.push({ id: 'sheet', title: 'Variant sheet', subtitle: `${defaultLetter ? `Fable's default ${defaultLetter} framed in green. ` : ''}Reply with one letter.`, links: accountId ? [{ label: 'Boostly account branding', url: `https://new.boostly.com/admin/accounts/${accountId}` }] : [], parts: sheetParts });
 
@@ -1776,27 +1880,47 @@ async function main() {
   usage.previews = { mode: Object.keys(previewLetters).length ? 'cached files' : 'none', letters: previewLetters, prompts: previews.promptsFile ? rel(runDir, previews.promptsFile) : null, png: null };
 
   // ---- compose ------------------------------------------------------------------------------
-  const size = await renderPng(sections, canvasFile, { budgetBytes: args.pngBudgetMb * 1e6 });
+  // The page needs the template script next to it (the public site copies small .js files locally).
+  await fs.copyFile(TEMPLATES_FILE, path.join(reviewDir, 'sheet-templates.js'));
+  let size = { width: null, height: null, skipped: {} };
+  if (args.png) {
+    // Signage previews drawn from a spec need pixels in the PNG: render each once in memory to its png file.
+    const specs = Object.entries(previews.letters).filter(([, g]) => g.signage_spec);
+    if (specs.length) {
+      const { withBrowser, renderSignagePng } = await import('./render-preview.mjs');
+      await withBrowser(async (browser) => {
+        for (const [letter, g] of specs) {
+          const file = path.join(reviewDir, `signage-preview-${letter}.png`);
+          await fs.writeFile(file, await renderSignagePng(g.signage_spec.spec, { baseDir: reviewDir, browser, src: srcFromReview }));
+          g.signage = file;
+          const part = previewSec?.parts.find((p) => p.type === 'signage' && p.letter === letter);
+          if (part) part.file = file;
+        }
+      });
+    }
+    size = await renderPng(sections, canvasFile, { budgetBytes: args.pngBudgetMb * 1e6 });
+  }
   const previewSkip = size.skipped?.previews ?? null;
-  usage.previews.png = previewSkip ? `skipped: ${previewSkip.reason}` : (Object.keys(previewLetters).length ? 'included at reduced width' : 'none to include');
+  usage.previews.png = !args.png ? 'not rendered (--png)' : previewSkip ? `skipped: ${previewSkip.reason}` : (Object.keys(previewLetters).length ? 'included at reduced width' : 'none to include');
   if (previewSkip && previewSec) previewSec.parts.push({ type: 'text', items: [{ text: `Not in review-canvas.png: the previews ${previewSkip.reason}. This page and the files above are the review surface for them.`, size: 18, color: '#8A1C1C', bold: true, gap: 10 }] });
-  if (args.html) await fs.writeFile(htmlFile, renderHtml(sections, { title: `${name} review`, reviewDir }));
+  if (args.html) await fs.writeFile(htmlFile, renderHtml(sections, { title: `${name} review`, reviewDir, runDir }));
   else await fs.rm(htmlFile, { force: true });
   const record = {
-    png: rel(runDir, canvasFile),
+    png: args.png ? rel(runDir, canvasFile) : null,
     html: args.html ? rel(runDir, htmlFile) : null,
     generated_at: new Date().toISOString(),
     width: size.width,
     height: size.height,
     scale: S,
+    render: 'html',
     fable_default_letter: defaultLetter,
     hold: hold ? { letter: hold.letter, native_px: hold.native_px ?? null } : null,
     sheet_revision: sheet?.revision ?? null,
     sections: usage,
   };
   await fs.writeFile(path.join(reviewDir, 'review-canvas.json'), `${JSON.stringify(record, null, 2)}\n`);
-  const recorded = await recordReviewCanvas(runDir, record);
-  console.log(JSON.stringify({ ok: true, canvas: canvasFile, html: args.html ? htmlFile : null, width: size.width, height: size.height, sections: usage, run_file: recorded }, null, 2));
+  const recorded = args.record ? await recordReviewCanvas(runDir, record) : { ok: true, skipped: '--no-record' };
+  console.log(JSON.stringify({ ok: true, canvas: args.png ? canvasFile : null, html: args.html ? htmlFile : null, width: size.width, height: size.height, sections: usage, run_file: recorded }, null, 2));
   openOutputs(record);
 }
 
@@ -1806,69 +1930,37 @@ async function main() {
 // ---------------------------------------------------------------------------------------------
 async function compare({ args, runDir, reviewDir, run, sheet, openOutputs }) {
   if (!sheet) throw new Error('compare needs variants/variant-sheet.json; run variant-sheet.mjs build first');
-  const { provenanceWords } = await import(path.join(SCRIPT_DIR, 'variant-sheet.mjs'));
+  const { provenanceWords, sheetView, normalizeManifest } = await import(path.join(SCRIPT_DIR, 'variant-sheet.mjs'));
   const letters = args.cells;
   const missing = letters.filter((l) => !sheet.cells?.[l]);
   if (missing.length) throw new Error(`cells not on the sheet: ${missing.join(', ')} (have ${Object.keys(sheet.cells ?? {}).join(', ')})`);
   const name = run.request?.identity?.account_name ?? run.request?.location_name ?? path.basename(runDir);
-  const cols = Math.min(letters.length, 5);
-  const colW = Math.floor((CW() - L(16) * (cols - 1)) / cols);
-  const cardH = Math.round(colW * 1200 / 772);
-  const sideH = Math.round(colW * 0.62);
-  const columns = [];
+  if (!sheet.run_dir) sheet.run_dir = runDir;
+  const view = sheetView(normalizeManifest(sheet, path.join(runDir, 'variants')));
+  const src = (relPath) => path.relative(reviewDir, path.join(runDir, relPath)).split(path.sep).map(encodeURIComponent).join('/');
+  const provenance = { primary: {}, secondary: {} };
   for (const letter of letters) {
     const cell = sheet.cells[letter];
-    const card = cell.cache && existsSync(cell.cache) ? cell.cache : cell.card;
-    const pieces = [];
-    const status = cell.status ? `  [${cell.status.replace('_', ' ')}]` : '';
-    pieces.push(await textBlock([
-      { text: `${letter}${status}`, size: 34, bold: true, color: cell.status === 'travisse_pick' ? '#B7791F' : cell.status === 'hold' ? '#B71C1C' : GREEN },
-      { text: cell.row_label, size: 18, bold: true, gap: 4 },
-      { text: `card ${cell.primary}${sheet.rows.find((r) => r.key === cell.row)?.primary_source ? ` (${provenanceWords(sheet.rows.find((r) => r.key === cell.row).primary_source)})` : ''}`, size: 16, gap: 6 },
-      { text: `band ${cell.secondary} (${provenanceWords(cell.secondary_source, cell.secondary_label)})`, size: 16, gap: 2 },
-      { text: `text ${cell.text}, print digit ${cell.print_text_secondary}${cell.badge_digit_print?.fix ? ` -> fix ${cell.badge_digit_print.fix}` : ''}, digit ${cell.badge_digit_print?.contrast_with_text ?? '?'}:1`, size: 16, gap: 2 },
-    ], { width: colW }));
-    for (const [what, file, h] of [['card', card, cardH], ['sticker', cell.sticker, sideH], ['POP', cell.pop, sideH]]) {
-      if (file && existsSync(file)) pieces.push({ buffer: await fitImage(file, colW, h, { bg: GRAY_BG }), width: colW, height: h });
-      else pieces.push(await grayBox(`${what} render missing`, { height: h, width: colW }));
-      pieces.push(await spacer(8));
-    }
-    // Five columns: a text block or a fitted image can come back a pixel or two wider than colW
-    // (font metrics, rounding), and sharp refuses to composite anything larger than the base.
-    // Measure every piece and clamp it to the column width before stacking.
-    for (const p of pieces) {
-      const meta = await sharp(p.buffer).metadata();
-      if (meta.width > colW) { p.buffer = await sharp(p.buffer).resize({ width: colW }).png().toBuffer(); const m2 = await sharp(p.buffer).metadata(); p.width = m2.width; p.height = m2.height; }
-      else { p.width = meta.width; p.height = meta.height; }
-    }
-    columns.push(pieces);
+    const row = sheet.rows.find((r) => r.key === cell.row);
+    if (row?.primary_source) provenance.primary[letter] = provenanceWords(row.primary_source);
+    provenance.secondary[letter] = provenanceWords(cell.secondary_source, cell.secondary_label);
   }
-  const colH = Math.max(...columns.map((pieces) => pieces.reduce((sum, p) => sum + p.height, 0)));
-  const composites = [];
-  columns.forEach((pieces, i) => {
-    let top = 0;
-    for (const p of pieces) { composites.push({ input: p.buffer, left: i * (colW + L(16)), top }); top += p.height; }
-  });
-  const grid = await sharp({ create: { width: cols * colW + L(16) * (cols - 1), height: colH, channels: 3, background: '#FFFFFF' } }).composite(composites).png().toBuffer();
-  const rows = Math.ceil(letters.length / cols);
-  const header = await textBlock([{ text: `${name}: compare ${letters.join(', ')}`, size: 40, bold: true }, { text: 'Card, sticker, and POP for each shortlisted cell; every color with where it came from. Reply with one letter.', size: 20, color: '#555555', gap: 6 }]);
   const slug = letters.join('-');
   const pngFile = path.join(reviewDir, `compare-${slug}.png`);
   const htmlFile = path.join(reviewDir, `compare-${slug}.html`);
-  await stack([header, await spacer(16), { buffer: grid, width: cols * colW + L(16) * (cols - 1), height: colH }], pngFile);
-  if (rows > 1) console.error(`note: ${letters.length} cells, only the first ${cols} fit in one row of the PNG; the HTML shows all`);
-  if (args.html) {
-    const href = (file) => path.relative(reviewDir, file).split(path.sep).map(encodeURIComponent).join('/');
-    const cellHtml = letters.map((letter) => {
-      const cell = sheet.cells[letter];
-      const card = cell.cache && existsSync(cell.cache) ? cell.cache : cell.card;
-      const img = (f, alt) => (f && existsSync(f) ? `<a href="${href(f)}" target="_blank"><img src="${href(f)}" alt="${esc(alt)}"></a>` : `<div class="gray">${esc(alt)} missing</div>`);
-      return `<div class="col${cell.status ? ` ${cell.status}` : ''}"><h3>${esc(letter)}${cell.status ? ` <small>${esc(cell.status.replace('_', ' '))}</small>` : ''}</h3><p><b>${esc(cell.row_label)}</b></p><p>card ${esc(cell.primary)}</p><p>band ${esc(cell.secondary)} (${esc(provenanceWords(cell.secondary_source, cell.secondary_label))})</p><p>text ${esc(cell.text)}, print digit ${esc(cell.print_text_secondary)}${cell.badge_digit_print?.fix ? ` -> fix ${esc(cell.badge_digit_print.fix)}` : ''}</p>${img(card, 'card')}${img(cell.sticker, 'sticker')}${img(cell.pop, 'POP')}</div>`;
-    }).join('\n');
-    await fs.writeFile(htmlFile, `<!doctype html><meta charset="utf-8"><title>${esc(name)} compare ${esc(letters.join(', '))}</title><style>body{font-family:${FONT};margin:24px;background:#fff;color:#111}h1{font-size:28px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}.col{border:2px solid #ddd;padding:10px}.col.travisse_pick{border-color:#B7791F}.col.fable_pick{border-color:#1565C0}.col.hold{border-color:#B71C1C}.col img{width:100%;display:block;margin-top:8px;background:#EDEDED}.col p{margin:2px 0;font-size:14px}.gray{background:#eee;padding:20px;text-align:center;color:#666}small{font-weight:400;color:#666}</style><h1>${esc(name)}: compare ${esc(letters.join(', '))}</h1><p>Card, sticker, and POP for each shortlisted cell; every color with where it came from. Reply with one letter.</p><div class="grid">${cellHtml}</div>`);
+  const grid = templates.compareHtml(view, letters, { src, colW: 300, provenance });
+  const body = `<h1>${esc(name)}: compare ${esc(letters.join(', '))}</h1><p>Card, sticker, and POP for each shortlisted cell; every color with where it came from. Reply with one letter.</p>${grid}`;
+  const page = templates.pageHtml(body, { title: `${name} compare ${letters.join(', ')}`, extraCss: `body{font-family:${FONT};margin:24px;background:#fff;color:#111}h1{font-size:28px}` });
+  if (args.html) await fs.writeFile(htmlFile, page);
+  let png = null;
+  if (args.png) {
+    const { renderHtmlPng } = await import('./render-preview.mjs');
+    const cols = Math.min(letters.length, 5);
+    await fs.writeFile(pngFile, await renderHtmlPng(page, { baseDir: reviewDir, width: cols * 324 + 60, height: 900, scale: 2, fullPage: true }));
+    png = pngFile;
   }
-  console.log(JSON.stringify({ ok: true, command: 'compare', cells: letters, png: pngFile, html: args.html ? htmlFile : null }, null, 2));
-  if (args.open) { spawnSync('open', ['-a', 'Preview', pngFile]); if (args.html) spawnSync('open', [htmlFile]); }
+  console.log(JSON.stringify({ ok: true, command: 'compare', cells: letters, png, html: args.html ? htmlFile : null }, null, 2));
+  if (args.open) { if (png) spawnSync('open', ['-a', 'Preview', png]); if (args.html) spawnSync('open', [htmlFile]); }
 }
 
 const isEntry = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

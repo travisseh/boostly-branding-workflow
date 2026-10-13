@@ -25,9 +25,28 @@ if (!letter || !['box', 'scan', 'table', 'badges'].includes(scene)) {
   process.exit(2);
 }
 const GEN = path.join(process.env.HOME, '.claude/skills/image-generator');
-const sheet = JSON.parse(await fs.readFile(path.join(runDir, 'variants/variant-sheet.json'), 'utf8'));
-const cell = sheet.cells?.[letter];
+let sheet = JSON.parse(await fs.readFile(path.join(runDir, 'variants/variant-sheet.json'), 'utf8'));
+let cell = sheet.cells?.[letter];
 if (!cell) { console.error(`no cell ${letter} in variant-sheet.json`); process.exit(2); }
+// 2026-10-13: sheets no longer carry per-cell PNG tiles (the browser draws them from the templates). The
+// reference sheets here need files, so render this cell's card/sticker/POP on demand from the same templates.
+{
+  const { spawnSync } = await import('node:child_process');
+  const { existsSync } = await import('node:fs');
+  const have = (f) => f && existsSync(f);
+  if (!have(cell.card) || !have(cell.pop) || (!have(cell.sticker) && cell.sticker_status !== 'needs panel or strip')) {
+    const r = spawnSync(process.execPath, [path.join(process.env.HOME, '.claude/skills/boostly-brand-design/scripts/variant-sheet.mjs'), 'render', '--run-dir', runDir, '--cell', letter], { encoding: 'utf8' });
+    if (r.status !== 0) { console.error(`variant-sheet.mjs render --cell ${letter} failed: ${r.stderr || r.stdout}`); process.exit(2); }
+    sheet = JSON.parse(await fs.readFile(path.join(runDir, 'variants/variant-sheet.json'), 'utf8'));
+    cell = sheet.cells[letter];
+  }
+  // The to-go crop comes from the signage row raster; draw it from the JSON spec when only that exists.
+  const shotPng = path.join(runDir, `review/signage-preview-${letter}.png`);
+  if (!existsSync(shotPng) && existsSync(path.join(runDir, `review/signage-preview-${letter}.json`))) {
+    const r = spawnSync(process.execPath, [path.join(process.env.HOME, '.claude/skills/boostly-brand-design/scripts/signage-preview.mjs'), '--run-dir', runDir, '--cell', letter, '--png'], { encoding: 'utf8' });
+    if (r.status !== 0) console.error(`signage-preview.mjs --png failed (to-go crop skipped): ${r.stderr || r.stdout}`);
+  }
+}
 const offer = sheet.offer || 'Join the club!';
 const business = (sheet.business_name || 'the restaurant').replace(/\s*\([^)]*\)\s*$/, '');
 const primary = cell.primary || sheet.primary;

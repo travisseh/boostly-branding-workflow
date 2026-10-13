@@ -32,8 +32,10 @@ Steps, in order:
    travisse_pick --note "<his reason>"` (it records the letter and the override of Fable's default
    in run.json itself; never call `run-file select` by hand). Record any lead-named gate override
    with `run-file override` and its evidence; a refused override means the asset changes, not
-   the rule. Then render the previews for the chosen letter only: the harness signage preview
-   (`harness/mockups/_signage-shot.mjs ... --out RUN_DIR/review/signage-preview-LETTER.png`) and
+   the rule. Then render the previews for the chosen letter only: the signage preview spec
+   (`node ~/.claude/skills/boostly-brand-design/scripts/signage-preview.mjs --run-dir RUN_DIR
+   --cell LETTER --offer "<sign copy>"`, writes `review/signage-preview-LETTER.json`, drawn by the
+   canvas and the public site from the vendored template; no dev server, no screenshot) and
    the AI mockups (`node ~/.claude/skills/boostly-brand-design/harness/mockups/ai-mockup.mjs
    --run-dir RUN_DIR --letter LETTER --scene box`, then `--scene scan --phone
    review/link-tree-<short_id>.png` after capturing tp.boostly.com/<short_id> in the live Chrome

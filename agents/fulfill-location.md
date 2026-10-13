@@ -55,8 +55,11 @@ Do, in order:
    with `gates.ts check --surface sticker --color #FFFFFF`, and `add-row --sticker-logo <png>`. Then the review canvas:
    `node ~/.claude/skills/boostly-brand-design/scripts/review-canvas.mjs --run RUN_DIR --open`
    (`--skip-google` when headless search is blocked; the live Chrome tab is the workaround, do not
-   fight it). When more than one cell is a real contender, also run
-   `review-canvas.mjs compare --run RUN_DIR --cells <letters>`. Signage previews and AI mockups
+   fight it). The sheet and the canvas need no Boostly dev server: cells are drawn by the browser
+   from the sheet JSON and the vendored templates (no screenshots, no per-cell PNGs, no
+   `review-canvas.png` unless `--png`). When more than one cell is a real contender, also run
+   `review-canvas.mjs compare --run RUN_DIR --cells <letters>` (the page itself can compare
+   selected cells, so this is optional). Signage previews and AI mockups
    are a post-pick step (closeout-location), not review-stage output; do not generate them here.
    The full review page is the deliverable, never the variant sheet alone: confirm
    `RUN_DIR/review/review-canvas.html` exists before you start links, then refresh Travisse's

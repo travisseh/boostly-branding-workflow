@@ -20,6 +20,19 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
 
 ## What changed since the 2026-10-02 snapshot
 
+- **Client-side card, sticker and signage previews (2026-10-13).** The variant sheet, the review canvas
+  and the signage previews no longer screenshot the Boostly app. `templates/sheet-templates.js` (in
+  `skills/boostly-brand-design`) holds the vendored HTML/CSS: the production badge markup
+  (boostly `generate-badge-html.ts` at 8bf7a2e), the sticker mock, the POP tile and the onboarding
+  signage row. `variant-sheet.json` (schema 3) carries a `view` block per cell and the browser draws
+  the cells; `review-canvas.html` embeds the sheet, lets the reviewer select cells and compare them on
+  the page, and draws signage previews from `review/signage-preview-<L>.json`
+  (`scripts/signage-preview.mjs`, replaces `harness/mockups/_signage-shot.mjs`). Rasters are opt-in
+  (`--raster`, `--png`, `render --cell`) through one in-memory Playwright path
+  (`scripts/render-preview.mjs`). The Boostly repo and the :3457 dev server are now needed only for
+  the close-out proof render; BOOTSTRAP step 8 is optional until the first close-out and `setup.sh
+  --check` reports it as WARN. Gate verdicts are unchanged (no gate ever read an app screenshot).
+
 - **Print hand-off (2026-10-06).** customstickers.com prints all signage and stickers. `closeout-finish`
   runs `skills/boostly-print-handoff` right after the Slack post: vector PDF export of the Figma print
   sheets through the REST API, upload to the location's folder under the vendor master Drive folder, a

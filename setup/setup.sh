@@ -188,7 +188,9 @@ if [ -n "${NOTION_API_TOKEN:-}" ]; then
   "$NW" --workspace boostly whoami >/dev/null 2>&1 && ok "notion whoami" || miss "notion whoami failed"
 fi
 BR="$(eval echo "${BOOSTLY_REPO_DIR:-$HOME/Programming/boostly}")"
-[ -d "$BR/.git" ] && ok "Boostly repo at $BR" || miss "Boostly repo not cloned at $BR (needed for the badge preview harness on :3457)"
+# 2026-10-13: the variant sheet, review canvas and signage previews draw from templates/sheet-templates.js; the Boostly
+# repo and its :3457 harness page are only used by the close-out proof render (render-effective-proof.ts). WARN, not MISSING.
+[ -d "$BR/.git" ] && ok "Boostly repo at $BR" || warn "Boostly repo not cloned at $BR (only the close-out proof render needs it; previews do not)"
 [ -f "$BR/src/app/public/badge-preview-harness/page.tsx" ] && ok "badge preview harness page installed in the repo" || warn "harness page not installed (see skills/boostly-brand-design/harness/dev-page/README.md)"
 curl -s -o /dev/null -m 3 -w '%{http_code}' http://localhost:3457/public/badge-preview-harness 2>/dev/null | grep -q '^200$' && ok "badge preview harness answering on :3457" || warn "badge preview harness not running on :3457 (PORT=3457 npm run dev in the Boostly repo)"
 nc -z 127.0.0.1 3917 2>/dev/null && ok "review server on :3917" || warn "review server not running (start: $CONF/bin/boostly-review-server.sh)"

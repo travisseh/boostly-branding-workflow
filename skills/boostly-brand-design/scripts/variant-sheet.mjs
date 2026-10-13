@@ -1,6 +1,15 @@
 #!/usr/bin/env node
-// variant-sheet.mjs: ONE labeled montage per run, rendered through the real
-// badge harness, so the reviewer answers with a single letter.
+// variant-sheet.mjs: ONE labeled montage per run, rendered as HTML from the vendored
+// templates (templates/sheet-templates.js), so the reviewer answers with a single letter.
+//
+// RENDERING (Travisse 2026-10-13): no Boostly dev server, no app screenshots. Every cell is
+// described by its `view` block in variant-sheet.json (logo paths relative to the run dir,
+// colors, digit colors, offer, header text, status and NOT VIABLE badges) and the browser draws
+// it from the templates: variants/variant-sheet.html here, the review canvas, the public review
+// site. A raster exists only on request: --raster writes variant-sheet.png (one in-memory render
+// of the HTML through scripts/render-preview.mjs, the Notion review-queue embed and the Apple Note
+// checklist link read that file) and `render --cell <L>` writes card-<L>.png / sticker-<row>.png /
+// pop-<row>.png (what harness/mockups/ai-mockup.mjs reads for its reference sheets).
 //
 //   rows    = logo treatment: chosen knockout, full color, words-only cut
 //   columns = secondary/band candidates in provenance order (Fable's chosen
@@ -9,15 +18,15 @@
 //   cell    = harness card (varies by column) + sticker mock + solid POP tile
 //             (both per row), with the badge digit contrast printed
 //
-// The sheet is INCREMENTAL. variant-sheet.json is the source of truth; the png
-// is derived from it. Every rendered piece (card, sticker, POP tile) is cached
-// under <out>/cells/ keyed by an input fingerprint (logo sha256 + hexes +
-// treatment), so a subcommand renders only what its fingerprint says changed.
+// The sheet is INCREMENTAL. variant-sheet.json is the source of truth; the html
+// (and any png) is derived from it. Fingerprints (logo sha256 + hexes + treatment)
+// are still recorded per cell so run.json can tell when an input changed; legacy
+// sheets keep their cells/ render cache and card/sticker/pop files untouched.
 // Cell letters are assigned once, in creation order (A..Z, AA, AB, ...), and
 // never renumbered: adding a row or column appends letters.
 //
 // Subcommands (the bare flag form is `build`, unchanged):
-//   build       --run-dir <run> [--out <dir>] [--run <run_dir>] [--url-base http://localhost:3457]
+//   build       --run-dir <run> [--out <dir>] [--run <run_dir>] [--raster]
 //               [--decision <json>] [--evidence <json>] [--logo-knockout <png>] [--logo-color <png>]
 //               [--logo-words <png>] [--logo-sticker <png>] [--offer "Get 20% Off"]
 //               [--secondaries #hex,#hex] [--max-columns 8] [--no-words] [--no-instore] [--marks <json>] [--force]
@@ -35,14 +44,19 @@
 //               the cell and printed on its label; the card render keeps the web colors.
 //   mark        --run-dir <run> --cell <letter> --status <fable_pick|travisse_pick|rejected|none>
 //               [--note "<why>"] [--by Travisse] [--run <run_dir>]
-//   restitch    --run-dir <run> [--out <dir>] [--run <run_dir>]
+//   restitch    --run-dir <run> [--out <dir>] [--run <run_dir>] [--raster]
+//   render      --run-dir <run> (--cell <letter> | --cells L,M | --all) [--raster] [--run <run_dir>]
+//               writes the per-cell PNG tiles (card-<L>.png, sticker-<row>.png, pop-<row>.png) from the
+//               templates for consumers that need files (ai-mockup.mjs); --raster also writes the sheet png.
+//   Every subcommand accepts --raster (write variants/variant-sheet.png too). --url-base is accepted
+//   and ignored (the harness is gone).
 //
 // The sheet lives at <run_dir>/variants/ (override with --out). Outputs
-// variant-sheet.png and variant-sheet.json (letter -> exact hexes and logo
+// variant-sheet.html and variant-sheet.json (letter -> exact hexes and logo
 // paths, so "apply B" is mechanical). With --run <run_dir> every subcommand
 // updates the `variants` block of run.json; `mark --status travisse_pick` also
 // runs `run-file select` so the applied letter is recorded once, in run.json.
-// Exit 1 on any failure, including a harness that is down when a render is due.
+// Exit 1 on any failure.
 //
 // SHEET VIABILITY (Dogwood Pizza 2026-09-21): every logo asset is checked by
 // `logo-quality-gates.ts sheet-viability` BEFORE its cells render (build rows,
@@ -79,6 +93,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { cutWords } from './cut-words.mjs';
 import { componentContrastCheck } from '../harness/iterate-logo-rules.mjs';
+import templates from '../templates/sheet-templates.js';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 // Image harness lives inside this skill (boostly-brand-design/harness) so the skill is self-contained.
@@ -95,9 +110,12 @@ const COL_HEADER_H = 44;
 const MAX_LOGO_INKS = 3;
 const MAX_SITE_TOKENS = 2;
 const DEFAULT_OFFER = 'Join the club!';
-const DEFAULT_URL_BASE = 'http://localhost:3457';
+const DEFAULT_URL_BASE = 'http://localhost:3457'; // legacy manifest key only; nothing is fetched from it
 const CELLS_DIR = 'cells';
-const SUBCOMMANDS = ['build', 'add-row', 'add-column', 'add-cell', 'mark', 'restitch'];
+const SHEET_HTML = 'variant-sheet.html';
+const STICKER_HEADLINE = 'Join the club!';
+const STICKER_BODY = 'Be the first to know.|Receive exclusive deals.';
+const SUBCOMMANDS = ['build', 'add-row', 'add-column', 'add-cell', 'mark', 'restitch', 'render'];
 export const STATUSES = ['fable_pick', 'travisse_pick', 'rejected', 'hold', 'none'];
 const STATUS_STYLE = {
   fable_pick: { color: '#1565C0', text: '#FFFFFF', tag: 'FABLE PICK' },
@@ -134,7 +152,7 @@ const LADDER = [
   { key: 'depth_darker_20', label: 'darker step -20% (allowed when real ink fails contrast)', delta: -0.2 },
 ];
 const LIGHTER_STEP = { key: 'depth_lighter_10', label: 'lighter step +10% (never a pick)', delta: 0.1 };
-const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter']);
+const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter', 'raster', 'all']);
 const GATES_CLI = path.join(SCRIPT_DIR, 'logo-quality-gates.ts');
 const GATES_JSON = path.resolve(SCRIPT_DIR, '..', 'references', 'gates.json');
 const NOT_VIABLE_STYLE = { color: '#4A148C', text: '#FFFFFF', tag: 'NOT VIABLE' };
@@ -162,7 +180,8 @@ export function parseArgs(argv) {
   }
   // --run <run_dir>: the run.json to record the sheet in (variants block). Defaults --run-dir to it.
   if (args.run && !args.runDir) args.runDir = args.run;
-  if (!args.runDir) throw new Error('Usage: variant-sheet.mjs [build|add-row|add-column|add-cell|mark|restitch] --run-dir <run> [--run <run_dir>] [options]');
+  if (!args.runDir) throw new Error('Usage: variant-sheet.mjs [build|add-row|add-column|add-cell|mark|restitch|render] --run-dir <run> [--run <run_dir>] [options]');
+  if (args.urlBase !== DEFAULT_URL_BASE) process.stderr.write('note: --url-base is ignored; cells render from templates/sheet-templates.js, not the badge harness\n');
   return args;
 }
 
@@ -675,118 +694,7 @@ export function cacheHas(outDir, kind, fp) {
   return existsSync(cachePath(outDir, kind, fp));
 }
 
-// ---- renderers --------------------------------------------------------------
-async function serveFile(file) {
-  const buffer = await fs.readFile(file);
-  const { createServer } = await import('node:http');
-  const server = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'image/png', 'access-control-allow-origin': '*' });
-    res.end(buffer);
-  });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  return { url: `http://127.0.0.1:${server.address().port}/logo.png`, close: () => server.close() };
-}
-
-async function assertHarness(urlBase) {
-  const url = new URL('/public/badge-preview-harness', urlBase).toString();
-  let response;
-  try {
-    response = await fetch(url);
-  } catch (error) {
-    throw new Error(`HARNESS DOWN: ${url} unreachable (${error.message}). Start it with PORT=3457 npm run dev in ${process.env.BOOSTLY_REPO_DIR || '/Users/travisse/Programming/boostly'}.`);
-  }
-  if (!response.ok) throw new Error(`HARNESS DOWN: ${url} returned HTTP ${response.status}.`);
-}
-
-async function renderCard(browser, { urlBase, logoUrl, primary, secondary, text, textSecondary }) {
-  const url = new URL('/public/badge-preview-harness', urlBase);
-  url.search = new URLSearchParams({ logo: logoUrl, primary, secondary, text, textSecondary, issueId: '1' }).toString();
-  const page = await browser.newPage({ viewport: { width: 900, height: 900 }, deviceScaleFactor: 2 });
-  try {
-    await page.goto(url.toString(), { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#badge-shot[data-ready="true"]', { timeout: 20000 });
-    await page.evaluate(async () => {
-      const image = document.querySelector('#badge-shot img');
-      if (image instanceof HTMLImageElement) {
-        if (!image.complete || image.naturalWidth === 0) {
-          await new Promise((resolve, reject) => {
-            image.addEventListener('load', resolve, { once: true });
-            image.addEventListener('error', reject, { once: true });
-          });
-        }
-        await image.decode();
-      }
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    });
-    return await page.locator('#badge-shot').screenshot({ omitBackground: false });
-  } finally {
-    await page.close();
-  }
-}
-
-function mockQrSvg(color, seed) {
-  const N = 25;
-  let state = seed >>> 0 || 1;
-  const next = () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-  const inFinder = (x, y) => (x < 8 && y < 8) || (x >= N - 8 && y < 8) || (x < 8 && y >= N - 8);
-  const cells = [];
-  const finderAt = (fx, fy) => {
-    for (let y = 0; y < 7; y += 1) for (let x = 0; x < 7; x += 1) {
-      const ring = x === 0 || y === 0 || x === 6 || y === 6;
-      const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
-      if (ring || core) cells.push([fx + x, fy + y]);
-    }
-  };
-  finderAt(0, 0); finderAt(N - 7, 0); finderAt(0, N - 7);
-  for (let y = 0; y < N; y += 1) for (let x = 0; x < N; x += 1) {
-    if (inFinder(x, y)) continue;
-    if (next() < 0.45) cells.push([x, y]);
-  }
-  const rects = cells.map(([x, y]) => `<rect x="${x}" y="${y}" width="1.05" height="1.05" rx="0.32"/>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${N} ${N}" fill="${color}">${rects}</svg>`;
-}
-
-// Solid POP sign tile (plan.mjs popSign.variants.primary geometry, scaled):
-// primary ground, white title/body/legal, white QR modules, logo in the
-// 330x245 box near the bottom.
-async function renderPopTile(browser, { logoFile, primary, offer }) {
-  // `primary` here is the sign ground: the tapcard primary, or the sticker band when the primary fails on white (LIGHT PRIMARY rule).
-  const W = 300;
-  const H = 420;
-  const s = W / 1500;
-  const logoUri = `data:image/png;base64,${(await fs.readFile(logoFile)).toString('base64')}`;
-  const qrUri = `data:image/svg+xml;base64,${Buffer.from(mockQrSvg('#FFFFFF', 4242)).toString('base64')}`;
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { width:${W}px; height:${H}px; background:${primary}; position:relative; overflow:hidden;
-      font-family:'Figtree','Helvetica Neue',Arial,sans-serif; color:#fff; }
-    .t { position:absolute; left:${120 * s}px; width:${1260 * s}px; text-align:center; }
-    .title { top:${180 * s}px; font-size:${140 * s}px; line-height:${150 * s}px; font-weight:500; }
-    .body { top:${420 * s}px; font-size:${70 * s}px; line-height:${85 * s}px; font-weight:500; }
-    .qr { position:absolute; left:${412.5 * s}px; top:${802 * s}px; width:${675 * s}px; height:${675 * s}px; }
-    .logo { position:absolute; left:${585 * s}px; top:${1675 * s}px; width:${330 * s}px; height:${245 * s}px;
-      display:flex; align-items:center; justify-content:center; }
-    .logo img { max-width:100%; max-height:100%; object-fit:contain; }
-    .legal { top:${1988 * s}px; font-size:${26 * s}px; line-height:${32 * s}px; }
-  </style></head><body>
-    <div class="t title">${offer}</div>
-    <div class="t body">Scan to join our text club<br>for ongoing offers!</div>
-    <img class="qr" src="${qrUri}">
-    <div class="logo"><img id="logo" src="${logoUri}"></div>
-    <div class="t legal">Consent not req'd for purchase. Msg &amp; data rates may apply.</div>
-  </body></html>`;
-  const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle' });
-    return await page.screenshot();
-  } finally {
-    await page.close();
-  }
-}
-
+// ---- renderers (templates/sheet-templates.js; no browser on the default path) --------
 // LIGHT PRIMARY rule: a white knockout on a light card (primary fails 3:1 vs white) is invisible.
 // Recolor every ink pixel to the card text ink (or black when the text ink is light too) and
 // keep alpha; the row label says so and the cell json records the ink used.
@@ -801,69 +709,14 @@ async function tintKnockout(srcFile, outFile, hex) {
   return outFile;
 }
 
-function renderStickerMock({ logoFile, band, outFile }) {
-  const script = path.join(HARNESS_DIR, 'sticker-mock.mjs');
-  const result = spawnSync('node', [script, '--logo', logoFile, '--primary', band, '--out', outFile], { encoding: 'utf8' });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+/** Run-dir-relative form of a path (what the browser-facing JSON carries); null stays null. */
+export function relRun(runDir, p) {
+  if (!p) return null;
+  return path.isAbsolute(p) && runDir ? path.relative(runDir, p) : p;
 }
-
-async function labelStrip(text, width, height, { bg = '#111111', fg = '#FFFFFF', size = 15, bold = false } = {}) {
-  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-    <rect width="100%" height="100%" fill="${bg}"/>
-    <text x="8" y="${Math.round(height / 2 + size * 0.36)}" font-family="Helvetica, Arial, sans-serif" font-size="${size}" font-weight="${bold ? 700 : 400}" fill="${fg}">${esc}</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
-/** Status tag (small corner label) plus a frame around the cell; drawn over the composed sheet, never into the cell render. */
-async function statusOverlay(status, cellW, cellH) {
-  const style = STATUS_STYLE[status];
-  const frame = 4;
-  const tagW = Math.min(cellW - 2 * frame, 14 + style.tag.length * 8);
-  const tagH = 20;
-  const esc = style.tag.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellH}">
-    <rect x="${frame / 2}" y="${frame / 2}" width="${cellW - frame}" height="${cellH - frame}" fill="none" stroke="${style.color}" stroke-width="${frame}"/>
-    <rect x="${cellW - frame - tagW}" y="${LABEL_H + CELL_PAD}" width="${tagW}" height="${tagH}" rx="3" fill="${style.color}"/>
-    <text x="${cellW - frame - tagW + 7}" y="${LABEL_H + CELL_PAD + 14}" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="${style.text}">${esc}</text>
-    ${status === 'rejected' ? `<text x="${CELL_PAD + CARD_W / 2}" y="${LABEL_H + CELL_PAD + (cellH - LABEL_H - CELL_PAD * 2) / 2 + 14}" text-anchor="middle" transform="rotate(-18 ${CELL_PAD + CARD_W / 2} ${LABEL_H + CELL_PAD + (cellH - LABEL_H - CELL_PAD * 2) / 2})" font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="${style.color}" stroke="#FFFFFF" stroke-width="2" paint-order="stroke">REJECTED</text>` : ''}
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
-/** NOT VIABLE badge for a cell rendered under --force-viability: purple frame plus a tag naming the gate verdict. */
-async function notViableOverlay(verdict, cellW, cellH) {
-  const frame = 4;
-  const text = `${NOT_VIABLE_STYLE.tag}: ${verdict}`;
-  const tagW = Math.min(cellW - 2 * frame, 14 + text.length * 7);
-  const tagH = 20;
-  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellH}">
-    <rect x="${frame / 2}" y="${frame / 2}" width="${cellW - frame}" height="${cellH - frame}" fill="none" stroke="${NOT_VIABLE_STYLE.color}" stroke-width="${frame}"/>
-    <rect x="${frame}" y="${cellH - frame - tagH}" width="${tagW}" height="${tagH}" rx="3" fill="${NOT_VIABLE_STYLE.color}"/>
-    <text x="${frame + 7}" y="${cellH - frame - 6}" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="${NOT_VIABLE_STYLE.text}">${esc}</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
-/** The tile drawn where a sticker mock was refused: white sticker field, red words naming the fix. */
-async function stickerPlaceholder(width, height) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-    <rect width="100%" height="100%" fill="#FFFFFF"/>
-    <rect x="1" y="1" width="${width - 2}" height="${height - 2}" fill="none" stroke="#B71C1C" stroke-width="2" stroke-dasharray="6,4"/>
-    <text x="${width / 2}" y="${Math.round(height / 2 - 8)}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#B71C1C">sticker:</text>
-    <text x="${width / 2}" y="${Math.round(height / 2 + 10)}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#B71C1C">${STICKER_NEEDS_FIX}</text>
-    <text x="${width / 2}" y="${Math.round(height / 2 + 30)}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#555555">sticker-panel.mjs circle|strip</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-async function fitTo(buffer, width, height, background = '#E5E5E5') {
-  return sharp(buffer).resize(width, height, { fit: 'contain', background }).png().toBuffer();
-}
-/** The greyed treatment of a human-rejected cell's tiles: desaturated and lifted toward light grey (never into the cache). */
-async function greyed(buffer) {
-  return sharp(buffer).greyscale().linear(0.55, 90).png().toBuffer();
+/** img src for a run-dir-relative path from an HTML file in `fromDir` (segments URL-encoded). */
+export function srcFrom(runDir, fromDir) {
+  return (rel) => path.relative(fromDir, path.join(runDir, rel)).split(path.sep).map(encodeURIComponent).join('/');
 }
 
 // ---- manifest (variant-sheet.json is the source of truth) ---------------------
@@ -885,11 +738,14 @@ async function saveManifest(outDir, manifest) {
 
 /** Fill in the incremental fields for a sheet json written before they existed (legacy build output). */
 export function normalizeManifest(manifest, outDir) {
-  manifest.schema = 2;
+  // schema 3 (2026-10-13): cells carry a `view` block (everything the browser needs to draw the cell from
+  // templates/sheet-templates.js); schema 2 sheets are adopted in place and their views derived on demand.
+  manifest.schema = 3;
+  manifest.render = 'html';
   manifest.offer = manifest.offer ?? DEFAULT_OFFER;
   manifest.url_base = manifest.url_base ?? DEFAULT_URL_BASE;
   manifest.sticker_logo = manifest.sticker_logo ?? null;
-  manifest.rows = (manifest.rows ?? []).map((row) => ({ primary: null, text: null, knockout: null, sticker_logo: null, ...row }));
+  manifest.rows = (manifest.rows ?? []).map((row) => ({ primary: null, text: null, knockout: null, sticker_logo: null, ...row, logo_rel: relRun(manifest.run_dir, row.logo), sticker_logo_rel: relRun(manifest.run_dir, row.sticker_logo) }));
   manifest.columns = (manifest.columns ?? []).map((col, i) => ({ index: i, one_off: false, ...col }));
   manifest.cells = manifest.cells ?? {};
   manifest.skipped = manifest.skipped ?? [];
@@ -897,6 +753,7 @@ export function normalizeManifest(manifest, outDir) {
   for (const letter of letters) {
     const cell = manifest.cells[letter];
     cell.id = cell.id ?? letter;
+    cell.view = cell.view ?? null;
     if (cell.column_index == null) {
       const idx = manifest.columns.findIndex((col) => col.hex === cell.secondary);
       cell.column_index = idx >= 0 ? idx : null;
@@ -920,6 +777,7 @@ export function normalizeManifest(manifest, outDir) {
   manifest.applied_letter = manifest.applied_letter ?? null;
   manifest.revision = manifest.revision ?? 1;
   manifest.out_dir = outDir;
+  manifest.sheet_html = manifest.sheet_html ?? (outDir ? path.join(outDir, SHEET_HTML) : null);
   return manifest;
 }
 export function letterIndex(letter) {
@@ -946,118 +804,85 @@ export function stickerBand(manifest, row) {
   return { band: darkest.hex, note: `primary ${primary} fails on white (${contrast(primary, '#FFFFFF').toFixed(2)}:1); band = darkest candidate ${darkest.hex}` };
 }
 
-// ---- rendering through the cache --------------------------------------------
+// ---- views: what the browser needs per cell (no rendering here) ----------------------
 /**
- * Render (or reuse) the sticker and POP tile of a row and the cards of the given cells.
- * Only pieces whose fingerprint is not in <out>/cells/ are rendered; the browser starts only when
- * at least one render is due. Returns the render/cache counts.
+ * Pure (given the manifest's recorded sticker state): the `view` block of one cell, with logo paths
+ * relative to the run dir. The browser (variants/variant-sheet.html, the review canvas, the public review
+ * site) draws the card, sticker mock and POP tile from it with templates/sheet-templates.js.
  */
-async function renderPieces(manifest, outDir, { rows: rowsArg, cells, urlBase }) {
-  // Always work on the manifest's own row objects (normalizeManifest may have re-created them).
+export function cellView(manifest, cell) {
+  const row = manifest.rows.find((r) => r.key === cell.row);
+  if (!row) throw new Error(`Cell ${cell.letter} points at a row that is not on the sheet (${cell.row})`);
+  const rel = (p) => relRun(manifest.run_dir, p);
+  const digit = cell.badge_digit_web;
+  const rejected = cell.status === 'rejected';
+  const { band } = stickerBand(manifest, row);
+  const stickerOk = stickerRenderable(row);
+  const stickerLogo = stickerOk ? (row.sticker_logo_used && existsSync(row.sticker_logo_used) ? row.sticker_logo_used : stickerLogoFor(manifest, row)) : null;
+  const status = cell.status && STATUS_STYLE[cell.status] ? cell.status : null;
+  return {
+    letter: cell.letter,
+    row: cell.row,
+    row_label: cell.row_label ?? row.label,
+    column_index: cell.column_index ?? null,
+    header: { text: cellLabelText(manifest, cell), bg: rejected ? STATUS_STYLE.rejected.color : digit?.pass ? '#1B5E20' : '#B71C1C' },
+    card: { logo: rel(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, text_secondary: cell.text, issue_id: 1 },
+    sticker: stickerLogo
+      ? { logo: rel(stickerLogo), band, headline: STICKER_HEADLINE, body: STICKER_BODY, seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
+      : { logo: null, band, headline: STICKER_HEADLINE, body: STICKER_BODY, seed: null, status: STICKER_NEEDS_FIX },
+    pop: { logo: rel(row.logo), ground: band, offer: manifest.offer ?? DEFAULT_OFFER },
+    print: { primary: cell.print_primary ?? null, secondary: cell.print_secondary ?? null, text_secondary: cell.print_text_secondary ?? null, fix: cell.badge_digit_print?.fix ?? null, digit_contrast: cell.badge_digit_print?.contrast_with_text ?? null },
+    status,
+    status_tag: status ? STATUS_STYLE[status].tag : null,
+    rejected,
+    not_viable: cell.viability && cell.viability.pass === false ? { verdict: cell.viability.verdict } : null,
+  };
+}
+/** The whole sheet as the browser sees it: header texts, columns, rows and every cell view (derived when a cell has none). */
+export function sheetView(manifest) {
+  return {
+    business_name: manifest.business_name ?? null,
+    primary: manifest.primary,
+    text: manifest.text,
+    offer: manifest.offer ?? DEFAULT_OFFER,
+    revision: manifest.revision ?? null,
+    fable_default_letter: manifest.fable_default_letter ?? null,
+    hold: manifest.hold ?? null,
+    applied_letter: manifest.applied_letter ?? null,
+    columns: manifest.columns.map((col) => ({ index: col.index, hex: col.hex, source: col.source, label: col.label, text: `${col.hex}  ${provenanceWords(col.source, col.label)}` })),
+    rows: manifest.rows.map((row) => ({ key: row.key, label: row.label, text: rowLabelText(manifest, row) })),
+    cells: Object.fromEntries(Object.values(manifest.cells).map((cell) => [cell.letter, cell.view ?? cellView(manifest, cell)])),
+  };
+}
+/**
+ * Record the per-row sticker/POP state and per-cell fingerprints for the given rows and cells (what
+ * renderPieces used to do around its renders), without rendering anything. Legacy files a row or cell
+ * already has stay recorded; new ones carry null until `render --cell` writes them.
+ */
+async function prepareViews(manifest, outDir, { rows: rowsArg, cells }) {
   const rows = rowsArg.map((r) => manifest.rows.find((x) => x.key === r.key) ?? r);
-  const counts = { rendered: { cards: 0, stickers: 0, pops: 0 }, cached: { cards: 0, stickers: 0, pops: 0 } };
-  await fs.mkdir(path.join(outDir, CELLS_DIR), { recursive: true });
-
-  // Plan: which pieces are missing from the cache.
-  const rowJobs = [];
+  const counts = { rendered: { cards: 0, stickers: 0, pops: 0 }, cached: { cards: 0, stickers: 0, pops: 0 }, views: 0 };
   for (const row of rows) {
     const { band, note } = stickerBand(manifest, row);
-    // STICKER GROUND: an opaque sticker asset is neither rendered nor swapped for the card logo.
     const stickerOk = stickerRenderable(row);
     const stickerLogo = stickerOk ? stickerLogoFor(manifest, row) : null;
     const stickerFp = stickerOk ? stickerFingerprint({ logoSha: await fileSha256(stickerLogo), band }) : null;
     const popFp = popFingerprint({ logoSha: await fileSha256(row.logo), band, offer: manifest.offer });
-    rowJobs.push({ row, band, note, stickerLogo, stickerFp, popFp, needSticker: stickerOk && !cacheHas(outDir, 'sticker', stickerFp), needPop: !cacheHas(outDir, 'pop', popFp) });
+    const keep = (file) => (file && existsSync(file) ? file : null);
+    Object.assign(row, { sticker: stickerOk ? keep(row.sticker) : null, sticker_status: stickerOk ? null : STICKER_NEEDS_FIX, sticker_band: band, sticker_band_note: note, pop: keep(row.pop), sticker_fingerprint: stickerFp, pop_fingerprint: popFp, sticker_logo_used: stickerLogo });
+    if (!stickerOk) counts.skipped_stickers = (counts.skipped_stickers ?? 0) + 1;
+    for (const cell of Object.values(manifest.cells)) {
+      if (cell.row === row.key) Object.assign(cell, { sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
+    }
   }
-  const cellJobs = [];
   for (const cell of cells) {
     const row = manifest.rows.find((r) => r.key === cell.row);
     const fp = cardFingerprint({ logoSha: await fileSha256(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, textSecondary: cell.text, treatment: row.key });
-    cellJobs.push({ cell, row, fp, need: !cacheHas(outDir, 'card', fp) });
+    Object.assign(cell, { card: cell.card && existsSync(cell.card) ? cell.card : null, fingerprint: fp, cache: cacheHas(outDir, 'card', fp) ? cachePath(outDir, 'card', fp) : null, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
   }
-  const needBrowser = rowJobs.some((j) => j.needPop) || cellJobs.some((j) => j.need);
-  if (needBrowser) await assertHarness(urlBase);
-
-  let browser = null;
-  const servers = new Map();
-  try {
-    if (needBrowser) {
-      const { chromium } = require('playwright');
-      browser = await chromium.launch();
-    }
-    for (const job of rowJobs) {
-      const { row } = job;
-      if (job.needSticker) {
-        const target = cachePath(outDir, 'sticker', job.stickerFp);
-        const sticker = renderStickerMock({ logoFile: job.stickerLogo, band: job.band, outFile: target });
-        if (sticker.status !== 0 && sticker.status !== 3) throw new Error(`sticker-mock failed for ${row.key}: ${sticker.stderr || sticker.stdout}`);
-        counts.rendered.stickers += 1;
-      } else if (job.stickerFp) counts.cached.stickers += 1;
-      else counts.skipped_stickers = (counts.skipped_stickers ?? 0) + 1;
-      if (job.needPop) {
-        await fs.writeFile(cachePath(outDir, 'pop', job.popFp), await renderPopTile(browser, { logoFile: row.logo, primary: job.band, offer: manifest.offer }));
-        counts.rendered.pops += 1;
-      } else counts.cached.pops += 1;
-      // Stable per-row copies keep the legacy paths (sticker-<row>.png, pop-<row>.png) valid.
-      const stickerFile = job.stickerFp ? path.join(outDir, `sticker-${row.key}.png`) : null;
-      const popFile = path.join(outDir, `pop-${row.key}.png`);
-      if (stickerFile) await fs.copyFile(cachePath(outDir, 'sticker', job.stickerFp), stickerFile);
-      else await fs.rm(path.join(outDir, `sticker-${row.key}.png`), { force: true }); // never leave a stale opaque render behind
-      await fs.copyFile(cachePath(outDir, 'pop', job.popFp), popFile);
-      Object.assign(row, { sticker: stickerFile, sticker_status: stickerFile ? null : STICKER_NEEDS_FIX, sticker_band: job.band, sticker_band_note: job.note, pop: popFile, sticker_fingerprint: job.stickerFp, pop_fingerprint: job.popFp, sticker_logo_used: job.stickerLogo });
-      // Every existing cell of the row follows its sticker (an add-column on a legacy sheet can refuse a sticker whose cells already exist).
-      for (const cell of Object.values(manifest.cells)) {
-        if (cell.row === row.key) Object.assign(cell, { sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
-      }
-    }
-    for (const job of cellJobs) {
-      const { cell, row, fp } = job;
-      const target = cachePath(outDir, 'card', fp);
-      if (job.need) {
-        if (!servers.has(row.logo)) servers.set(row.logo, await serveFile(row.logo));
-        const png = await renderCard(browser, { urlBase, logoUrl: servers.get(row.logo).url, primary: cell.primary, secondary: cell.secondary, text: cell.text, textSecondary: cell.text });
-        await fs.writeFile(target, png);
-        counts.rendered.cards += 1;
-      } else counts.cached.cards += 1;
-      const cardFile = path.join(outDir, `card-${cell.letter}.png`);
-      await fs.copyFile(target, cardFile);
-      Object.assign(cell, { card: cardFile, fingerprint: fp, cache: target, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
-    }
-  } finally {
-    if (browser) await browser.close();
-    for (const server of servers.values()) server.close();
-  }
+  for (const cell of Object.values(manifest.cells)) { cell.view = cellView(manifest, cell); counts.views += 1; }
   manifest.row_assets = manifest.rows.map((row) => ({ row: row.key, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, sticker_band_note: row.sticker_band_note, pop: row.pop }));
   return counts;
-}
-
-/** Adopt the card/sticker/pop files of a legacy (pre-cache) sheet into cells/ so they are never rerendered. */
-async function adoptLegacyRenders(manifest, outDir) {
-  await fs.mkdir(path.join(outDir, CELLS_DIR), { recursive: true });
-  let adopted = 0;
-  for (const row of manifest.rows) {
-    const asset = (manifest.row_assets ?? []).find((a) => a.row === row.key);
-    if (!asset) continue;
-    const { band } = stickerBand(manifest, row);
-    const stickerLogo = stickerLogoFor(manifest, row);
-    if (asset.sticker && existsSync(asset.sticker)) {
-      const fp = stickerFingerprint({ logoSha: await fileSha256(stickerLogo), band });
-      if (!cacheHas(outDir, 'sticker', fp)) { await fs.copyFile(asset.sticker, cachePath(outDir, 'sticker', fp)); adopted += 1; }
-    }
-    if (asset.pop && existsSync(asset.pop)) {
-      const fp = popFingerprint({ logoSha: await fileSha256(row.logo), band, offer: manifest.offer });
-      if (!cacheHas(outDir, 'pop', fp)) { await fs.copyFile(asset.pop, cachePath(outDir, 'pop', fp)); adopted += 1; }
-    }
-  }
-  for (const cell of Object.values(manifest.cells)) {
-    const row = manifest.rows.find((r) => r.key === cell.row);
-    if (!row || !cell.card || !existsSync(cell.card)) continue;
-    const fp = cell.fingerprint ?? cardFingerprint({ logoSha: await fileSha256(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, textSecondary: cell.text, treatment: row.key });
-    cell.fingerprint = fp;
-    if (!cacheHas(outDir, 'card', fp)) { await fs.copyFile(cell.card, cachePath(outDir, 'card', fp)); adopted += 1; }
-    cell.cache = cachePath(outDir, 'card', fp);
-  }
-  return adopted;
 }
 
 /** The NOT VIABLE badge of a cell: a forced card failure, else a forced sticker failure (verdict prefixed "sticker"). */
@@ -1155,72 +980,52 @@ export function cellLabelText(manifest, cell) {
     ? `${head}${printRoles}   web band ${cell.secondary} digit ${digit.contrast_with_text}:1 ${flag}${holdPx}`
     : `${head}   ${cell.secondary} ${words}   digit ${digit.contrast_with_text}:1 ${flag}${holdPx}`;
 }
-export async function composeSheet(manifest, outDir) {
-  const { cardH, sideH, cellW, cellH, sheetW, sheetH } = sheetGeometry(manifest);
-  const composites = [];
-  for (let c = 0; c < manifest.columns.length; c += 1) {
-    const col = manifest.columns[c];
-    composites.push({
-      input: await labelStrip(`${col.hex}  ${provenanceWords(col.source, col.label)}`, cellW, COL_HEADER_H, { bg: '#222222', size: 14, bold: true }),
-      left: ROW_HEADER_W + c * cellW,
-      top: 0,
-    });
-  }
-  for (let r = 0; r < manifest.rows.length; r += 1) {
-    composites.push({
-      input: await labelStrip(rowLabelText(manifest, manifest.rows[r]), ROW_HEADER_W, cellH, { bg: '#222222', size: 14, bold: true }),
-      left: 0,
-      top: COL_HEADER_H + r * cellH,
-    });
-  }
+/**
+ * Write <out>/variant-sheet.html: the montage drawn from every cell's view with the vendored templates,
+ * logos as relative <img src> into the run dir, plus the sheet view as an inline JSON block
+ * (#variant-sheet-view) for client-side consumers. Refreshes every cell.view first and refuses a cell
+ * whose logo file is missing instead of drawing a hole. With { raster: true } it also renders the page
+ * once in memory (scripts/render-preview.mjs) and writes variant-sheet.png next to it.
+ */
+export async function composeSheet(manifest, outDir, { raster = false } = {}) {
+  const runDir = manifest.run_dir ?? path.dirname(outDir);
   for (const cell of Object.values(manifest.cells)) {
-    const r = manifest.rows.findIndex((row) => row.key === cell.row);
-    const c = cell.column_index ?? manifest.columns.findIndex((col) => col.hex === cell.secondary);
-    if (r < 0 || c < 0) throw new Error(`Cell ${cell.letter} points at a row/column that is not on the sheet`);
-    const x0 = ROW_HEADER_W + c * cellW;
-    const y0 = COL_HEADER_H + r * cellH;
-    const digit = cell.badge_digit_web;
-    const label = cellLabelText(manifest, cell);
-    // REJECTED by a human (mark --status rejected): the letter stays, the header says so, the tiles are greyed.
-    const rejected = cell.status === 'rejected';
-    const tile = async (buffer, w, h) => (rejected ? greyed(await fitTo(buffer, w, h)) : fitTo(buffer, w, h));
-    const card = cell.cache && existsSync(cell.cache) ? cell.cache : cell.card;
-    const stickerSkipped = !cell.sticker && cell.sticker_status === STICKER_NEEDS_FIX;
-    for (const [what, file] of [['card', card], ['sticker', stickerSkipped ? null : cell.sticker], ['pop', cell.pop]]) {
-      if (what === 'sticker' && stickerSkipped) continue;
-      if (!file || !existsSync(file)) throw new Error(`Cell ${cell.letter}: ${what} render missing (${file ?? 'unset'}); rerun the subcommand that created it`);
-    }
-    composites.push({ input: await labelStrip(label, cellW, LABEL_H, { bg: rejected ? STATUS_STYLE.rejected.color : digit.pass ? '#1B5E20' : '#B71C1C', size: 15, bold: true }), left: x0, top: y0 });
-    composites.push({ input: await tile(await fs.readFile(card), CARD_W, cardH), left: x0 + CELL_PAD, top: y0 + LABEL_H + CELL_PAD });
-    // STICKER GROUND: a skipped sticker is an explicit placeholder that names the fix, never the card logo in its place.
-    const stickerTile = stickerSkipped ? await stickerPlaceholder(SIDE_W, sideH) : await tile(await fs.readFile(cell.sticker), SIDE_W, sideH);
-    composites.push({ input: stickerTile, left: x0 + CARD_W + CELL_PAD * 2, top: y0 + LABEL_H + CELL_PAD });
-    composites.push({ input: await tile(await fs.readFile(cell.pop), SIDE_W, sideH), left: x0 + CARD_W + CELL_PAD * 2, top: y0 + LABEL_H + CELL_PAD * 2 + sideH });
-    if (cell.status && STATUS_STYLE[cell.status]) {
-      composites.push({ input: await statusOverlay(cell.status, cellW, cellH), left: x0, top: y0 });
-    }
-    if (cell.viability && cell.viability.pass === false) {
-      composites.push({ input: await notViableOverlay(cell.viability.verdict, cellW, cellH), left: x0, top: y0 });
-    }
+    cell.view = cellView(manifest, cell);
+    const card = path.join(runDir, cell.view.card.logo);
+    if (!existsSync(card)) throw new Error(`Cell ${cell.letter}: card logo missing (${card}); rerun the subcommand that created it`);
+    if (cell.view.sticker?.logo && !existsSync(path.join(runDir, cell.view.sticker.logo))) throw new Error(`Cell ${cell.letter}: sticker logo missing (${path.join(runDir, cell.view.sticker.logo)})`);
   }
-  const sheetFile = path.join(outDir, 'variant-sheet.png');
-  await sharp({ create: { width: sheetW, height: sheetH, channels: 3, background: '#C8C8C8' } })
-    .composite(composites)
-    .png({ compressionLevel: 9 })
-    .toFile(sheetFile);
-  manifest.sheet = sheetFile;
-  return sheetFile;
+  const view = sheetView(manifest);
+  const { sheetW, sheetH } = sheetGeometry(manifest);
+  const focus = manifest.fable_default_letter ? { letter: manifest.fable_default_letter, hold: false } : manifest.hold?.letter ? { letter: manifest.hold.letter, hold: true } : null;
+  const body = `${templates.sheetHtml(view, { src: srcFrom(runDir, outDir), focus })}\n<script type="application/json" id="variant-sheet-view">${JSON.stringify(view).replace(/<\//g, '<\\/')}</script>`;
+  const html = templates.pageHtml(body, { title: `${manifest.business_name ?? 'variant sheet'} variant sheet`, width: sheetW, background: '#C8C8C8' });
+  const htmlFile = path.join(outDir, SHEET_HTML);
+  await fs.writeFile(htmlFile, html);
+  manifest.sheet_html = htmlFile;
+  manifest.sheet = manifest.sheet ?? path.join(outDir, 'variant-sheet.png');
+  if (raster) {
+    const { renderSheetPng } = await import('./render-preview.mjs');
+    const png = await renderSheetPng(html, { baseDir: outDir, width: sheetW, height: sheetH });
+    await fs.writeFile(path.join(outDir, 'variant-sheet.png'), png);
+    manifest.sheet = path.join(outDir, 'variant-sheet.png');
+    manifest.sheet_png_rendered_at = new Date().toISOString();
+  }
+  return htmlFile;
 }
 
 // ---- shared finish: save json, stitch png, record run.json --------------------
 async function finish(args, outDir, manifest, extra = {}) {
-  const sheetFile = await composeSheet(manifest, outDir);
+  const sheetFile = await composeSheet(manifest, outDir, { raster: Boolean(args.raster) });
   const manifestFile = await saveManifest(outDir, manifest);
   const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: extra.reason ?? `variant-sheet ${args.command}` }) : null;
+  const pngFile = path.join(outDir, 'variant-sheet.png');
   const summary = {
     ok: true,
     command: args.command,
     sheet: sheetFile,
+    sheet_html: sheetFile,
+    sheet_png: existsSync(pngFile) ? pngFile : null,
     manifest: manifestFile,
     run_file: recorded ? recorded.file : null,
     rows: manifest.rows.length,
@@ -1401,7 +1206,7 @@ async function build(args) {
     applyMark(manifest, def.letter, def.hold ? 'hold' : 'fable_pick', { note: def.hold ? def.reason : `Fable default: ${def.reason}`, by: 'variant-sheet build' });
     if (def.hold) manifest.hold = { ...manifest.hold, native_px: def.native_px, reason: def.reason };
   }
-  const counts = await renderPieces(manifest, outDir, { rows: renderRows, cells: created, urlBase: args.urlBase });
+  const counts = await prepareViews(manifest, outDir, { rows: renderRows, cells: created });
   return finish(args, outDir, manifest, { letters: letterList(manifest), words_note: wordsNote, default_letter: def, instore_dominant: instore, ...counts, reason: 'variant-sheet build' });
 }
 
@@ -1410,7 +1215,6 @@ async function addRow(args, { single = false } = {}) {
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
-  await adoptLegacyRenders(manifest, outDir);
   if (!args.logo || !args.label) throw new Error(`${args.command} needs --logo <png> --label "<treatment>"`);
   let logo = path.resolve(args.logo);
   if (!existsSync(logo)) throw new Error(`--logo not found: ${logo}`);
@@ -1488,7 +1292,7 @@ async function addRow(args, { single = false } = {}) {
   await gateStickerRow(manifest, row, { force: Boolean(args.forceViability), command: args.command });
   manifest.rows.push(row);
   const created = appendCells(manifest, pairs);
-  const counts = await renderPieces(manifest, outDir, { rows: [row], cells: created, urlBase: manifest.url_base });
+  const counts = await prepareViews(manifest, outDir, { rows: [row], cells: created });
   return finish(args, outDir, manifest, { row: key, added: true, viability: row.viability, sticker_viability: row.sticker_viability ?? null, new_cells: created.map((c) => `${c.letter}=${c.row}/${c.secondary}`), letters: letterList(manifest), ...counts });
 }
 
@@ -1496,7 +1300,6 @@ async function addColumn(args) {
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
-  await adoptLegacyRenders(manifest, outDir);
   const hex = requireHex(args.secondary, '--secondary');
   const existing = manifest.columns.find((c) => c.hex === hex);
   if (existing) throw new Error(`${hex} is already column ${existing.index} (${existing.label}); nothing to add`);
@@ -1514,7 +1317,7 @@ async function addColumn(args) {
   const pairs = await gateCells(manifest, rows.map((row) => ({ row, column })), { force: Boolean(args.forceViability), command: 'add-column' });
   const created = appendCells(manifest, pairs);
   // Sticker/POP renders of existing rows are cache hits unless the band rule changes for a light primary.
-  const counts = await renderPieces(manifest, outDir, { rows: rows.filter((row) => pairs.some((p) => p.row.key === row.key)), cells: created, urlBase: manifest.url_base });
+  const counts = await prepareViews(manifest, outDir, { rows: rows.filter((row) => pairs.some((p) => p.row.key === row.key)), cells: created });
   return finish(args, outDir, manifest, { column: column.index, secondary: hex, new_cells: created.map((c) => `${c.letter}=${c.row}/${c.secondary}`), letters: letterList(manifest), ...counts });
 }
 
@@ -1554,8 +1357,8 @@ async function mark(args) {
   const letter = args.cell.toUpperCase();
   const by = args.by ?? (args.status === 'travisse_pick' ? 'Travisse' : args.status === 'fable_pick' ? 'Fable' : 'variant-sheet');
   const { superseded } = applyMark(manifest, letter, args.status, { note: args.note ?? null, by });
-  // No render: the sheet is restitched from the cache and the tag drawn over the composed png.
-  const sheetFile = await composeSheet(manifest, outDir);
+  // No render: the sheet html is rewritten from the views with the tag on the cell.
+  const sheetFile = await composeSheet(manifest, outDir, { raster: Boolean(args.raster) });
   let manifestFile = await saveManifest(outDir, manifest);
   let recorded = null;
   let selection = null;
@@ -1589,8 +1392,47 @@ async function restitch(args) {
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
-  const adopted = await adoptLegacyRenders(manifest, outDir);
-  return finish(args, outDir, manifest, { adopted, rendered: { cards: 0, stickers: 0, pops: 0 }, letters: letterList(manifest) });
+  // Refresh every row's sticker/POP state and every cell view (a legacy sheet gets its schema 3 views here).
+  await prepareViews(manifest, outDir, { rows: manifest.rows, cells: Object.values(manifest.cells) });
+  return finish(args, outDir, manifest, { rendered: { cards: 0, stickers: 0, pops: 0 }, letters: letterList(manifest) });
+}
+
+// ---- render: per-cell PNG tiles on demand (ai-mockup.mjs refs), sheet png with --raster -------------
+async function render(args) {
+  const runDir = path.resolve(args.runDir);
+  const outDir = resolveOut(args, runDir);
+  const manifest = await loadManifest(outDir);
+  const letters = args.all ? Object.keys(manifest.cells) : [...(args.cell ? [args.cell] : []), ...(args.cells ? args.cells.split(',') : [])].map((l) => l.trim().toUpperCase()).filter(Boolean);
+  if (!letters.length && !args.raster) throw new Error('render needs --cell <letter>, --cells L,M, --all, or --raster');
+  const missing = letters.filter((l) => !manifest.cells[l]);
+  if (missing.length) throw new Error(`cells not on the sheet: ${missing.join(', ')} (have ${Object.keys(manifest.cells).join(', ')})`);
+  await prepareViews(manifest, outDir, { rows: manifest.rows, cells: Object.values(manifest.cells) });
+  const counts = { rendered: { cards: 0, stickers: 0, pops: 0 }, cached: { cards: 0, stickers: 0, pops: 0 } };
+  const written = [];
+  if (letters.length) {
+    const { withBrowser, renderCellPngs } = await import('./render-preview.mjs');
+    await withBrowser(async (browser) => {
+      for (const letter of letters) {
+        const cell = manifest.cells[letter];
+        const row = manifest.rows.find((r) => r.key === cell.row);
+        const pngs = await renderCellPngs(cell.view, { baseDir: runDir, browser });
+        const cardFile = path.join(outDir, `card-${letter}.png`);
+        await fs.writeFile(cardFile, pngs.card);
+        cell.card = cardFile; counts.rendered.cards += 1; written.push(cardFile);
+        const popFile = path.join(outDir, `pop-${row.key}.png`);
+        await fs.writeFile(popFile, pngs.pop);
+        row.pop = popFile; counts.rendered.pops += 1; written.push(popFile);
+        if (pngs.sticker) {
+          const stickerFile = path.join(outDir, `sticker-${row.key}.png`);
+          await fs.writeFile(stickerFile, pngs.sticker);
+          row.sticker = stickerFile; row.sticker_status = null; counts.rendered.stickers += 1; written.push(stickerFile);
+        } else { row.sticker = null; row.sticker_status = STICKER_NEEDS_FIX; }
+        for (const other of Object.values(manifest.cells)) if (other.row === row.key) Object.assign(other, { sticker: row.sticker, sticker_status: row.sticker_status ?? null, pop: row.pop });
+      }
+    });
+    manifest.row_assets = manifest.rows.map((row) => ({ row: row.key, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, sticker_band_note: row.sticker_band_note, pop: row.pop }));
+  }
+  return finish(args, outDir, manifest, { cells_rendered: letters, written, ...counts, letters: letterList(manifest) });
 }
 
 async function main() {
@@ -1602,6 +1444,7 @@ async function main() {
     case 'add-column': return addColumn(args);
     case 'mark': return mark(args);
     case 'restitch': return restitch(args);
+    case 'render': return render(args);
     default: throw new Error(`Unknown subcommand ${args.command}`);
   }
 }

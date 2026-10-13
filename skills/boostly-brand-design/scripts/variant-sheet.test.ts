@@ -226,64 +226,63 @@ test('marks annotate the json only: one travisse_pick and one fable_pick at a ti
   assert.throws(() => applyMark(manifest, 'A', 'maybe'), /--status/);
 });
 
+// A fake run dir with real logo files: the HTML sheet references them relatively (schema 3, 2026-10-13).
 async function fakeSheet() {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-sheet-'));
-  fs.mkdirSync(path.join(out, 'cells'));
-  const png = async (w, h, color) => sharp({ create: { width: w, height: h, channels: 3, background: color } }).png().toBuffer();
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-run-'));
+  const out = path.join(runDir, 'variants');
+  fs.mkdirSync(path.join(runDir, 'candidates'), { recursive: true });
+  fs.mkdirSync(out, { recursive: true });
+  const png = async (w, h, color) => sharp({ create: { width: w, height: h, channels: 4, background: color } }).png().toBuffer();
   const manifest = sampleManifest(out);
-  const cells = appendCells(manifest, manifest.rows.flatMap((row) => manifest.columns.map((column) => ({ row, column }))));
+  manifest.run_dir = runDir;
   for (const row of manifest.rows) {
-    row.sticker = path.join(out, `sticker-${row.key}.png`);
-    row.pop = path.join(out, `pop-${row.key}.png`);
-    fs.writeFileSync(row.sticker, await png(144, 144, '#FFFFFF'));
-    fs.writeFileSync(row.pop, await png(60, 84, '#8B2C1D'));
+    row.logo = path.join(runDir, 'candidates', `${row.key}.png`);
+    fs.writeFileSync(row.logo, await png(120, 60, row.key === 'knockout' ? '#FFFFFF' : '#1B5E20'));
+    row.sticker_band = '#8B2C1D';
   }
-  for (const cell of cells) {
-    cell.fingerprint = cardFingerprint({ logoSha: cell.row, primary: cell.primary, secondary: cell.secondary, text: cell.text, textSecondary: cell.text, treatment: cell.row });
-    cell.cache = cachePath(out, 'card', cell.fingerprint);
-    fs.writeFileSync(cell.cache, await png(77, 120, cell.secondary));
-    cell.card = path.join(out, `card-${cell.letter}.png`);
-    fs.copyFileSync(cell.cache, cell.card);
-    cell.sticker = manifest.rows.find((r) => r.key === cell.row).sticker;
-    cell.pop = manifest.rows.find((r) => r.key === cell.row).pop;
-  }
-  return { out, manifest };
+  appendCells(manifest, manifest.rows.flatMap((row) => manifest.columns.map((column) => ({ row, column }))));
+  return { out, runDir, manifest };
 }
 
-test('restitch parity: composing twice from the same cache is byte-identical, and a mark rerenders nothing', async () => {
-  const { out, manifest } = await fakeSheet();
+test('composeSheet writes an HTML sheet from the cell views: deterministic, logos relative, marks change only their cell', async () => {
+  const { out, runDir, manifest } = await fakeSheet();
   const { sheetW, sheetH } = sheetGeometry(manifest);
   const first = await composeSheet(manifest, out);
-  const bytes1 = fs.readFileSync(first);
-  const meta = await sharp(bytes1).metadata();
-  assert.equal(meta.width, sheetW);
-  assert.equal(meta.height, sheetH);
-  const cacheBefore = fs.readdirSync(path.join(out, 'cells')).map((f) => [f, fs.statSync(path.join(out, 'cells', f)).mtimeMs]);
+  assert.equal(path.basename(first), 'variant-sheet.html');
+  const html1 = fs.readFileSync(first, 'utf8');
+  assert.match(html1, new RegExp(`class="bs-sheet" style="width: ${sheetW}px; height: ${sheetH}px;"`));
+  assert.equal((html1.match(/class="bs-cell/g) ?? []).length, 4, 'one block per cell');
+  assert.match(html1, /src="\.\.\/candidates\/knockout\.png"/, 'logos are referenced relative to the sheet file, inside the run dir');
+  assert.doesNotMatch(html1, new RegExp(runDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'no absolute run-dir path leaks into the page');
+  assert.ok(fs.existsSync(path.join(out, 'variant-sheet.json')) === false, 'composeSheet writes the html only; saveManifest owns the json');
+  assert.ok(!fs.existsSync(path.join(out, 'variant-sheet.png')), 'no raster on the default path');
+  for (const cell of Object.values(manifest.cells)) {
+    assert.equal(cell.view.card.logo, `candidates/${cell.row}.png`, 'the view carries the run-dir-relative logo');
+    assert.equal(cell.view.pop.offer, 'Join the club!');
+    assert.equal(cell.view.header.text.startsWith(cell.letter), true);
+  }
+  const view = JSON.parse(/<script type="application\/json" id="variant-sheet-view">([\s\S]*?)<\/script>/.exec(html1)[1]);
+  assert.deepEqual(Object.keys(view.cells), ['A', 'B', 'C', 'D'], 'the inline JSON block carries every cell view');
   await composeSheet(manifest, out);
-  assert.deepEqual(fs.readFileSync(first), bytes1, 'restitch is deterministic');
+  assert.equal(fs.readFileSync(first, 'utf8'), html1, 'restitch is deterministic');
 
   applyMark(manifest, 'B', 'travisse_pick', { by: 'Travisse' });
   await composeSheet(manifest, out);
-  const marked = fs.readFileSync(first);
-  assert.notDeepEqual(marked, bytes1, 'the tag is drawn on the sheet');
-  const cacheAfter = fs.readdirSync(path.join(out, 'cells')).map((f) => [f, fs.statSync(path.join(out, 'cells', f)).mtimeMs]);
-  assert.deepEqual(cacheAfter, cacheBefore, 'no cell render was touched by the mark');
-  // The tag is confined to cell B: cell A's pixels are unchanged.
-  const { cellW, cellH } = sheetGeometry(manifest);
-  const region = { left: 120, top: 44, width: cellW, height: cellH };
-  const a1 = await sharp(bytes1).extract(region).raw().toBuffer();
-  const a2 = await sharp(marked).extract(region).raw().toBuffer();
-  assert.deepEqual(a2, a1);
+  const marked = fs.readFileSync(first, 'utf8');
+  assert.notEqual(marked, html1, 'the tag is drawn on the sheet');
+  assert.match(marked, /class="bs-cell travisse_pick" data-letter="B"/);
+  assert.match(marked, />TRAVISSE PICK</);
+  const cellA = (html) => /<div class="bs-cell[^"]*" data-letter="A"[\s\S]*?<\/div>\n<\/div>/.exec(html)?.[0];
+  assert.equal(cellA(marked), cellA(html1), 'cell A is untouched by a mark on B');
   applyMark(manifest, 'B', 'none');
   await composeSheet(manifest, out);
-  assert.deepEqual(fs.readFileSync(first), bytes1, 'clearing the mark restores the exact sheet');
+  assert.equal(fs.readFileSync(first, 'utf8'), html1, 'clearing the mark restores the exact sheet');
 });
 
-test('composeSheet refuses a cell whose render is missing instead of drawing a hole', async () => {
+test('composeSheet refuses a cell whose logo file is missing instead of drawing a hole', async () => {
   const { out, manifest } = await fakeSheet();
-  fs.rmSync(manifest.cells.C.cache);
-  fs.rmSync(manifest.cells.C.card);
-  await assert.rejects(() => composeSheet(manifest, out), /Cell C: card render missing/);
+  fs.rmSync(manifest.rows[1].logo); // full_color: cells C and D
+  await assert.rejects(() => composeSheet(manifest, out), /Cell C: card logo missing/);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -539,17 +538,24 @@ test('sticker viability: an opaque sticker asset is refused (kind sticker, needs
   }
 });
 
-test('composeSheet draws the "needs panel or strip" placeholder for a refused sticker and still refuses a sticker that is merely missing', async () => {
-  const { out, manifest } = await fakeSheet();
+test('composeSheet draws the "needs panel or strip" placeholder for a refused sticker and still refuses a sticker logo that is missing', async () => {
+  const { out, runDir, manifest } = await fakeSheet();
   const row = manifest.rows[0];
-  for (const cell of Object.values(manifest.cells)) if (cell.row === row.key) { cell.sticker = null; cell.sticker_status = STICKER_NEEDS_FIX; }
+  row.sticker_viability = { pass: false, verdict: 'opaque_ground', reasons: ['opaque'], forced: false };
   const sheet = await composeSheet(manifest, out);
-  const meta = await sharp(sheet).metadata();
-  assert.equal(meta.width, sheetGeometry(manifest).sheetW);
-  const other = Object.values(manifest.cells).find((c) => c.row !== row.key);
-  other.sticker = null;
-  await assert.rejects(() => composeSheet(manifest, out), new RegExp(`Cell ${other.letter}: sticker render missing`));
-  fs.rmSync(out, { recursive: true, force: true });
+  const html = fs.readFileSync(sheet, 'utf8');
+  assert.equal((html.match(/bs-sticker-missing/g) ?? []).length, 2, 'both cells of the refused row carry the placeholder');
+  for (const cell of Object.values(manifest.cells)) {
+    if (cell.row === row.key) { assert.equal(cell.view.sticker.logo, null); assert.equal(cell.view.sticker.status, STICKER_NEEDS_FIX); }
+    else assert.equal(cell.view.sticker.logo, `candidates/${cell.row}.png`, 'the other row still draws its sticker from the card logo');
+  }
+  // A sticker asset that is merely gone from disk falls back to the (gated) card logo, as stickerLogoFor always did.
+  const other = manifest.rows[1];
+  other.sticker_logo = path.join(runDir, 'candidates', 'gone.png');
+  other.sticker_logo_used = other.sticker_logo;
+  await composeSheet(manifest, out);
+  assert.equal(manifest.cells.C.view.sticker.logo, 'candidates/full_color.png');
+  fs.rmSync(runDir, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -646,22 +652,18 @@ test('a human rejected mark keeps its letter and renders greyed with REJECTED in
   assert.match(cellLabelText(manifest, manifest.cells.B), /^B  REJECTED   /, 'the header strip says REJECTED right after the letter');
   assert.doesNotMatch(cellLabelText(manifest, manifest.cells.A), /REJECTED/);
   await composeSheet(manifest, out);
-  const after = fs.readFileSync(sheetFile);
-  const colB = manifest.cells.B.column_index;
-  const rowB = manifest.rows.findIndex((r) => r.key === manifest.cells.B.row);
-  const x0 = 120 + colB * cellW;
-  const y0 = 44 + rowB * cellH;
-  // The center of the POP tile (always the red #8B2C1D fixture, clear of the frame, the tag and the diagonal word): saturated before, grey after.
-  const probe = { left: x0 + 260 + 16 + 75, top: y0 + 34 + 16 + sideH + Math.round(sideH / 2), width: 1, height: 1 };
-  const px = async (buf) => [...(await sharp(buf).extract(probe).raw().toBuffer())];
-  const [r1, g1, b1] = await px(before);
-  assert.ok(Math.max(r1, g1, b1) - Math.min(r1, g1, b1) > 30, `the card render is colored before the mark (${r1},${g1},${b1})`);
-  const [r2, g2, b2] = await px(after);
-  assert.ok(Math.max(r2, g2, b2) - Math.min(r2, g2, b2) <= 2, `the rejected card is desaturated (${r2},${g2},${b2})`);
+  const after = fs.readFileSync(sheetFile, 'utf8');
+  const cellOf = (html, letter) => new RegExp(`<div class="bs-cell[^"]*" data-letter="${letter}"[\\s\\S]*?<\\/div>\\n<\\/div>`).exec(html)?.[0];
+  const b = cellOf(after, 'B');
+  assert.match(b, /^<div class="bs-cell rejected"/, 'the rejected class greys every tile of the cell (CSS filter) and frames it');
+  assert.match(b, /bs-rejected-word">REJECTED</, 'REJECTED is written across the card');
+  assert.match(b, /class="bs-label" style="background: #616161;">B  REJECTED/, 'the header strip is grey and says REJECTED');
+  assert.equal(manifest.cells.B.view.rejected, true);
+  assert.equal(manifest.cells.B.view.status_tag, 'REJECTED');
   // Cell A is byte-identical: the treatment is confined to the rejected cell.
-  const regionA = { left: 120, top: 44, width: cellW, height: cellH };
-  assert.deepEqual(await sharp(after).extract(regionA).raw().toBuffer(), await sharp(before).extract(regionA).raw().toBuffer());
-  // Clearing the mark restores the exact sheet: nothing was written into the cell cache.
+  assert.equal(cellOf(after, 'A'), cellOf(before.toString(), 'A'));
+  assert.ok(cellW > 0 && cellH > 0 && sideH > 0);
+  // Clearing the mark restores the exact sheet.
   applyMark(manifest, 'B', 'none');
   await composeSheet(manifest, out);
   assert.deepEqual(fs.readFileSync(sheetFile), before);

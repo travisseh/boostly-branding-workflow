@@ -60,11 +60,22 @@ harness encode every failure a human flagged.
   render as a pasted rectangular panel on a materially darker production card color.
 - `references/feedback-schema.md`: event schema, ownership boundary, and CLI examples.
 - `scripts/variant-sheet.mjs`: the mandatory pre-post VARIANT SHEET: one lettered montage
-  (rows = logo treatment, columns = secondary candidates plus depth ladder, cell = harness card +
+  (rows = logo treatment, columns = secondary candidates plus depth ladder, cell = tap card +
   sticker mock + POP tile with badge digit contrast) and a manifest mapping letters to exact
-  hexes and logo paths. Incremental: `build`, then `add-row` / `add-column` / `add-cell` /
-  `mark` / `restitch` patch the one sheet in `<run_dir>/variants/` in place from a fingerprint
-  render cache; no `variants-v2/`. See Core operating rule 2b.
+  hexes and logo paths. Since 2026-10-13 every cell is DRAWN BY THE BROWSER from the vendored
+  templates (`templates/sheet-templates.js`) and the cell's `view` block in `variant-sheet.json`
+  (schema 3): no Boostly dev server, no app screenshots, no per-cell PNGs. Incremental: `build`,
+  then `add-row` / `add-column` / `add-cell` / `mark` / `restitch` patch the one sheet in
+  `<run_dir>/variants/` in place; `render --cell <L>` writes PNG tiles only when a consumer needs
+  files (ai-mockup.mjs) and `--raster` a sheet png. No `variants-v2/`. See Core operating rule 2b.
+- `templates/sheet-templates.js`: the vendored HTML/CSS templates (badge card from boostly
+  `generate-badge-html.ts` at 8bf7a2e, sticker mock, POP tile, the onboarding signage row, the sheet
+  montage and compare view). Pure functions of JSON; loads in Node (CommonJS default import) and in
+  the browser (`window.BoostlySheet`). `scripts/render-preview.mjs` is the one in-memory raster path
+  (Playwright `page.setContent`, no server) for `--raster`, `render`, `--png` and any pixel gate.
+- `scripts/signage-preview.mjs`: the signage row preview for a cell as a JSON spec
+  (`review/signage-preview-<L>.json`, drawn by the canvas and the public site); `--png` for the raster
+  the AI mockup script crops. Replaces `harness/mockups/_signage-shot.mjs`.
 - `scripts/review-canvas.mjs`: the REVIEW CANVAS that closes the sheet stage: one tall 2x PNG
   plus a self-contained HTML page per location with the website, GBP photos plus live Maps view,
   Google Images logo search (live Chrome session), logo candidates, gate summary, and the variant
@@ -95,7 +106,8 @@ SHIP / SHIP-WITH-OVERRIDE / HOLD answer that the write stage obeys. A gate overr
 recorded data, never a rule edit (see "Gate registry, overrides, verdict, replay"). The old file
 arguments keep working; `--run` only adds the run.json write.
 
-1. Read `STATE.md` in the project root; start the badge harness if down.
+1. Read `STATE.md` in the project root. (The badge harness dev server is no longer needed for the
+   sheet or the canvas; `render-effective-proof.ts` / `harness/screenshot.mjs` proofs at close-out still use it.)
 2. Resolve context per location with `references/location-context.sql`, including
    `google_place_id`. Then, before any evidence collection or Fable call, run the call
    preflight so the offer, copy, and quantities come from the customer call, not the wizard:
@@ -203,7 +215,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    SHA-256 with every fulfillment input. Any downstream mismatch is a run error that stops proof
    generation, production writes, Slack, and Notion. A human-requested revision requires a fresh
    Fable decision and validation; it is never a model or orchestrator override.
-2. **Proofs render through the real app, no exceptions.** Dev harness page
+2. **Production-parity PROOFS render through the real app, no exceptions** (review previews do not:
+   the variant sheet, the review canvas and the signage previews draw from the vendored templates,
+   see 2b/2c). Dev harness page
    `http://localhost:3457/public/badge-preview-harness` (uncommitted page in the boostly repo;
    start with `PORT=3457 npm run dev` in `$BOOSTLY_REPO_DIR` if down; NEVER
    commit that page). Render via `node harness/screenshot.mjs --url-base http://localhost:3457
@@ -223,8 +237,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    Before the first Slack post for a location (and before any revision post that changes a
    color or the card logo), run
    `node scripts/variant-sheet.mjs build --run-dir <run_dir> --run <run_dir> --offer "<sign copy>"`
-   (the bare `--run-dir` form without a subcommand is the same `build`). It fails loudly
-   when the harness at `http://localhost:3457` is down; never substitute another renderer.
+   (the bare `--run-dir` form without a subcommand is the same `build`). It needs no dev server:
+   the cells are HTML drawn from `templates/sheet-templates.js` (the production badge markup
+   vendored from boostly `generate-badge-html.ts`); `--url-base` is accepted and ignored.
    Rows are the logo treatments (chosen card knockout, full color, and the words-only cut from
    `scripts/cut-words.mjs` when it differs from the knockout; the full lockup and any wordmark-only
    variant appear here as rows, nobody has to ask for them). Columns are the secondary/band
@@ -246,7 +261,7 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    IN-STORE PRIMARY ROW (Chuy's 2026-09-18): the dominant saturated hue sampled across the
    brand-environment photos becomes its own primary row automatically (row label says
    "sampled") when it is 40 degrees or more from the site primary or the primary is a neutral;
-   `--no-instore` skips it. Each cell is the real harness card plus the sticker
+   `--no-instore` skips it. Each cell is the production badge card (vendored markup) plus the sticker
    mock and a solid POP tile, and its label prints the badge digit contrast (secondary vs text
    color) with the brand-owned fix (white or black digit) when it fails 3:1. Every cell carries a
    letter; `variant-sheet.json` maps each letter to the exact logo path, primary, secondary, text,
@@ -255,14 +270,16 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    and `badge_digit_print.fix` (when set) becomes `print_text_secondary_color`. Fable still names
    its default letter in the post. Reviewer contract: Travisse replies with a letter (or "A as is");
    anything else is a new request, not a variant pick. "Preview" and "variant" always mean render
-   only, never write. Attach `variant-sheet.png` to the proposal reply next to
-   `proposal-proof.png`; do not describe options in prose that the sheet already shows.
+   only, never write. The review page (2c) is the deliverable; attach `variant-sheet.png` only
+   when a consumer needs a raster (`--raster`: the Notion review-queue embed, the Apple Note
+   checklist link); do not describe options in prose that the sheet already shows.
    ONE SHEET PER RUN, PATCHED IN PLACE. The sheet lives at `<run_dir>/variants/` only
-   (`variant-sheet.png` + `variant-sheet.json` + the `cells/` render cache). There is no
-   `variants-v2/`, no per-row sub-sheets, and no stitched `variant-sheet-all.png`: when Travisse
-   overrules Fable's letter, asks to keep a word the gate stripped, wants the full logo on a
-   different primary, or wants one more color, EXTEND the existing sheet and re-open the same
-   `variant-sheet.png` in Preview (`open -a Preview <run_dir>/variants/variant-sheet.png`):
+   (`variant-sheet.json`, the source of truth, plus `variant-sheet.html` drawn from it; a
+   `variant-sheet.png` only behind `--raster`; legacy runs keep their `cells/` cache and tiles).
+   There is no `variants-v2/`, no per-row sub-sheets, and no stitched `variant-sheet-all.png`: when
+   Travisse overrules Fable's letter, asks to keep a word the gate stripped, wants the full logo on a
+   different primary, or wants one more color, EXTEND the existing sheet and rebuild the canvas
+   (`review-canvas.mjs --run <run_dir> --skip-google`), which redraws it:
    - `variant-sheet.mjs add-row --run-dir <run> --run <run> --logo <png> --label "<treatment>"
      [--key <row_key>] [--primary <hex>] [--text <hex>] [--secondaries #hex,#hex] [--knockout]
      [--sticker-logo <png>]`: a new logo treatment across the existing columns (or the listed
@@ -281,18 +298,23 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
      calls `run-file select <run> <letter> --by Travisse` itself, so the applied letter is recorded
      once, in `run.json` (with the override record when it differs from `fable_pick`); never call
      `run-file select` by hand after a mark, and never retype the letter into a manifest.
-   - `variant-sheet.mjs restitch --run-dir <run>`: rebuilds the png from the cached cells only.
+   - `variant-sheet.mjs restitch --run-dir <run>`: rewrites `variant-sheet.html` and every cell view
+     from the json (adopts a schema 2 sheet); `--raster` adds the png.
+   - `variant-sheet.mjs render --run-dir <run> --cell <L> [--raster]`: writes `card-<L>.png`,
+     `sticker-<row>.png`, `pop-<row>.png` from the templates for consumers that need files
+     (`ai-mockup.mjs` calls it itself when they are missing).
    Letters are assigned once in creation order (A..Z, AA, AB, ...) and never renumbered; new
    cells get the next letters, so a letter Travisse already quoted stays valid. A cell takes a
    letter only when it is created: a (row, column) the builder refuses on the card (below) is never
    a cell, so it consumes no letter and the rendered cells stay contiguous. A cell a human marks
    `rejected` afterwards (`mark --status rejected`) is the opposite case: it KEEPS its letter
    (letters already quoted in Slack or Notion must not shift) and is drawn greyed, with REJECTED in
-   its header strip and across the card, so the sheet still shows what was turned down. Every render is
-   cached in `cells/` by an input fingerprint (logo sha256, primary, secondary, text, treatment,
-   offer, band); a subcommand renders only what its fingerprint says is new, and the output JSON
-   reports `rendered` versus `cached` counts. `variant-sheet.json` is the source of truth and the
-   png is derived from it; `build` refuses to overwrite a sheet that has additions or marks
+   its header strip and across the card, so the sheet still shows what was turned down. Each cell
+   records an input fingerprint (logo sha256, primary, secondary, text, treatment) and a `view`
+   block: logo paths relative to the run dir, card/sticker/POP colors, digit colors, offer, header
+   text, status tag, NOT VIABLE and rejected marks, everything a browser needs to draw it.
+   `variant-sheet.json` is the source of truth and the html is derived from it (a schema 2 sheet
+   is adopted in place: views are derived on the next subcommand or canvas); `build` refuses to overwrite a sheet that has additions or marks
    (pass `--force` only to start over from the decision inputs). With `--run <run_dir>` every
    subcommand rewrites the `variants` block of `run.json` (sheet path, cells with ids,
    fingerprints, statuses, `fable_default_letter`; `applied_letter` stays unset until the
@@ -331,14 +353,17 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    sheet is built (or patched) and Fable has marked its default letter, run
    `node scripts/review-canvas.mjs --run <run_dir> --open` (`--open` is for the operator's own
    look only; the page Cam, Karissa, or the vendor see is the public review site, published per
-   box-fulfillment SKILL.md "Public review site", never a Claude artifact). It writes two outputs under
-   `<run_dir>/review/` and opens both: `review-canvas.png` (one tall PNG, 3200px wide at the
-   default `--scale 2`, photos embedded large, never smaller than a 3-column grid; opens in
-   Preview) and `review-canvas.html` (the same sections as a self-contained page with inline CSS
-   and relative paths into the run dir, no CDN; every image at native resolution, click any image
-   to open the file, click the sheet to toggle native size; a fixed left sidebar lists every
-   section with the one in view highlighted and collapses to a hamburger below 1000px; opens in
-   the default browser; `--no-html` skips it). This replaces Travisse's manual ritual of opening the website, the GBP
+   box-fulfillment SKILL.md "Public review site", never a Claude artifact). It writes
+   `<run_dir>/review/review-canvas.html` (a self-contained page with inline CSS and relative paths
+   into the run dir, no CDN; every image at native resolution, click any image to open the file; a
+   fixed left sidebar lists every section with the one in view highlighted and collapses to a
+   hamburger below 1000px; `--no-html` skips it) plus `review/sheet-templates.js` next to it. The
+   variant sheet, the default cell and the signage previews are DRAWN BY THE BROWSER from the sheet
+   JSON and the vendored templates (2026-10-13): click cells to select two to five, "Compare
+   selected" renders the side-by-side on the page, click the grey background to toggle native size.
+   `review-canvas.png` (one tall PNG, 3200px wide at `--scale 2`) exists only behind `--png`, for the
+   operator's own look in Preview with `--open`; nothing else reads it. `--no-record` skips the
+   run.json write. This replaces Travisse's manual ritual of opening the website, the GBP
    photos, and a Google image search for the logo. Sections: header (business, request id,
    Fable's default letter with its one-line rationale, the default cell cropped from the sheet at
    native pixels as `review/default-cell.png`, and, mandatory since 2026-09-21, LOGO AT 3x (WHAT
@@ -355,9 +380,10 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    `review/logo-search/` with a manifest; Google serves its "sorry" page to every headless or
    automated browser, so the fallbacks are Bing then DuckDuckGo, and a gray box says so when all
    fail), logo candidates from the evidence packet with their source in plain words and Fable's
-   pick framed, the variant sheet at native size with the default cell framed
-   (`review/variant-sheet-marked.png`), and PREVIEWS (2026-09-21): per letter, the harness
-   signage preview (`review/signage-preview-<L>.png`) and the AI mockups
+   pick framed, the variant sheet drawn from its JSON with the default cell framed
+   (`review/variant-sheet-marked.png` only with `--png`), and PREVIEWS (2026-09-21): per letter, the
+   signage preview (`review/signage-preview-<L>.json` from `scripts/signage-preview.mjs`, drawn from
+   the template; a legacy `.png` shows when no json exists) and the AI mockups
    (`review/mockups/<scene>-<L>[-suffix].png`, scene and letter read from the file name) with
    the pick status and hexes in the group header and the verdict/drift line parsed loosely from
    `review/mockups/prompts.md` (a link to that file when no line exists). The section renders
@@ -389,8 +415,8 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    never blocks the canvas, it becomes a labeled gray box. Place photos are already fetched at up
    to 4800px by the evidence build, so the canvas never needs to refetch them.
 2d. **AI product mockups (box and scan scenes) are a post-pick output, rendered for the chosen
-   letter during close-out (not at the review stage).** After the harness signage preview exists
-   for the chosen cell, run
+   letter during close-out (not at the review stage).** After the signage preview spec exists
+   for the chosen cell (`scripts/signage-preview.mjs --run-dir <run_dir> --cell <L> --offer "<sign copy>"`), run
    `node harness/mockups/ai-mockup.mjs --run-dir <run_dir> --letter <L> --scene box` and
    `--scene scan` (also `table`, `badges`). It builds a single reference sheet from the cell's
    POP, sticker, card and the to-go crop of `review/signage-preview-<L>.png`, fills the Anna's
@@ -761,7 +787,8 @@ Knockout recipe: `restore-blocks` → `soft-fringe` (deglow if FAIL) → `counte
 
 ## Workflow: brand N locations
 
-1. Read `STATE.md`. Confirm the badge harness responds
+1. Read `STATE.md`. The badge harness dev server is only needed for the close-out proofs
+   (`render-effective-proof.ts`), not for the sheet or the canvas; check it then
    (`curl -s -o /dev/null -w "%{http_code}" http://localhost:3457/public/badge-preview-harness`).
 2. Resolve each location via the read-only V2 database skill: name, address, website,
    google_place_id, existing branding (`branding` table: account-base row has
