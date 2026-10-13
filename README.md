@@ -20,6 +20,14 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
 
 ## What changed since the 2026-10-02 snapshot
 
+- **Sticker and POP previews match the Figma templates (2026-10-13, evening).** The sheet and canvas
+  sticker and POP tiles are the measured In-Store-Fulfillment-8 signage template geometry (Figtree
+  500/600 at the template sizes, 7px divider from inside the band, rounded-module QR), the copy is the
+  closeout's (`signageCopy`), and the QR encodes the location's real Tables - Subscribe and Point of
+  Purchase links with the same generator as the uploaded SVG masters (`styledQrSvg`). Links come from
+  `signage/plan.json` or a read-only V2 `touchpoints/signage` GET (needs `BOOSTLY_V2_API_KEY` in the
+  env file; without it the tile draws a seeded mock in the same style). Pages load Figtree from Google
+  Fonts.
 - **Client-side card, sticker and signage previews (2026-10-13).** The variant sheet, the review canvas
   and the signage previews no longer screenshot the Boostly app. `templates/sheet-templates.js` (in
   `skills/boostly-brand-design`) holds the vendored HTML/CSS: the production badge markup

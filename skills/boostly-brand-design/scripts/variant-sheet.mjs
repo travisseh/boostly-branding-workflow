@@ -100,6 +100,13 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS_DIR = path.resolve(SCRIPT_DIR, '..', 'harness');
 const require = createRequire(path.join(HARNESS_DIR, 'package.json'));
 const sharp = require('sharp');
+const QRCode = require('qrcode');
+// The env that carries BOOSTLY_V2_API_BASE / BOOSTLY_V2_API_KEY (the operator's ~/.config/boostly-branding/.env,
+// else the brand-extractor service env the closeout's plan.mjs reads); the sheet fetches the location's signage
+// touchpoint links from it (read-only) so the preview QRs are the real codes.
+const V2_ENV_CANDIDATES = [process.env.BOOSTLY_BRANDING_ENV_FILE, `${process.env.HOME}/.config/boostly-branding/.env`, '/Users/travisse/Programming/product2/shared/apps/brand-extractor-figma/.env'].filter(Boolean);
+const V2_ENV_FILE = V2_ENV_CANDIDATES.find((f) => existsSync(f)) ?? V2_ENV_CANDIDATES[0];
+const QR_LINKS_FILE = 'touchpoint-links.json';
 
 const CARD_W = 260;
 const SIDE_W = 150;
@@ -115,6 +122,100 @@ const CELLS_DIR = 'cells';
 const SHEET_HTML = 'variant-sheet.html';
 const STICKER_HEADLINE = 'Join the club!';
 const STICKER_BODY = 'Be the first to know.|Receive exclusive deals.';
+const POP_BODY_GENERIC = 'Scan to join our VIP text club|for ongoing offers!';
+const POP_BODY_OFFER = 'Scan to join our text club|for ongoing offers!';
+
+// ---- signage copy: the closeout's words (boostly-signage-sheets plan.mjs specificOfferCopy, ported) ----
+// A discount ("20% OFF", "Get 20% Off!") becomes "Get 20% Off" on the sticker and the POP; a phrase offer
+// ("Unlock the V.I.P Experience") goes verbatim on both with the phrase sticker layout; a review-style phrase
+// is POP-only. The generic "Join the club!" keeps Cam's copy. The preview prints what the closeout prints.
+const GENERIC_OFFER = /^join the club!?$/i;
+const DISCOUNT_RE = /^\$?\d+(\.\d+)?\s*%?\s*off\b/i;
+export function signageCopy(offer) {
+  const generic = { sticker: { title: STICKER_HEADLINE, body: STICKER_BODY, layout: 'default' }, pop: { title: STICKER_HEADLINE, body: POP_BODY_GENERIC } };
+  if (!offer || GENERIC_OFFER.test(offer)) return generic;
+  let text = String(offer).trim();
+  const typedGet = text.match(/^get\s+(.+?)!?\s*$/i);
+  if (typedGet && DISCOUNT_RE.test(typedGet[1])) text = typedGet[1];
+  const isDiscount = DISCOUNT_RE.test(text) || /^free\b/i.test(text);
+  if (!isDiscount) {
+    if (/let us know|review|good time/i.test(text)) return { sticker: generic.sticker, pop: { title: text, body: POP_BODY_GENERIC } };
+    // plan.mjs measures the title at 82 against 788px (Figtree Medium); ~18 characters is that line.
+    const layout = text.length <= 18 ? 'phrase_one_line' : 'phrase';
+    return { sticker: { title: text, body: POP_BODY_GENERIC, layout }, pop: { title: text, body: POP_BODY_GENERIC } };
+  }
+  const title = `Get ${text.replace(/\bOFF\b/g, 'Off').replace(/\s+/g, ' ').trim()}`;
+  return { sticker: { title, body: STICKER_BODY, layout: 'default' }, pop: { title, body: POP_BODY_OFFER } };
+}
+
+// ---- QR: the same encoder and matrix as the closeout's SVG masters (qrcode, ECC M) ----------------------
+/** ECC-M module matrix of `url` as rows of '0'/'1' (what templates.styledQrSvg draws). */
+export function qrModules(url) {
+  const qr = QRCode.create(String(url), { errorCorrectionLevel: 'M' });
+  const n = qr.modules.size;
+  const rows = [];
+  for (let r = 0; r < n; r += 1) { let line = ''; for (let c = 0; c < n; c += 1) line += qr.modules.get(r, c) ? '1' : '0'; rows.push(line); }
+  return rows;
+}
+function qrView(url) {
+  return url ? { url, modules: qrModules(url) } : null;
+}
+function readV2Env() {
+  if (!existsSync(V2_ENV_FILE)) return {};
+  const env = {};
+  for (const line of readFileSync(V2_ENV_FILE, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+  return env;
+}
+/**
+ * The location's signage links for the preview QRs ({ table_promo, pop, source }), in this order: the
+ * closeout's signage/plan.json (the links its masters encode), the variants/touchpoint-links.json cache,
+ * a read-only GET of the V2 signage touchpoints for run.json's location_id (cached). null when none is
+ * reachable (the tiles then draw the seeded mock matrix in the same style); never throws.
+ */
+export async function loadQrLinks(runDir, outDir, { fetchImpl = globalThis.fetch } = {}) {
+  const fromPlan = path.join(runDir, 'signage', 'plan.json');
+  if (existsSync(fromPlan)) {
+    try {
+      const plan = JSON.parse(readFileSync(fromPlan, 'utf8'));
+      const table = plan.qr?.tablePromo?.link ?? null; const pop = plan.qr?.pop?.link ?? null;
+      if (table || pop) return { table_promo: table, pop, source: 'signage/plan.json' };
+    } catch { /* fall through */ }
+  }
+  const cache = path.join(outDir, QR_LINKS_FILE);
+  if (existsSync(cache)) {
+    try { const c = JSON.parse(readFileSync(cache, 'utf8')); if (c.table_promo || c.pop) return { ...c, source: c.source ?? 'cache' }; } catch { /* fall through */ }
+  }
+  const runFile = path.join(runDir, 'run.json');
+  if (!existsSync(runFile) || typeof fetchImpl !== 'function') return null;
+  let locationId = null;
+  try { locationId = JSON.parse(readFileSync(runFile, 'utf8')).request?.location_id ?? null; } catch { return null; }
+  if (!locationId) return null;
+  const env = readV2Env();
+  const key = (env.BOOSTLY_V2_API_KEY || env.BOOSTLY_V2_AUTH_TOKEN || '').trim().replace(/^(Bearer|Token)\s+/i, '');
+  if (!key) return null;
+  const base = env.BOOSTLY_V2_API_BASE || 'https://new.boostly.com/api/service/v1';
+  try {
+    const res = await fetchImpl(`${base}/touchpoints/signage?location_id=${encodeURIComponent(locationId)}`, { headers: { Accept: 'application/json', 'x-api-key': key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const byName = new Map((data.signage ?? []).map((tp) => [String(tp.name ?? '').toLowerCase(), tp.url ?? tp.link ?? null]));
+    const links = { table_promo: byName.get('tables - subscribe') ?? null, pop: byName.get('point of purchase') ?? null, location_id: locationId, fetched_at: new Date().toISOString(), source: 'v2 touchpoints/signage' };
+    if (!links.table_promo && !links.pop) return null;
+    await fs.mkdir(outDir, { recursive: true });
+    await fs.writeFile(cache, `${JSON.stringify(links, null, 2)}\n`);
+    return links;
+  } catch {
+    return null;
+  }
+}
+/** Put the QR links on the manifest once (manifest.qr_links); cellView reads them. */
+export async function ensureQrLinks(manifest, outDir) {
+  if (manifest.qr_links === undefined || manifest.qr_links === null) manifest.qr_links = await loadQrLinks(manifest.run_dir ?? path.dirname(outDir), outDir);
+  return manifest.qr_links;
+}
 const SUBCOMMANDS = ['build', 'add-row', 'add-column', 'add-cell', 'mark', 'restitch', 'render'];
 export const STATUSES = ['fable_pick', 'travisse_pick', 'rejected', 'hold', 'none'];
 const STATUS_STYLE = {
@@ -820,6 +921,8 @@ export function cellView(manifest, cell) {
   const stickerOk = stickerRenderable(row);
   const stickerLogo = stickerOk ? (row.sticker_logo_used && existsSync(row.sticker_logo_used) ? row.sticker_logo_used : stickerLogoFor(manifest, row)) : null;
   const status = cell.status && STATUS_STYLE[cell.status] ? cell.status : null;
+  const copy = signageCopy(manifest.offer ?? DEFAULT_OFFER);
+  const links = manifest.qr_links ?? null;
   return {
     letter: cell.letter,
     row: cell.row,
@@ -828,9 +931,9 @@ export function cellView(manifest, cell) {
     header: { text: cellLabelText(manifest, cell), bg: rejected ? STATUS_STYLE.rejected.color : digit?.pass ? '#1B5E20' : '#B71C1C' },
     card: { logo: rel(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, text_secondary: cell.text, issue_id: 1 },
     sticker: stickerLogo
-      ? { logo: rel(stickerLogo), band, headline: STICKER_HEADLINE, body: STICKER_BODY, seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
-      : { logo: null, band, headline: STICKER_HEADLINE, body: STICKER_BODY, seed: null, status: STICKER_NEEDS_FIX },
-    pop: { logo: rel(row.logo), ground: band, offer: manifest.offer ?? DEFAULT_OFFER },
+      ? { logo: rel(stickerLogo), band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: qrView(links?.table_promo), seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
+      : { logo: null, band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: null, seed: null, status: STICKER_NEEDS_FIX },
+    pop: { logo: rel(row.logo), ground: band, offer: copy.pop.title, body: copy.pop.body, qr: qrView(links?.pop) },
     print: { primary: cell.print_primary ?? null, secondary: cell.print_secondary ?? null, text_secondary: cell.print_text_secondary ?? null, fix: cell.badge_digit_print?.fix ?? null, digit_contrast: cell.badge_digit_print?.contrast_with_text ?? null },
     status,
     status_tag: status ? STATUS_STYLE[status].tag : null,
@@ -989,6 +1092,7 @@ export function cellLabelText(manifest, cell) {
  */
 export async function composeSheet(manifest, outDir, { raster = false } = {}) {
   const runDir = manifest.run_dir ?? path.dirname(outDir);
+  await ensureQrLinks(manifest, outDir);
   for (const cell of Object.values(manifest.cells)) {
     cell.view = cellView(manifest, cell);
     const card = path.join(runDir, cell.view.card.logo);

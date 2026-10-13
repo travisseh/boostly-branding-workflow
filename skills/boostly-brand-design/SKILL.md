@@ -69,8 +69,25 @@ harness encode every failure a human flagged.
   `<run_dir>/variants/` in place; `render --cell <L>` writes PNG tiles only when a consumer needs
   files (ai-mockup.mjs) and `--raster` a sheet png. No `variants-v2/`. See Core operating rule 2b.
 - `templates/sheet-templates.js`: the vendored HTML/CSS templates (badge card from boostly
-  `generate-badge-html.ts` at 8bf7a2e, sticker mock, POP tile, the onboarding signage row, the sheet
-  montage and compare view). Pure functions of JSON; loads in Node (CommonJS default import) and in
+  `generate-badge-html.ts` at 8bf7a2e, the table sticker and the POP sign at the Figma signage
+  template's exact geometry, the onboarding signage row, the sheet montage and compare view).
+  STICKER AND POP ARE THE FIGMA OUTPUT (Travisse 2026-10-13, "EXACTLY accurate"): measured over the
+  REST API from the In-Store-Fulfillment-8 template (2:2670): 900x900 sticker, band path
+  M0 0 H900 V429 L0 524 Z, Figtree Medium 90/100 title at 56/56 w788, Figtree SemiBold 50/60 body at
+  y216, 7px band-color divider at x446.5 from y420 (inside the band) to y860, logo FIT box 56/542
+  330x244.9, QR 359 at 485/485 on a r14 white tile, 1px inside black cut line; 1500x2100 POP with
+  Figtree Medium 140/150 title at y180, 70/85 body at y420, QR 675 at 412.5/802, logo box
+  539.6/1607.6 421x312, the full 26/32 legal line at y1988. Copy is the closeout's
+  (`signageCopy`, a port of plan.mjs specificOfferCopy: "20% OFF" prints "Get 20% Off" on both, a
+  phrase offer uses the phrase sticker layout). The QR is the REAL code: `qrModules` encodes the
+  location's Tables - Subscribe and Point of Purchase links (signage/plan.json when the closeout
+  ran, else a read-only V2 `touchpoints/signage` GET cached in `variants/touchpoint-links.json`)
+  with the same qrcode ECC-M matrix, and `styledQrSvg` is the plugin generator ported verbatim
+  (rounded modules and finder patterns), byte-identical to the SVG masters the closeout uploads.
+  A run with no reachable links draws a seeded mock matrix in the same style. Pages load Figtree
+  from Google Fonts (`FONT_LINK_HTML`); the Playwright raster uses the same link. Overlay diff
+  against the Figma 2x renders of Slice of the 80's: sticker 1.5%, POP 0.9% of pixels (edge
+  anti-aliasing only), down from 14.8% and 9.0%. Pure functions of JSON; loads in Node (CommonJS default import) and in
   the browser (`window.BoostlySheet`). `scripts/render-preview.mjs` is the one in-memory raster path
   (Playwright `page.setContent`, no server) for `--raster`, `render`, `--png` and any pixel gate.
 - `scripts/signage-preview.mjs`: the signage row preview for a cell as a JSON spec
@@ -261,8 +278,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    IN-STORE PRIMARY ROW (Chuy's 2026-09-18): the dominant saturated hue sampled across the
    brand-environment photos becomes its own primary row automatically (row label says
    "sampled") when it is 40 degrees or more from the site primary or the primary is a neutral;
-   `--no-instore` skips it. Each cell is the production badge card (vendored markup) plus the sticker
-   mock and a solid POP tile, and its label prints the badge digit contrast (secondary vs text
+   `--no-instore` skips it. Each cell is the production badge card (vendored markup) plus the table
+   sticker and the POP sign at the Figma template's geometry with the real QR codes (see
+   `templates/sheet-templates.js` above), and its label prints the badge digit contrast (secondary vs text
    color) with the brand-owned fix (white or black digit) when it fails 3:1. Every cell carries a
    letter; `variant-sheet.json` maps each letter to the exact logo path, primary, secondary, text,
    and the print digit color, so "apply B" is mechanical: that cell's logo becomes the card asset,

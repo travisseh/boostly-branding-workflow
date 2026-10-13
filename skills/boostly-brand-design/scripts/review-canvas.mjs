@@ -1338,6 +1338,7 @@ ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length
 </ol></nav>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title>
+${templates.FONT_LINK_HTML}
 <script src="sheet-templates.js"></script>
 <style>
   :root { color-scheme: light; scroll-behavior: auto; }

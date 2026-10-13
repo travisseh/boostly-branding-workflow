@@ -209,3 +209,20 @@ screenshots of the Boostly app). Copied from `~/.claude/skills/boostly-brand-des
 | `skills/boostly-brand-design/SKILL.md` | script list, rules 2/2b/2c/2d, workflow step 1 | `$BOOSTLY_RUN_ROOT`, `$BOOSTLY_REPO_DIR` substitutions untouched (hunks applied in place) |
 | `agents/fulfill-location.md`, `agents/closeout-location.md` | canvas step says no dev server; signage preview via `signage-preview.mjs` | working directory and heartbeat patches untouched (hunks applied in place) |
 | `setup/setup.sh`, `setup/env.example`, `docs/BOOTSTRAP.md` | Boostly repo + :3457 harness are WARN / optional (close-out proofs only) | package-only |
+
+## 2026-10-13 (evening): sticker and POP previews match the Figma templates
+
+Travisse reviewed the client-side previews and asked for the sticker and POP tiles to be EXACTLY the Figma
+signage output (font sizes, rounded QR, thin divider touching the band). Copied from
+`~/.claude/skills/boostly-brand-design`:
+
+| File | Live change | Patch re-applied |
+|---|---|---|
+| `skills/boostly-brand-design/templates/sheet-templates.js` | sticker and POP tiles rebuilt on the measured In-Store-Fulfillment-8 template geometry (900x900 sticker, 1500x2100 POP, Figtree 500/600, 7px divider, QR 359/675); `styledQrSvg` (plan.mjs generateStyledSvgQR verbatim), `mockQrModules`, `FONT_LINK_HTML` (Figtree from Google Fonts), full POP legal line | none |
+| `skills/boostly-brand-design/scripts/variant-sheet.mjs` | `signageCopy` (plan.mjs specificOfferCopy port), `qrModules` (qrcode ECC M), `loadQrLinks` / `ensureQrLinks` (signage/plan.json, then a read-only V2 `touchpoints/signage` GET cached in `variants/touchpoint-links.json`); cell views carry `sticker.qr`, `sticker.layout`, `pop.body`, `pop.qr` | none needed: the V2 env lookup reads `BOOSTLY_BRANDING_ENV_FILE`, then `~/.config/boostly-branding/.env` (BOOSTLY_V2_API_BASE / BOOSTLY_V2_API_KEY, already in env.example), before Travisse's service env |
+| `skills/boostly-brand-design/scripts/review-canvas.mjs` | Figtree font link in the page head | none |
+| `skills/boostly-brand-design/scripts/sheet-templates.test.ts` | template geometry, QR, copy tests; the byte-identical master check reads `$BOOSTLY_RUN_ROOT` and skips when the Slice run is absent | none (env-aware upstream) |
+| `skills/boostly-brand-design/SKILL.md` | templates entry documents the measured geometry, copy, QR source and the overlay diff | applied as a patch; substitutions untouched |
+
+Overlay diff against the Figma 2x REST renders of Slice of the 80's: sticker 1.5%, POP 0.9% of pixels
+(edge anti-aliasing), down from 14.8% and 9.0%. 144 skill tests pass on the live copy.
