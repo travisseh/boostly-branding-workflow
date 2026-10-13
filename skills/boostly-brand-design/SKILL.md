@@ -175,7 +175,7 @@ arguments keep working; `--run` only adds the run.json write.
 
 Everything lives in the spike project, this skill orchestrates it, it does not duplicate it:
 
-- **Project root:** `$BOOSTLY_RUN_ROOT/`
+- **Project root:** `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/`
 - **The brief:** `SUBAGENT_BRIEF.md`: the single living document. Subagents read it
   directly; every new rule goes straight into it (no freeze step). `briefs/` holds
   historical snapshots (v1.0-v1.4) for reference only, pin a copy there just before an
@@ -236,7 +236,7 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    the variant sheet, the review canvas and the signage previews draw from the vendored templates,
    see 2b/2c). Dev harness page
    `http://localhost:3457/public/badge-preview-harness` (uncommitted page in the boostly repo;
-   start with `PORT=3457 npm run dev` in `$BOOSTLY_REPO_DIR` if down; NEVER
+   start with `PORT=3457 npm run dev` in `/Users/travisse/Programming/boostly` if down; NEVER
    commit that page). Render via `node harness/screenshot.mjs --url-base http://localhost:3457
    --logo <png> --primary <hex> --secondary <hex> --text <hex> --text-secondary <hex> --out <png>`.
    Mocking the card some other way is a contract violation. Fable's pre-write artifact is
@@ -289,8 +289,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    its default letter in the post. Reviewer contract: Travisse replies with a letter (or "A as is");
    anything else is a new request, not a variant pick. "Preview" and "variant" always mean render
    only, never write. The review page (2c) is the deliverable; attach `variant-sheet.png` only
-   when a consumer needs a raster (`--raster`: the Notion review-queue embed, the Apple Note
-   checklist link); do not describe options in prose that the sheet already shows.
+   when a consumer needs a raster (`--raster`; the Notion review-queue embed and the Apple Note
+   are retired since 2026-10-13, the site is the board); do not describe options in prose that
+   the sheet already shows.
    ONE SHEET PER RUN, PATCHED IN PLACE. The sheet lives at `<run_dir>/variants/` only
    (`variant-sheet.json`, the source of truth, plus `variant-sheet.html` drawn from it; a
    `variant-sheet.png` only behind `--raster`; legacy runs keep their `cells/` cache and tiles).
@@ -337,7 +338,7 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    subcommand rewrites the `variants` block of `run.json` (sheet path, cells with ids,
    fingerprints, statuses, `fable_default_letter`; `applied_letter` stays unset until the
    `travisse_pick` mark). The run manifest's `variant_sheet: { png, json, applied_letter }`
-   points at that one sheet because the review-queue skill embeds it in the Notion review page.
+   points at that one sheet (the retired review-queue skill embedded it in the Notion page).
    SHEET VIABILITY (Dogwood Pizza 2026-09-21): every logo asset passes the `sheet-viability` gate
    (`references/gates.json`, run by `logo-quality-gates.ts sheet-viability`) BEFORE `build`, `add-row`,
    `add-cell`, or `add-column` renders a cell with it: an opaque-ground asset (the sticker-ground
@@ -918,7 +919,7 @@ The skill owns branding feedback. Fulfillment automation only detects/routes fee
 calls this skill's CLI. Link discovery and heartbeat state never own branding feedback.
 
 - Canonical ledger:
-  `~/.claude/skills/boostly-brand-design/feedback/branding-feedback.jsonl`
+  `/Users/travisse/.codex/skills/boostly-brand-design/feedback/branding-feedback.jsonl`
 - Generated manifests/proofs are immutable evidence. `create` snapshots the manifest content
   and hashes the artifacts; later actions append events and never edit prior rows.
 - Preserve Cam's raw words verbatim, then add normalized tags. Record feedback before changing

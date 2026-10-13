@@ -101,9 +101,8 @@ Order (one checkpoint each; stop and ask before each file edit):
    Put the directory (for example `Profile 3`) whose name is `Boostly.com` into the env file.
 3. `BOOSTLY_ADMIN_MCP_KEY` (new.boostly.com admin, the operator's own user, MCP/API key). Travisse pastes.
 4. `SLACK_USER_OAUTH_TOKEN` (xoxp, the operator's user token from the Boostly Slack app). Travisse pastes.
-5. `NOTION_API_TOKEN` (internal integration created in the Boostly workspace). Travisse pastes. Then in
-   Notion share the Fulfillment Review Queue page and the Travisse AI Output database with that
-   integration (page menu -> Connections).
+5. `NOTION_API_TOKEN`: no longer needed for the review workflow (2026-10-13: statuses live on the
+   review site, the Notion review queue is retired). Leave it empty unless Travisse asks for it.
 6. `SEARCHAPI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`,
    `BOOSTLY_V2_API_KEY` (and `BOOSTLY_V2_API_BASE` if Travisse says it differs). Travisse pastes each.
 7. Optional: `ASKELEPHANT_*`, `TINYPNG_API_KEY`, `REPLICATE_API_TOKEN`, `OPENAI_API_KEY`.
@@ -212,7 +211,8 @@ page per run dir at `/<run dir name>/`, index with search by name or city, statu
 last updated or request date). It is a static site built from the run root and pushed to GitHub;
 Vercel deploys `main` automatically and the images go to a Vercel Blob store (public read, keyed by
 content hash, cache committed at `data/blob-index.json`). Karissa, Cam, and customstickers.com review
-from the site; the local 127.0.0.1:3917 page and the Apple Note are the operator's own quick view.
+from the site, and the site index is the status board (needs-you, steps, notes, waiting-on, ease);
+the local 127.0.0.1:3917 page is only a fallback for an unpublished page.
 Claude artifacts are not used for review pages. Needs the Boostly GitHub org and Boostly Vercel team
 membership from section 0.
 
@@ -244,21 +244,22 @@ this run root are rebuilt, every other page is kept, so pages built on Travisse'
 from this one (`--prune` is the only way a page is removed). CHECKPOINT 9: the grep prints 1, the dry
 build exits 0, `git status --short` prints nothing.
 
-## 10. Notion, Slack, Apple Note, review server
+## 10. Slack, status board, review server
 
 ```bash
-~/.config/notion-tools/notion-ai-ntn.sh --workspace boostly whoami
-~/.config/notion-tools/notion-ai-ntn.sh --workspace boostly search "Fulfillment Review Queue" page
 ~/.claude/skills/aos-slack/scripts/slack auth check
 ~/.config/boostly-branding/bin/boostly-review-server.sh
-python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root ~/boostly-branding/runs --no-live --no-note
+python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root ~/boostly-branding/runs --no-live --publish-status
 ```
 
-The last command prints the checklist markdown; without `--no-note` it writes the Apple Note
-"Fulfillment reviews: pre-physical checklist" (macOS asks once for Notes automation permission). The
-5-minute refresh job is optional: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist`.
-CHECKPOINT 10: Notion whoami shows the integration, the search finds the queue page, Slack auth check
-shows the operator, the review server answers on 127.0.0.1:3917.
+The last command writes `checklist/checklist.json` and uploads the public-safe status board to the
+site's Blob store (`status/checklist.json`; the token comes from the fulfillment-reviews clone's
+`.env.local`, section 9, or `BOOSTLY_REVIEWS_REPO_DIR` when the clone is elsewhere). The site index and
+every location page overlay it on load. The 5-minute refresh job keeps it current without a model:
+`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist`.
+Only one machine should run that job at a time (it overwrites the same board); Travisse's runs it today.
+CHECKPOINT 10: Slack auth check shows the operator, the publish prints `status published: ok`, the
+review server answers on 127.0.0.1:3917.
 
 ## 11. Doctor
 
@@ -301,12 +302,12 @@ Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
    A preflight block writes a note to `$BOOSTLY_RUN_ROOT/inbox/messages.log` (the iMessage bridge is
    stubbed on this machine); read it and escalate by Slack.
 2. Fulfill: for each request, seed the run dir (`run-file.ts init`) and launch `fulfill-location`
-   (one agent per location; they run in parallel). Refresh the Apple Note:
-   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root "$BOOSTLY_RUN_ROOT"`.
+   (one agent per location; they run in parallel). Refresh and publish the status board:
+   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root "$BOOSTLY_RUN_ROOT" --publish-status`.
    The agent publishes the location's page to `https://fulfillment-reviews.vercel.app/<run dir>/`
    (step 9). If it reports "not published", run the publish command from the box-fulfillment
    SKILL.md "Public review site" section yourself:
-   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <run dir> && git add public data && git commit -m "Add <location> review page" && git push`
+   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --slug <run dir> && git add public data && git commit -m "Add <location> review page" && git push`
 3. Pick: open the site page (or the local 127.0.0.1:3917 page), compare with GBP/Instagram/website,
    choose the letter. The letter is the go. When Cam, Travisse, or the vendor needs to see a review,
    share the site URL, never the local link and never a Claude artifact. If the pick's text equals
@@ -317,10 +318,11 @@ Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
 5. Finish: after approving the signage, launch `closeout-finish` with the run dir. One Slack post in the
    request thread, then the print hand-off (vector PDFs to the customstickers.com Drive folder, summary
    row, Gmail DRAFT to the vendor with Colin Dunn and Maren Dunn on cc; never sent, Travisse sends it),
-   branding complete, store details confirmed when the ship-to is complete, Notion queue
-   entry spot-updated, run.json validated, and the site page rebuilt and pushed so it shows
-   "Closed out".
-6. End of day: `review-checklist.py` once more; held links and ship-to gaps go to the CSM in Slack.
+   branding complete, store details confirmed when the ship-to is complete, the site status
+   written (`review-status.mjs set`, status/waiting-on/ease), run.json validated, and the site
+   page rebuilt and pushed so it shows "Closed out".
+6. End of day: `review-checklist.py --publish-status` once more; held links and ship-to gaps go to
+   the CSM in Slack. The board is public: never put a ship-to name or address in a note line.
 
 Escalate to Travisse (do not improvise): a refused gate override, an identity conflict between sources,
 a logo that cannot be rebuilt crisp from any ladder rung, a held link that needs a business decision, a

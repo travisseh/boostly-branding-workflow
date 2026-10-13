@@ -1,6 +1,6 @@
 ---
 name: closeout-finish
-description: Finish ONE Boostly location closeout after Travisse approved the Figma signage. Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), spot-updates the Notion review queue entry in place, validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
+description: Finish ONE Boostly location closeout after Travisse approved the Figma signage. Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), sets the location status on the hosted review site (review/status.json, no Notion), validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 ---
@@ -15,7 +15,7 @@ it is not a logo decision.
 Parameter: RUN_DIR (absolute path). Everything else comes from files in RUN_DIR. Never retype
 an id, a thread ts, or a URL from the prompt; read it from `run.json`.
 
-Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`).
+Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`.
 Only `~/.claude/skills` matters; never touch `~/.codex/skills`. Never edit skill scripts.
 Never use em dashes in anything you write.
 
@@ -26,7 +26,7 @@ Never use em dashes in anything you write.
 2. `RUN_DIR/closeout-handoff.md` and `RUN_DIR/slack-note.txt` (written by the closeout agent).
    If either is missing, stop and report it to the lead. Do not write them yourself.
 3. `run.json` through `run-file.ts get RUN_DIR <block>` for `request`, `write`, `links`,
-   `figma`, `slack`, `notion`. Never read `preflight/ae-dump.json` (it is about 25 MB).
+   `figma`, `slack`. Never read `preflight/ae-dump.json` (it is about 25 MB).
 4. The command sections you need, not the whole skill files:
    `~/.claude/skills/boostly-signage-sheets/SKILL.md` section "POST REVIEW",
    `~/.claude/skills/boostly-instore-link-settings/SKILL.md` sections "fulfillment" and
@@ -135,28 +135,26 @@ Never use em dashes in anything you write.
    confirm and do NOT invent an address: report "store details not confirmed: ship-to missing
    <fields>" so the lead can route it. Skip this step when HOLD.md forbids branding complete
    or when branding complete did not apply.
-7. Notion review queue page (page id from `run.json` `notion.page_id`, or the one named in
-   `closeout-handoff.md`). SPOT UPDATE ONLY. Never delete and rebuild a page, never delete
-   blocks to re-append them. Use `~/.claude/skills/boostly-review-queue/scripts/review-queue.mjs
-   upsert --page <pageId> --ledger <ledger> --run RUN_DIR` with a ledger from
-   `ledger-from-manifest.mjs RUN_DIR`, with `status`, `waiting_on`, and `ease` set from the
-   Notion line in `closeout-handoff.md` (when the handoff gives none and the location already
-   has an entry, keep that entry's values; when it has no entry either, stop this step and
-   ask the lead, since ease and status are review judgments). On a page Travisse has edited by
-   hand, prefer the narrowest update the skill offers. Re-read the page immediately before the write
-   (`status --page <pageId>`): when the location already has an entry, update that entry in
-   place; when it has none, append at the next free entry number at that moment (other agents
-   append concurrently). Read the page back after the write and confirm exactly one entry for
-   this location. The entry carries the applied letter, the Figma link, links written, links
-   held, and the ship-to gap, all taken from `closeout-handoff.md` and run.json.
+7. Review status on the hosted site (Travisse 2026-10-13: no Notion page and no Apple Note any
+   more; the site index at https://fulfillment-reviews.vercel.app is the status board). Write
+   `RUN_DIR/review/status.json` with
+   `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run RUN_DIR --status <waiting|done> --waiting-on "<text or empty>" --ease <1-5> --by closeout-finish`
+   taking `status`, `waiting_on`, and `ease` from the status line in `closeout-handoff.md`
+   (when the handoff gives none and `review/status.json` already exists, keep its values and
+   pass only `--status`; when neither exists, stop this step and ask the lead, since ease and
+   status are review judgments). `done` when branding complete applied and nothing waits on
+   Travisse; `waiting` otherwise, with `waiting_on` naming the decision (held links, quantities,
+   an override) in one short phrase. The site is public: never put ship-to data in it.
+   Then `review-status.mjs get --run RUN_DIR` as the readback.
 8. `run-file validate RUN_DIR`. Then set your line in `<parent of RUN_DIR>/checklist/notes.json`
    (key: the run dir name, one true sentence such as "Done: <letter> is live, signage
    approved, Slack posted, branding complete; 2 links held for your call"; edit only your key
    with a small JSON read, set, write; keep the file mode 0600) and refresh the note:
-   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`.
+   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
+   (refreshes checklist.json and publishes the live status board; the launchd job does the same every 5 minutes).
    Then rebuild and push the public review site so the location's page shows "Closed out"
    (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
-   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
+   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Close out <location> review page"`
    `git push`
    (`--slug` keeps the page in the index even when the run is older than the newest 25). A
@@ -166,7 +164,7 @@ Never use em dashes in anything you write.
 Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/finish/`
 (`secondary-logo-dry.json`, `secondary-logo-apply.json`, `secondary-logo-readback.json`,
 `slack-dry.log`, `slack-apply.log`, `print-handoff.log`, `branding-complete-dry.json`, `branding-complete-apply.json`,
-`fulfillment-after.json`, `store-details-dry.json`, `store-details-apply.json`, `notion-before.txt`, `notion-after.txt`, `run-validate.log`).
+`fulfillment-after.json`, `store-details-dry.json`, `store-details-apply.json`, `review-status.log`, `run-validate.log`).
 
 ## Hard rules
 - No branding apply, no primary logo or color change, no link writes, no offer or promotion
@@ -190,7 +188,7 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
 Secondary logo: sticker file, scope, attachment id from the readback (or the skip reason, or
 "failed" with the output); Slack permalink (or "no thread, nothing posted", or "already posted");
 print hand-off Drive folder link, PDF page counts, and Gmail draft id (not sent), or what failed;
-branding complete status readback with state before and after (or "skipped: HOLD.md"); Notion entry number and
-whether it was updated in place or appended; `run-file validate` result; the review site URL
+branding complete status readback with state before and after (or "skipped: HOLD.md"); the review status
+written (status, waiting_on, ease); `run-file validate` result; the review site URL
 (`https://fulfillment-reviews.vercel.app/<run dir name>/`) after the rebuild, or what failed; links written, links
 held, open flags, skipped steps; anything that failed.

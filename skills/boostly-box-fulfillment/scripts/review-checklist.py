@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""Apple Notes quick view of every open pre-physical fulfillment request.
+"""Status board for every open pre-physical fulfillment request (Travisse 2026-10-13: the
+statuses live on the hosted review site, not in Notion or an Apple Note).
 
 Reads live open requests (read-only V2 query), joins each to its run.json under the run
-root, derives the review steps, and replaces the body of one Apple Note with real rich
-text (bold headings, bullets, links). Each location carries its Review page, latest
-Compare page and Figma section links. Review pages are served from a local static
-server on 127.0.0.1 so the links are clickable on this Mac. View only: the note is
-rebuilt from state, so edits made in Notes are overwritten. No production writes.
+root, derives the review steps and what Travisse owes, and writes checklist.json. With
+--publish-status it also uploads a public-safe copy (no ship-to data, no local paths) to
+the Vercel Blob store behind https://fulfillment-reviews.vercel.app, where the index and
+every location page overlay it live. The launchd job does this every 5 minutes. Each run
+dir may carry review/status.json (written by review-status.mjs: status waiting|done,
+waiting_on, ease); it is folded into the item. No production writes.
 
 Usage:
-  review-checklist.py --run-root <dir> [--no-note] [--no-live] [--port 3917]
-                      [--note-title "<title>"]
-Files (all under <run-root>/checklist/): notes.json (optional one-line note per run dir
-name), open-requests.json, checklist.json, checklist.md.
+  review-checklist.py --run-root <dir> [--publish-status] [--no-live] [--port 3917]
+                      [--note] [--note-title "<title>"]
+--note rewrites the legacy Apple Note (off by default since 2026-10-13); --no-note is
+accepted and ignored. Files (all under <run-root>/checklist/): notes.json (optional
+one-line note per run dir name), open-requests.json, checklist.json, checklist.txt.
 """
-import json, os, subprocess, sys, glob, datetime, re
+import json, os, subprocess, sys, glob, datetime, re, urllib.request
 
 def _arg(name, default=None):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv and sys.argv.index(name) + 1 < len(sys.argv) else default
@@ -32,6 +35,53 @@ PRE_PHYSICAL = ["branding", "digital_fulfillment", "store_details"]
 LIST_SCRIPT = os.path.expanduser("~/.claude/skills/boostly-box-fulfillment/scripts/list-branding-requests.ts")
 NOTES_TOOL = os.path.expanduser("~/.claude/tools/apple-notes.py")
 WRITER = os.path.expanduser("~/.claude/skills/apple-notes-decision-brief/scripts/write_decision_brief.py")
+SITE = os.environ.get("BOOSTLY_REVIEWS_SITE", "https://fulfillment-reviews.vercel.app")
+REVIEWS_REPO = os.environ.get("BOOSTLY_REVIEWS_REPO_DIR") or os.path.expanduser("~/Programming/repos/fulfillment-reviews")
+STATUS_KEY = "status/checklist.json"
+
+def load_review_status(run_dir):
+    """review/status.json written by boostly-brand-design/scripts/review-status.mjs (status, waiting_on, ease)."""
+    try:
+        j = json.load(open(os.path.join(RUNS, run_dir, "review", "status.json")))
+        return j if isinstance(j, dict) else None
+    except Exception:
+        return None
+
+def blob_token():
+    t = os.environ.get("BLOB_READ_WRITE_TOKEN")
+    if t:
+        return t
+    envf = os.path.join(REVIEWS_REPO, ".env.local")
+    if os.path.exists(envf):
+        m = re.search(r'^BLOB_READ_WRITE_TOKEN="?([^"\n]+)"?', open(envf).read(), re.M)
+        if m:
+            return m.group(1)
+    return None
+
+PUBLIC_FIELDS = ["name", "status", "created", "run_dir", "steps", "needs_you", "gaps", "hold", "done",
+                 "figma_url", "note", "review_status", "site_url"]
+
+def publish_status(items, stale):
+    """Upload the public-safe status board to Vercel Blob (fixed key, 60 s edge cache). Never prints the token."""
+    token = blob_token()
+    if not token:
+        return "no BLOB_READ_WRITE_TOKEN (env or " + os.path.join(REVIEWS_REPO, ".env.local") + ")"
+    payload = {"generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+               "stale": bool(stale), "site": SITE,
+               "items": [{k: i.get(k) for k in PUBLIC_FIELDS} for i in items]}
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    assert b"ship_to" not in body and b"street" not in body.lower()
+    req = urllib.request.Request("https://blob.vercel-storage.com/" + STATUS_KEY, data=body, method="PUT", headers={
+        "authorization": "Bearer " + token, "x-api-version": "7", "x-content-type": "application/json",
+        "x-add-random-suffix": "0", "x-allow-overwrite": "1", "x-cache-control-max-age": "60",
+        "content-length": str(len(body))})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return "ok " + json.loads(r.read().decode()).get("url", "")
+    except urllib.error.HTTPError as e:
+        return f"HTTP {e.code} {e.read()[:200].decode(errors='replace')}"
+    except Exception as e:
+        return f"failed {type(e).__name__}: {e}"
 
 def live_requests():
     out = os.path.join(HERE, "open-requests.json")
@@ -132,7 +182,9 @@ def derive(req, runs):
     if legacy:
         approved = True
     slack = bool((j.get("slack") or {}).get("message_ts") or (j.get("slack") or {}).get("posted_at"))
-    notion = bool((j.get("notion") or {}).get("page_id"))
+    site_status = load_review_status(d)
+    # status posted to the review site (review/status.json); a legacy Notion entry counts for runs closed before 2026-10-13
+    site_posted = bool(site_status) or bool((j.get("notion") or {}).get("page_id"))
     lbl = "Branding pick" + (f": {picked}" if picked else (f" (Fable default {bv.get('fable_default_letter')})" if sheet else ""))
     if src:
         lbl += " [account-level, from " + os.path.basename(src) + "]"
@@ -144,7 +196,7 @@ def derive(req, runs):
         ["Figma signage built", built],
         ["Figma approved by you" + (" (closed out before the approval step existed)" if legacy else ""), approved],
         ["Slack result posted", slack],
-        ["Notion updated", notion],
+        ["Status posted to the review site", site_posted],
         ["Store details confirmed", confirmed],
     ]
     if not sheet and not src:
@@ -165,6 +217,8 @@ def derive(req, runs):
         lines = [l.strip("#-* ").strip() for l in open(hp).read().splitlines() if l.strip()]
         lines = [l for l in lines if not l.upper().startswith("HOLD")] or lines
         item["hold"] = (lines[0] if lines else "HOLD")[:160]
+    item["review_status"] = site_status
+    item["site_url"] = f"{SITE}/{d}/"
     rv = (bv.get("review_canvas") or {})
     item["canvas"] = os.path.join(RUNS, os.path.basename(src) if src else d, "review", "review-canvas.html") if sheet else None
     item["figma_url"] = fig.get("section_url")
@@ -279,18 +333,22 @@ def main():
         notes = json.load(open(os.path.join(HERE, "notes.json")))
     except Exception:
         notes = {}
+    for i in items:
+        i["note"] = notes.get(i.get("run_dir") or "") or None
     text = render(items, stale, notes)
     json.dump({"generated_at": datetime.datetime.now().isoformat(), "stale": stale, "items": items},
               open(os.path.join(HERE, "checklist.json"), "w"), indent=1)
     open(os.path.join(HERE, "checklist.txt"), "w").write(text)
-    if "--no-note" in sys.argv:
-        print(text); return
+    if "--publish-status" in sys.argv:
+        print("status published:", publish_status(items, stale))
+    print(f"items={len(items)} needs_you={sum(1 for i in items if i['needs_you'] and not i.get('done'))} stale={bool(stale)}")
+    if "--note" not in sys.argv:
+        return
     md = os.path.join(HERE, "checklist.md")
     open(md, "w").write(text)
     p = subprocess.run(["python3", WRITER, "--input", md, "--replace-title", NOTE_TITLE], capture_output=True, text=True, timeout=90)
     if p.returncode != 0 and "not found" in (p.stdout + p.stderr):
         p = subprocess.run(["python3", WRITER, "--input", md, "--folder", "Notes", "--create"], capture_output=True, text=True, timeout=90)
     print("writer exit", p.returncode, "|", (p.stdout.strip() or p.stderr.strip())[:400])
-    print(f"items={len(items)} needs_you={sum(1 for i in items if i['needs_you'] and not i.get('done'))} stale={bool(stale)}")
 
 main()

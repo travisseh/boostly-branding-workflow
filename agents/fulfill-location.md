@@ -16,7 +16,7 @@ Parameters the launching prompt gives you (read nothing else from it as fact):
   Facebook-only "website", a reference run to mirror). Customer-supplied files are first-party
   authored marks with provenance "customer_supplied <date> via Boostly CSM".
 
-Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`)
+Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`
 (script paths are cwd-relative). Only `~/.claude/skills` matters; never touch `~/.codex/skills`.
 
 Read first: `~/.claude/skills/boostly-box-fulfillment/SKILL.md` (steps 1 to 8, run.json blocks),
@@ -62,15 +62,15 @@ Do, in order:
    selected cells, so this is optional). Signage previews and AI mockups
    are a post-pick step (closeout-location), not review-stage output; do not generate them here.
    The full review page is the deliverable, never the variant sheet alone: confirm
-   `RUN_DIR/review/review-canvas.html` exists before you start links, then refresh Travisse's
-   Apple Note so the location appears with its Review page link:
-   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`
-   (box-fulfillment SKILL.md "Apple Notes quick view"). Do not pass `--open` to the canvas
-   unless the lead asks; the note link is how he opens it.
+   `RUN_DIR/review/review-canvas.html` exists before you start links, then refresh and publish
+   the status board so the location shows "pick a letter":
+   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
+   (box-fulfillment SKILL.md "Status board on the review site"; no Apple Note, no Notion). Do not
+   pass `--open` to the canvas unless the lead asks; the site page is how he opens it.
    Then publish the shareable page to the public review site (box-fulfillment SKILL.md "Public
    review site"; the push is part of publishing and needs no separate go; skip only when the
    lead's prompt says "no site publish"):
-   `cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
+   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Add <location> review page"`
    `git push`
    The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/`. A failed build or push
@@ -110,7 +110,7 @@ Do, in order:
    written at closeout without another look); only a candidate that needs a human decision gets
    `action: "hold"` with the question in `reason`. Never label a verified social or a Places
    website bootstrap as a hold. Check
-   `$BOOSTLY_HEARTBEAT_ROOT` (the shared heartbeat location) for a heartbeat
+   `~/.codex/skills/boostly-link-discovery/runs/` (the shared heartbeat location) for a heartbeat
    report on this location and read it if present. State whether the stored `ordering_url`
    matches what the customer's own website links (the website wins).
    Holds are for genuine ambiguity (a login wall you could not read, the same name in a different
@@ -119,7 +119,7 @@ Do, in order:
 6. Write each run.json stage block as you go with `run-file.ts`; finish with `run-file validate`.
 
 Hard rules: no production writes of any kind (no branding apply, no link writes, no offer or
-promotion changes, no Slack posts, no Notion edits, no fulfillment status changes). Do not commit
+promotion changes, no Slack posts, no fulfillment status changes). Do not commit
 anything except the review-site publish in step 4. Never print secrets. If a skill script fails, read its source and fix your invocation;
 do not rewrite skill scripts. If something truly needs Travisse, record it in run.json and finish
 everything else. No white or near-white primary. No solid-silhouette knockout that fills authored

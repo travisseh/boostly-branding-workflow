@@ -1,6 +1,6 @@
 ---
 name: closeout-location
-description: Close out ONE Boostly location after Travisse picked a variant letter: mark the pick, gate and apply the branding to production, render proofs, build the Figma signage section, write the handoff files, then STOP for Travisse's signage review. The Slack post, branding complete, Notion update, and final run.json validation are done afterwards by the closeout-finish agent, which the lead launches after approval. Use when the lead says "close out <location> with <letter>". Production writes are authorized for that location only.
+description: Close out ONE Boostly location after Travisse picked a variant letter: mark the pick, gate and apply the branding to production, render proofs, build the Figma signage section, write the handoff files, then STOP for Travisse's signage review. The Slack post, branding complete, site status, and final run.json validation are done afterwards by the closeout-finish agent, which the lead launches after approval. Use when the lead says "close out <location> with <letter>". Production writes are authorized for that location only.
 model: fable
 tools: Bash, Read, Write, Edit, Glob, Grep, mcp__plugin_figma_figma__use_figma, mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_screenshot, mcp__plugin_figma_figma__upload_assets
 ---
@@ -14,11 +14,11 @@ Parameters the launching prompt gives you:
   live in the `request` block, never retype them).
 - LETTER: the cell Travisse chose, with his reason when he gave one.
 - OVERRIDES: any recorded human decisions the lead names (a gate override with its evidence, a
-  signage-only logo, a held link to mention, a Notion entry to update rather than append).
+  signage-only logo, a held link to mention, a status line to carry).
 
-Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`).
+Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`.
 Only `~/.claude/skills` matters; never touch `~/.codex/skills` (the shared heartbeat state and audit
-under `$BOOSTLY_HEARTBEAT_ROOT` are written only through the fulfillment
+under `~/.codex/skills/boostly-link-discovery/runs/` are written only through the fulfillment
 scripts, never by hand). Read
 `~/.claude/skills/boostly-box-fulfillment/SKILL.md` step 11 (automatic close-out),
 `~/.claude/skills/boostly-brand-design/SKILL.md` (gate registry, write rails, FINALIZE CARD ASSET),
@@ -90,7 +90,7 @@ Steps, in order:
    `upload_assets` tool is missing from the session; say so in your report when you use it.
 
    **STOP HERE for Travisse's signage review (Travisse 2026-09-24).** Do not post Slack, do not
-   flip branding complete, do not touch Notion yet. Take a full-section `get_screenshot` of the
+   flip branding complete, do not write the final site status yet. Take a full-section `get_screenshot` of the
    finished Figma section (after every edit, including logo fixes), save it as
    `signage/shots/review-section.png`, and end your turn with: the Figma URL, the screenshot
    path, and the gate/branding/link results so far. Your job ends here. Steps 5 to 8 are NOT
@@ -107,8 +107,8 @@ Steps, in order:
    - `RUN_DIR/closeout-handoff.md`: applied letter; links written (category and URL, with the
      receipt path); links held (category, candidate URL, the question); open flags and
      recorded overrides; ship-to or quantity gaps; any step you skipped or that failed, with
-     the reason; the Notion instruction (append a new entry, or update entry <n> in place, with
-     the ledger `status`, `waiting_on`, and `ease` to use);
+     the reason; the status line for the review site (`status` waiting|done, `waiting_on` in one
+     short phrase, `ease` 1-5; the finish agent writes it with `review-status.mjs`, no Notion);
      and whether `HOLD.md` exists and what it forbids.
    - run.json blocks `write`, `proofs`, `links`, and `figma` written through `run-file.ts`,
      and `run-file validate RUN_DIR` run once so the finish agent starts from a valid file.
@@ -119,12 +119,16 @@ Steps, in order:
      yourself.
    Then update your own line in `<parent of RUN_DIR>/checklist/notes.json` (key: the run dir
    name; one true sentence, for example "Signage built in Figma, waiting for your review";
-   edit only your key) and refresh Travisse's Apple Note so the location shows its Figma link:
-   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live`
-   (box-fulfillment SKILL.md "Apple Notes quick view"). A launchd job also refreshes the note
-   every 5 minutes without a model.
+   edit only your key), write the interim site status
+   `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run RUN_DIR --status waiting --waiting-on "Figma signage approval" --by closeout-location`,
+   refresh and publish the status board
+   `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
+   (box-fulfillment SKILL.md "Status board on the review site"; a launchd job also publishes it
+   every 5 minutes without a model), then rebuild and push the location's site page so it shows
+   the Figma link and "Branding applied" (the push is part of publishing, no separate go):
+   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
 Steps 4b and 5 to 8 (the secondary logo write, the ONE Slack post, `fulfillment branding
---complete`, the Notion spot update, the final `run-file validate`) belong to the `closeout-finish` agent
+--complete`, the final site status, the final `run-file validate`) belong to the `closeout-finish` agent
 (`~/.claude/agents/closeout-finish.md`). Do not run them, even when the lead tells you the
 signage is approved: reply that the lead should launch `closeout-finish` with RUN_DIR.
 
@@ -137,7 +141,7 @@ Final report (all Travisse sees), under 180 words: gate verdict, branding readba
 attachment id), links written and links held, Figma section URL and column, the screenshot
 path, the image transport used (upload_assets with hash match, or the last-resort fallback),
 the handoff file paths, anything that failed. Say plainly that Slack, branding complete, and
-Notion have NOT been done and wait for the closeout-finish agent.
+the final site status have NOT been done and wait for the closeout-finish agent.
 
 ## Browser rule (Travisse 2026-09-22)
 Never steal Travisse's screen focus. For any browser work use only the Claude Chrome extension MCP tools (mcp__claude-in-chrome__*) in the Boostly.com profile, in a tab you create yourself; never AppleScript/osascript, `open <url>`, or anything that activates Chrome or switches his tabs. If the extension is disconnected, use headless Playwright or the Codex MCP, never his visible window. Do not re-open a URL whose verdict was already given.

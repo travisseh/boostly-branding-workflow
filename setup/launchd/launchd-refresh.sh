@@ -2,8 +2,9 @@
 # launchd wrapper for the fulfillment review checklist (added 2026-09-29). No model is involved.
 # Job: ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist, every 300 seconds.
 # It runs build-checklist.py (a thin wrapper over review-checklist.py in the fulfillment skill):
-# a read-only query of open requests, a join to each run.json, and a rewrite of the Apple Note.
-# It never opens or activates an app and never writes production.
+# a read-only query of open requests, a join to each run.json, and the publish of the public-safe
+# status board to Vercel Blob for https://fulfillment-reviews.vercel.app (Travisse 2026-10-13; the
+# Apple Note rewrite is retired). It never opens or activates an app and never writes production.
 set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export HOME="${HOME:-$(eval echo ~$(id -un))}"
@@ -35,13 +36,13 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 echo "[$(stamp)] start pid=$$"
 cd "$PROJECT_ROOT" || { echo "[$(stamp)] FAIL: cannot cd to $PROJECT_ROOT"; exit 1; }
-OUTPUT="$(python3 "$HERE/build-checklist.py" 2>&1)"
+OUTPUT="$(python3 "$HERE/build-checklist.py" --publish-status 2>&1)"
 CODE=$?
 printf '%s\n' "$OUTPUT"
 
 RESULT="ok"
 [ "$CODE" -ne 0 ] && RESULT="FAIL: script exit $CODE"
-if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -q '^writer exit 0 '; then RESULT="FAIL: Apple Note writer did not exit 0"; fi
+if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -q '^status published: ok '; then RESULT="FAIL: status board publish did not return ok"; fi
 if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -q 'stale=False'; then RESULT="FAIL: stale data (live request query failed)"; fi
 echo "[$(stamp)] end result=$RESULT"
 [ "$RESULT" = "ok" ] || exit 1

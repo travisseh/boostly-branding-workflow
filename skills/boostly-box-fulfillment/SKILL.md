@@ -116,8 +116,8 @@ final branding model; never substitute GPT.
 
 ## State & dedupe (shared with the Codex heartbeat, do not diverge)
 
-- State file: `~/.claude/skills/boostly-link-discovery/runs/boosted-box-heartbeat-state.json`
-- Audit log (append-only): `~/.claude/skills/boostly-link-discovery/runs/boosted-box-heartbeat-audit.jsonl`
+- State file: `~/.codex/skills/boostly-link-discovery/runs/boosted-box-heartbeat-state.json`
+- Audit log (append-only): `~/.codex/skills/boostly-link-discovery/runs/boosted-box-heartbeat-audit.jsonl`
 - These two (plus `account-write-locks/` and the badge receipt ledger) are the ONE shared
   location: the Codex heartbeat cron still reads and writes them there, and the `runs/` copy
   under `~/.claude` is only a stale mirror. Every script takes them from
@@ -244,15 +244,15 @@ real request was processed.
 8. **Branding** (see "Branding"): build the evidence packet, launch the Fable in-session
    subagent, validate, build the variant sheet and the review canvas, then STOP for Travisse's
    letter (the `fulfill-location` agent ends here; `closeout-location` starts at the letter).
-   As soon as the review canvas exists, refresh the Apple Notes quick view (see "Apple Notes
-   quick view") so the location shows up with its Review page link; this is the default, not
-   an extra.
-9. **Notion review checklist** (see "Review checklist"): create or reuse one populated
-    Boostly Notion review page and append the proof plus GBP source photos.
+   As soon as the review canvas exists, refresh and publish the status board (see "Status board
+   on the review site") and publish the page, so the location shows up with "pick a letter";
+   this is the default, not an extra.
+9. **Status board** (see "Status board on the review site"): the review status lives on the
+    hosted site; the Notion review checklist of the older flow is retired (2026-10-13).
 10. **Record the result.** Audit each write/skip, update state under the request id, and publish
-    the Notion review checklist. Reply once in the request's Slack thread with the text-only link
+    the site status. Reply once in the request's Slack thread with the text-only link
     summary **only if** the request carries a `slack_thread_ts`; otherwise the completion note
-    lives in the Notion review queue alone.
+    is the site status alone.
 11. **Close out automatically (Travisse, 2026-09-17).** Who runs it (2026-09-29): the
     `closeout-location` agent stops after the Figma build and writes `slack-note.txt` and
     `closeout-handoff.md`; after Travisse approves the signage, the lead launches a fresh
@@ -264,7 +264,7 @@ real request was processed.
     2026-10-01: "if in-store details are there just mark that complete, stop stopping and
     requiring me to specifically say that"; `fulfillment store-details <requestId> --confirm`,
     dry run then `--apply`; an empty or partial ship-to is reported, never invented), the
-    Notion spot update, and the final `run-file validate` from the run dir and
+    site status (`review-status.mjs`), and the final `run-file validate` from the run dir and
     run.json alone. Right after the Slack post it also runs the print hand-off
     (`~/.claude/skills/boostly-print-handoff`, `print-handoff.mjs --run-dir <dir>`): vector PDF
     export of the section's print sheets, the location's Drive folder under the
@@ -274,8 +274,8 @@ real request was processed.
     approved pick and the Figma signage section is built and QR-verified, do not wait for a
     separate "go": post the final branding result in the request's Slack thread (when it has
     one) with `post-review.mjs --apply`, then run `boostly-links fulfillment branding
-    <requestId> --complete` (dry run, then `--apply`), and refresh the Notion entry (spot
-    update, never delete and rebuild). The Figma file, template section, and grid come from
+    <requestId> --complete` (dry run, then `--apply`), and set the site status
+    (`review-status.mjs set`, then `review-checklist.py --publish-status`). The Figma file, template section, and grid come from
     `boostly-signage-sheets/references/figma-target.json`; the slot is the next free one from a
     LIVE scan of that file at build time, never a number typed into a prompt. Branding complete is correct even when links are
     still held; the held items go in the Slack text. The Slack ping into physical fulfillment
@@ -537,37 +537,59 @@ does around them.
 
 ## Finish
 
-### Apple Notes quick view (default, Travisse 2026-09-29)
-Every location with link candidates gets a `Links` jump in the note (`review-canvas.html#links`). A review page that has link data but no Links section is stale: `review-checklist.py` rebuilds it once (`review-canvas.mjs --run <dir> --skip-google`, backup kept as `review-canvas.before-links-rebuild.html`). After any link re-check, rebuild that location's review page so the verdicts on it are current.
+### Status board on the review site (default, Travisse 2026-10-13)
+The hosted index at https://fulfillment-reviews.vercel.app is the one status board: pipeline
+steps per location, what Travisse owes (pick a letter, approve the Figma signage, link
+decisions, store details), the one-line note from `<run root>/checklist/notes.json`, and the
+review status (`waiting|done`, `waiting_on`, `ease`) from `<run dir>/review/status.json`. It
+replaced the Notion review queue page and the Apple Note "Fulfillment reviews: pre-physical
+checklist" (both retired 2026-10-13; the Notion page is left as history, never updated again).
+The site build bakes those fields into the index and into a sticky strip at the top of every
+location page; `review-checklist.py --publish-status` also uploads a public-safe copy to the
+Vercel Blob store (`status/checklist.json`, 60 s cache) that the pages overlay on load, so the
+board is current between site builds. The launchd job `com.boostly.fulfillment-checklist`
+publishes it every 5 minutes with no model.
 
-Travisse reviews from one Apple Note, "Fulfillment reviews: pre-physical checklist". Keep it
-current by default; do not wait to be asked.
+- Status per run: `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run <dir> --status waiting|done [--waiting-on "<one phrase>"] [--ease 1-5] [--by <agent>]`
+  (`get` reads it back). closeout-location writes `waiting` on "Figma signage approval";
+  closeout-finish writes the final status, waiting_on and ease from the handoff's status line.
+- Note per run: one true sentence in `checklist/notes.json`, keyed by run dir name; agents
+  edit only their own key. The site is public: no ship-to names or addresses in a note, in
+  `waiting_on`, or in HOLD.md's first line ("ship-to missing" is fine, a contact name is not).
+- A review page that has link data but no Links section is stale: `review-checklist.py`
+  rebuilds it once (`review-canvas.mjs --run <dir> --skip-google`, backup kept as
+  `review-canvas.before-links-rebuild.html`). After any link re-check, rebuild that location's
+  review page so the verdicts on it are current.
 
 ### Public review site (default, Travisse 2026-10-09)
 The shareable review page is `https://fulfillment-reviews.vercel.app/<run dir name>/` (index at
 the root: search by name or city, status filter, sort by last updated or request date). Repo
-`Boostly/fulfillment-reviews`, clone `~/Programming/repos/fulfillment-reviews`, Vercel team `boostly`,
+`Boostly/fulfillment-reviews`, clone `/Users/travisse/Programming/repos/fulfillment-reviews`, Vercel team `boostly`,
 project `fulfillment-reviews`; a push to main deploys. Images go to the Vercel Blob store
 `fulfillment-reviews-assets` keyed by content hash (cache committed at `data/blob-index.json`),
 so a rebuild uploads only new assets. The build reads `BLOB_READ_WRITE_TOKEN` from the clone's
 git-ignored `.env.local` (`vercel env pull .env.local --scope boostly` after `vercel link`). As
-soon as `review/review-canvas.html` exists and the Apple Note is refreshed, publish the page:
+soon as `review/review-canvas.html` exists and the status board is published, publish the page:
 
 ```bash
-cd ~/Programming/repos/fulfillment-reviews && git pull --ff-only && \
-  npm run build -- --run-root "$BOOSTLY_RUN_ROOT" --limit 25 --slug <run dir name> && \
+cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && \
+  until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && \
+  npm run build -- --run-root <run root> --limit 0 --slug <run dir name> && \
   git add public data && git commit -m "Add <location> review page" && git push
 ```
 
-Rerun the same command after a closeout (closeout-finish does it) so the page's status flips
-to "Closed out". Pushing to this repo is part of publishing and needs no separate go. The
+Rerun the same command after the Figma section is built (closeout-location) and after the
+finish (closeout-finish) so the page's status and strip move with the run. `--limit 0` rebuilds
+only the named page; a larger limit rewrites every page and two concurrent builds then drop
+pages from the manifest (2026-10-12). The wait loop needs the `[d]` bracket, or the pattern
+matches the waiting shell itself and never clears (2026-10-13). Pushing to this repo is part of publishing and needs no separate go. The
 build strips Boostly admin anchors and internal json/md links from each page; never add
 ship-to data to `data/sites.json`. The build merges into the committed `data/sites.json`: only
 runs found in the given run root are rebuilt, every other page is kept, so pages from another
 machine survive; `--prune` wipes and regenerates from this run root only and is how a page is
-removed. The site page is what Cam, Karissa,
-and customstickers.com look at; the local review server (`127.0.0.1:3917`) and the Apple Note
-are the operator's own quick view, and Claude artifacts are no longer used for review pages.
+removed. The site page is what Travisse, Cam, Karissa,
+and customstickers.com look at; the local review server (`127.0.0.1:3917`) is only a fallback
+for an unpublished page, and Claude artifacts are no longer used for review pages.
 
 ```bash
 python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
@@ -575,10 +597,10 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
 ```
 
 - What it does: a read-only query of open requests (branding, digital fulfillment, store
-  details), a join to each `run.json`, then a rich-text rewrite of the note (bold headings,
-  bullets, real links) through `apple-notes-decision-brief/scripts/write_decision_brief.py`.
-  No production writes. `--no-live` skips the query and reuses the last list; `--no-note`
-  prints the markdown instead of writing.
+  details), a join to each `run.json`, `checklist/checklist.json` with the steps and what
+  Travisse owes, and with `--publish-status` the public-safe upload to Blob. No production
+  writes. `--no-live` skips the query and reuses the last list. `--note` still rewrites the
+  legacy Apple Note (off by default since 2026-10-13).
 - Every location carries its links: **Review page** (`review/review-canvas.html`), **Compare**
   (the newest `review/compare-*.html`), and **Figma** (the run.json `figma.section_url`). A
   location that has a variant sheet but no canvas yet shows a "Variant sheet" link marked as
@@ -588,13 +610,14 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
   when it is not running. They open on this Mac only. Never `open` them for Travisse. The
   link to share with Cam, Karissa, or the vendor is the site page (above), never this local
   URL and never a Claude artifact.
-- The note is view only and rebuilt from state; edits made in Notes are overwritten. Put a
-  one-line human note per location in `<run root>/checklist/notes.json` (keyed by run dir
-  name): the lead's recommendation, an open decision the run.json does not track, a closeout
-  that is running. Keep a note line true; rewrite it when the state moves past it.
+- The board is rebuilt from state. Put a one-line human note per location in
+  `<run root>/checklist/notes.json` (keyed by run dir name): the lead's recommendation, an
+  open decision the run.json does not track, a closeout that is running. Keep a note line
+  true; rewrite it when the state moves past it. It is public: no ship-to data.
 - When to run it: after the review canvas is built (fulfill-location), after a pick is
   marked, after the Figma section is built (closeout-location), and after the finish steps
-  (closeout-finish). Pass `--no-live` from an agent; the scheduled job does the live query.
+  (closeout-finish), always with `--publish-status`. Pass `--no-live` from an agent; the
+  scheduled job does the live query.
 - Agents own their line: when an agent finishes a step it rewrites its own key in
   `<run root>/checklist/notes.json` (keyed by run dir name, one true sentence, only its own
   key). No model rewrites stale lines any more; the lead reconciles on request.
@@ -619,6 +642,9 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
   ```
 
 ### Review checklist
+
+**Retired 2026-10-13.** The Notion review queue is no longer written; the status board on the review site (see "Status board on the review site") replaced it. The text below is kept for the history of entries 1-79 only.
+
 
 - Read `~/.claude/skills/notion-boostly/SKILL.md`. Use only the Boostly
   `notion-ai-ntn.sh` wrapper and native image uploader documented there; never use the Notion
