@@ -24,8 +24,8 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.
 - [ ] A GitHub account that is a member of the Boostly GitHub org (github.com/Boostly/boostly for the
-      badge preview harness, github.com/Boostly/fulfillment-reviews for the public review site) and has
-      access to this private repo (travisseh/boostly-branding-workflow).
+      badge preview harness, github.com/Boostly/fulfillment-reviews for the public review site). This
+      package repo (travisseh/boostly-branding-workflow) is public, so cloning it needs no access.
 - [ ] A Vercel account that is a member of the Boostly Vercel team (`boostly`), and the Vercel CLI
       (`npm i -g vercel`, then `vercel login` in the terminal). Needed once, to pull the review site's
       image-upload token (step 9).
