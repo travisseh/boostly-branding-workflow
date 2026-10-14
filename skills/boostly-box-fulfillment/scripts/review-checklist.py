@@ -59,7 +59,22 @@ def blob_token():
     return None
 
 PUBLIC_FIELDS = ["name", "status", "created", "run_dir", "steps", "needs_you", "gaps", "hold", "done",
-                 "figma_url", "note", "review_status", "site_url"]
+                 "figma_url", "note", "review_status", "progress", "site_url"]
+
+def load_progress(run_dir):
+    """review/progress.json written by boostly-brand-design/scripts/run-progress.mjs (stage, last_step,
+    next_step, blocked_on, by, host, updated_at, bundle). Also published per slug to status/<slug>.json."""
+    try:
+        j = json.load(open(os.path.join(RUNS, run_dir, "review", "progress.json")))
+        if not isinstance(j, dict):
+            return None
+        keep = ["stage", "last_step", "next_step", "blocked_on", "by", "host", "updated_at"]
+        out = {k: j.get(k) for k in keep}
+        if isinstance(j.get("bundle"), dict):
+            out["bundle_pushed_at"] = j["bundle"].get("pushed_at")
+        return out
+    except Exception:
+        return None
 
 def publish_status(items, stale):
     """Upload the public-safe status board to Vercel Blob (fixed key, 60 s edge cache). Never prints the token."""
@@ -218,6 +233,7 @@ def derive(req, runs):
         lines = [l for l in lines if not l.upper().startswith("HOLD")] or lines
         item["hold"] = (lines[0] if lines else "HOLD")[:160]
     item["review_status"] = site_status
+    item["progress"] = load_progress(d)
     item["site_url"] = f"{SITE}/{d}/"
     rv = (bv.get("review_canvas") or {})
     item["canvas"] = os.path.join(RUNS, os.path.basename(src) if src else d, "review", "review-canvas.html") if sheet else None

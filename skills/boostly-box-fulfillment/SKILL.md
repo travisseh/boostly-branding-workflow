@@ -553,6 +553,21 @@ publishes it every 5 minutes with no model.
 - Status per run: `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run <dir> --status waiting|done [--waiting-on "<one phrase>"] [--ease 1-5] [--by <agent>]`
   (`get` reads it back). closeout-location writes `waiting` on "Figma signage approval";
   closeout-finish writes the final status, waiting_on and ease from the handoff's status line.
+- Progress per run (2026-10-14): `node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs set --run <dir> --stage <intake|fulfill|review|closeout|closeout-finish|done> --last "<step done>" --next "<next step>" [--blocked-on "<what Travisse owes>" | --clear-blocked] --by <agent>`
+  writes `<dir>/review/progress.json` and publishes `status/<slug>.json` plus a small resume
+  bundle to the Blob store; the board shows stage, next step, blocked-on, and who stamped it.
+  The agents stamp it at each step boundary (fulfill-location, closeout-location,
+  closeout-finish). `get --run <dir>` reads it back; `list` prints every published status.
+- Resume on another machine: a fresh agent whose run root has no `run.json` for the slug runs
+  `run-progress.mjs resume --slug <slug> --run-root <root>` (the resume brief: stage, last and
+  next step, blocked-on, bundle manifest), then `run-progress.mjs pull --slug <slug> --run-root <root>`
+  to download the bundle into `<root>/<slug>` and continues from `next_step`, never re-running a
+  stage the bundle shows done. The bundle is public read: run.json ship-to and contact fields
+  are redacted, address-looking handoff lines are dropped, and secret-looking files are refused,
+  so steps that need the ship-to read it live from Boostly (closeout-finish 6b already does).
+  Publishing needs `BLOB_READ_WRITE_TOKEN` in the fulfillment-reviews clone's `.env.local`
+  (`vercel env pull`), the same token the site build uses; without it the local file still
+  writes and the agent reports the publish failure.
 - Note per run: one true sentence in `checklist/notes.json`, keyed by run dir name; agents
   edit only their own key. The site is public: no ship-to names or addresses in a note, in
   `waiting_on`, or in HOLD.md's first line ("ship-to missing" is fine, a contact name is not).

@@ -99,6 +99,15 @@ harness encode every failure a human flagged.
   sheet with Fable's default framed. `--run <run_dir> [--open]`; `--open` is the operator's own
   look only, the shareable page is the public review site (box-fulfillment SKILL.md "Public
   review site"). See Core operating rule 2c.
+- `scripts/review-status.mjs`: the location's review status (`waiting|done`, `waiting_on`,
+  `ease`) in `review/status.json`, shown on the public status board; `set` and `get`.
+- `scripts/run-progress.mjs`: resume state per run (2026-10-14). `set --run <dir> --stage
+  <intake|fulfill|review|closeout|closeout-finish|done> --last "<step done>" --next "<next step>"
+  [--blocked-on "<what Travisse owes>" | --clear-blocked] --by <agent>` writes
+  `review/progress.json` and publishes `status/<slug>.json` plus a small bundle (run.json with
+  ship-to redacted, candidates, proofs, handoff) to the review site's Blob store; `resume --slug`
+  and `pull --slug --run-root` let a fresh agent on another machine continue from `next_step`.
+  See box-fulfillment SKILL.md "Status board on the review site".
 - `scripts/cut-words.mjs`: deterministic business-name-words-only cut of a knockout by
   connected components (two-pass union-find, line clustering, emblem/descriptor drop), with a
   JSON of kept and dropped components and `--band`, `--keep-ids`, `--drop-ids` hints.
@@ -176,8 +185,10 @@ arguments keep working; `--run` only adds the run.json write.
 Everything lives in the spike project, this skill orchestrates it, it does not duplicate it:
 
 - **Project root:** `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06/`
-- **The brief:** `SUBAGENT_BRIEF.md`: the single living document. Subagents read it
-  directly; every new rule goes straight into it (no freeze step). `briefs/` holds
+- **The brief:** `~/.claude/skills/boostly-brand-design/SUBAGENT_BRIEF.md` (moved into the
+  skill 2026-10-14 so the Karissa package carries it; the project-root copy is a pointer).
+  The single living document: subagents read it directly; every new rule goes straight into it
+  (no freeze step). `briefs/` holds
   historical snapshots (v1.0-v1.4) for reference only, pin a copy there just before an
   eval-regression run if you need run-to-run reproducibility, otherwise ignore it.
 - **Tool harness:** lives inside this skill at `~/.claude/skills/boostly-brand-design/harness/`

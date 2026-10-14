@@ -27,10 +27,23 @@ scripts, never by hand). Read
 Mirror the most recent completed close-out run file-for-file (`fix/live-<letter>/`, `signage/`,
 `slack-post.json`, the run.json write/proofs/figma/notion/slack/state blocks).
 
+Resume rule (2026-10-14): if RUN_DIR has no `run.json` on this machine, run
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs resume --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`.
+If Blob has a bundle, `run-progress.mjs pull --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`
+and continue from its `next_step`; never re-run a stage the bundle shows done. If Blob has
+nothing either, stop and report to the lead. The bundle's run.json has ship-to and contact
+fields redacted; read them live from Boostly when a step needs them.
+
+Progress stamps: at the boundaries below, stamp the run with
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs set --run RUN_DIR --stage closeout --last "<step done>" --next "<next step>" --by closeout-location`
+(it writes `review/progress.json` and publishes `status/<slug>.json` plus a small bundle to the
+review site's Blob store; the board shows the stage, the next step, and what Travisse owes).
+
 Steps, in order:
 1. Pick: `variant-sheet.mjs mark --run-dir RUN_DIR --run RUN_DIR --cell LETTER --status
    travisse_pick --note "<his reason>"` (it records the letter and the override of Fable's default
-   in run.json itself; never call `run-file select` by hand). Record any lead-named gate override
+   in run.json itself; never call `run-file select` by hand). Stamp:
+   `run-progress.mjs set --run RUN_DIR --stage closeout --last "letter LETTER marked" --next "gates and branding write" --clear-blocked --by closeout-location`. Record any lead-named gate override
    with `run-file override` and its evidence; a refused override means the asset changes, not
    the rule. Then render the previews for the chosen letter only: the signage preview spec
    (`node ~/.claude/skills/boostly-brand-design/scripts/signage-preview.mjs --run-dir RUN_DIR
@@ -55,7 +68,9 @@ Steps, in order:
    RUN_DIR/production-readback.json`, account scope for a single non-General location. The
    cookie file path comes from the lead or `BOOSTLY_COOKIE_FILE`; pass `--cookie-file`. NEVER
    print, echo, cat, log, or paste the cookie or any token, anywhere. Receipts under
-   `fix/live-LETTER/`. Render the effective proof and download one badge PDF and look at it.
+   `fix/live-LETTER/`. Stamp:
+   `run-progress.mjs set --run RUN_DIR --stage closeout --last "branding written" --next "proofs and Figma signage" --by closeout-location`.
+   Render the effective proof and download one badge PDF and look at it.
 4. Figma: the target file, the Munchie template section to clone-and-retarget, and the slot
    grid come ONLY from `~/.claude/skills/boostly-signage-sheets/references/figma-target.json`
    (`plan.mjs` copies it into `signage/plan.json` as `figma`; `node
@@ -121,6 +136,8 @@ Steps, in order:
    name; one true sentence, for example "Signage built in Figma, waiting for your review";
    edit only your key), write the interim site status
    `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run RUN_DIR --status waiting --waiting-on "Figma signage approval" --by closeout-location`,
+   stamp the stop
+   `node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs set --run RUN_DIR --stage closeout --last "Figma signage built" --next "closeout-finish after approval" --blocked-on "Figma signage approval" --by closeout-location`,
    refresh and publish the status board
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (box-fulfillment SKILL.md "Status board on the review site"; a launchd job also publishes it
@@ -136,6 +153,9 @@ Hard rules: no link writes, no offer or promotion changes (a new promotion is th
 offer fix, and only with Travisse's explicit approval), no changes to other locations or other
 Figma sections, do not commit anything in `~/.claude/skills`, never print secrets, do not rewrite
 skill logic. Report a failed step as failed, with the output; do not describe a dry run as applied.
+Progress text (`--last`, `--next`, `--blocked-on`) never carries ship-to data, cookies, or tokens:
+the Blob store is public read. If a progress publish fails because the Blob token is missing,
+continue and report it; the local `review/progress.json` still wrote.
 
 Final report (all Travisse sees), under 180 words: gate verdict, branding readback (hexes, logo
 attachment id), links written and links held, Figma section URL and column, the screenshot

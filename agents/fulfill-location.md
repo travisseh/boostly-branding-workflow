@@ -25,8 +25,21 @@ canvas rule 2c, gate registry, source ladder pointer), `~/.claude/skills/boostly
 (read commands). Mirror a completed reference run file-for-file when the lead names one (its
 run.json, logs, evidence/, candidates/, variants/, review/, fix/hq/).
 
+Resume rule (2026-10-14): if RUN_DIR has no `run.json` on this machine, run
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs resume --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`.
+If Blob has a bundle, `run-progress.mjs pull --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`
+and continue from its `next_step`; never re-run a stage the bundle shows done. If Blob has
+nothing either, start from the beginning. The bundle's run.json has ship-to and contact fields
+redacted; read them live from Boostly when a step needs them.
+
+Progress stamps: at each step boundary below, stamp the run with
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs set --run RUN_DIR --stage <stage> --last "<step done>" --next "<next step>" --by fulfill-location`
+(it writes `review/progress.json` and publishes `status/<slug>.json` plus a small bundle to the
+review site's Blob store, so the board shows the stage, the next step, and what Travisse owes).
+
 Do, in order:
-1. Production state, read-only: `boostly-links fulfillment get <request id>`, `branding get`, the
+1. Stamp the start: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "started" --next "evidence packet" --by fulfill-location`.
+   Production state, read-only: `boostly-links fulfillment get <request id>`, `branding get`, the
    location readback; save them in RUN_DIR (`branding-before.json` and friends). The cookie file
    path is given by the lead or `BOOSTLY_COOKIE_FILE`; pass it with `--cookie-file`. NEVER print,
    echo, cat, log, or paste the cookie or any token, anywhere, in any form.
@@ -38,6 +51,7 @@ Do, in order:
    the live tab, GBP owner photos). Build the packet with `build-branding-evidence.ts --run`.
    If the best source is under 700px, do the documented HQ rebuild (`fix/hq/sources.md`, build
    script, `compare.png`) and gate it; a trace is only allowed after the ladder is complete.
+   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "evidence packet" --next "Fable judgment" --by fulfill-location`.
 3. Fable judgment: launch ONE nested Agent (`model: "fable"`, medium effort) with the body of
    `~/.claude/skills/boostly-brand-design/references/subagent-prompt-template.md` and the
    placeholders filled; it writes `RUN_DIR/decision.json` and replies `decision written`. Do not
@@ -45,6 +59,7 @@ Do, in order:
    `validate-fable-decision.ts --run RUN_DIR`; a rejection (`primary_too_light`,
    `source_ladder_incomplete`, a missing flag) means fix the evidence or relaunch Fable, never
    edit the decision file.
+   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "Fable judgment" --next "variant sheet" --by fulfill-location`.
 4. Variant sheet: `variant-sheet.mjs build --run-dir RUN_DIR --run RUN_DIR --offer "<offer>"`
    (it marks Fable's default or a HOLD itself; add rows or cells for anything the lead asked for,
    such as both lockups of a customer-supplied pair). Never add a cell you already consider
@@ -52,7 +67,9 @@ Do, in order:
    refuses it at add time and records the skip under `variants.skipped`; do not mark-after-render.
    The sticker logo is gated the same way: an opaque-ground sticker asset renders as "sticker: needs
    panel or strip" on the sheet; fix it with `sticker-panel.mjs --mode circle|strip`, gate the output
-   with `gates.ts check --surface sticker --color #FFFFFF`, and `add-row --sticker-logo <png>`. Then the review canvas:
+   with `gates.ts check --surface sticker --color #FFFFFF`, and `add-row --sticker-logo <png>`.
+   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "variant sheet" --next "review canvas and link discovery" --by fulfill-location`.
+   Then the review canvas:
    `node ~/.claude/skills/boostly-brand-design/scripts/review-canvas.mjs --run RUN_DIR --open`
    (`--skip-google` when headless search is blocked; the live Chrome tab is the workaround, do not
    fight it). The sheet and the canvas need no Boostly dev server: cells are drawn by the browser
@@ -117,12 +134,17 @@ Do, in order:
    city), never for anything you could decide by looking at the page: a social with no business
    signal or a page that says it does not exist is a REJECT with its reason, so decide it.
 6. Write each run.json stage block as you go with `run-file.ts`; finish with `run-file validate`.
+   Then stamp the review stage, which is the end of your job:
+   `run-progress.mjs set --run RUN_DIR --stage review --last "review canvas built, site published" --next "Travisse picks a letter" --blocked-on "letter pick" --by fulfill-location`.
 
 Hard rules: no production writes of any kind (no branding apply, no link writes, no offer or
 promotion changes, no Slack posts, no fulfillment status changes). Do not commit
 anything except the review-site publish in step 4. Never print secrets. If a skill script fails, read its source and fix your invocation;
 do not rewrite skill scripts. If something truly needs Travisse, record it in run.json and finish
-everything else. No white or near-white primary. No solid-silhouette knockout that fills authored
+everything else. Progress text (`--last`, `--next`, `--blocked-on`) never carries ship-to data,
+cookies, or tokens: the Blob store is public read. If a progress publish fails because the Blob
+token is missing, continue and report it; the local `review/progress.json` still wrote.
+No white or near-white primary. No solid-silhouette knockout that fills authored
 negative space. The logo must be crisp: rebuild at higher quality when the source is pixelated.
 
 Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (or

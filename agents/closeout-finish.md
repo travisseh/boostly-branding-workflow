@@ -19,6 +19,21 @@ Working directory for every command: `/Users/travisse/Programming/projects/brand
 Only `~/.claude/skills` matters; never touch `~/.codex/skills`. Never edit skill scripts.
 Never use em dashes in anything you write.
 
+## Resume rule (2026-10-14)
+If RUN_DIR has no `run.json` on this machine, run
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs resume --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`.
+If Blob has a bundle, `run-progress.mjs pull --slug <RUN_DIR name> --run-root <parent of RUN_DIR>`
+and continue from its `next_step`; never re-run a stage the bundle shows done. If Blob has
+nothing either, stop and report to the lead. The bundle's run.json has ship-to and contact
+fields redacted, so step 6b reads the ship-to live from `fulfillment get` as it already does.
+The bundle does not carry `production-readback.json`; when it is missing after a pull, write it
+from the `branding get` readback in the preconditions before step 4b.
+
+Progress stamps go through
+`node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs set --run RUN_DIR --stage <stage> --last "<step done>" --next "<next step>" --by closeout-finish`
+(it writes `review/progress.json` and publishes `status/<slug>.json` plus a small bundle to the
+review site's Blob store; the board shows the stage, the next step, and what Travisse owes).
+
 ## Read first (in this order, nothing else)
 1. `RUN_DIR/HOLD.md` if it exists. It overrides everything below. Follow it exactly. When it
    says not to mark branding complete, skip step 6 and say so in your report. When it says not
@@ -59,6 +74,8 @@ Never use em dashes in anything you write.
   made: do not post again. If the request already reads branding complete, do not apply again.
 
 ## Steps
+Start stamp, once the preconditions pass:
+`run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "Figma approved" --next "secondary logo, Slack, branding complete" --clear-blocked --by closeout-finish`.
 4b. Secondary logo (light backgrounds). V2 keeps a second logo on the branding row
    (`secondary_logo_attachment_id`, next to `logo_attachment_id`) for light surfaces. It is the
    on-white sticker asset the closeout already built: authored inks on a transparent or white
@@ -153,6 +170,10 @@ Never use em dashes in anything you write.
    with a small JSON read, set, write; keep the file mode 0600) and refresh the note:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (refreshes checklist.json and publishes the live status board; the launchd job does the same every 5 minutes).
+   Then the final stamp. When branding complete applied:
+   `run-progress.mjs set --run RUN_DIR --stage done --last "branding complete, Slack posted, status set" --next "nothing; open decisions are on the notes line" --by closeout-finish`.
+   When HOLD.md forbade branding complete, the stage stays `closeout-finish`:
+   `run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "Slack posted, status set" --next "branding complete after the hold clears" --blocked-on "<the hold reason, one phrase, no ship-to>" --by closeout-finish`.
    Then rebuild and push the public review site so the location's page shows "Closed out"
    (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
    `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
@@ -180,6 +201,9 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
   applied. A skipped step is reported as skipped with the reason.
 - A failed step is reported as failed with its output. Do not work around a refusal, a gate,
   or an auth failure. Do not weaken or bypass any check.
+- Progress text (`--last`, `--next`, `--blocked-on`) never carries ship-to data, cookies, or
+  tokens: the Blob store is public read. If a progress publish fails because the Blob token is
+  missing, continue and report it; the local `review/progress.json` still wrote.
 - Never print secrets. Never commit anything except the review-site publish in step 8. Never open a browser or any app, never run
   `open`, AppleScript, or osascript yourself.
 - If something needs a judgment call, stop and report it to the lead. That is the correct

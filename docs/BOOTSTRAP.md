@@ -20,7 +20,11 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
       account (Pro or Team seat). No Anthropic API key is needed.
 - [ ] Google Chrome with a profile named exactly `Boostly.com`, signed in to new.boostly.com as the
       operator's own Boostly admin user, and the "Claude in Chrome" extension installed and enabled in
-      that profile.
+      that profile. The discovery scripts and the validator check the profile name the extension
+      reports (`list_connected_browsers`), not the profile directory: if an agent reports "the
+      Chrome extension doesn't report the Boostly.com profile name", rename the profile to exactly
+      `Boostly.com` in Chrome's profile settings or connect the extension inside that profile; the fix
+      is on this machine, nothing on Travisse's side.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.
 - [ ] A GitHub account that is a member of the Boostly GitHub org (github.com/Boostly/boostly for the
@@ -229,6 +233,10 @@ chmod 600 .env.local
 grep -cE '^BLOB_READ_WRITE_TOKEN=.+' .env.local     # prints 1; never print the file
 ```
 
+- [ ] `BLOB_READ_WRITE_TOKEN` is in the clone's `.env.local` (the `vercel env pull` above). The site
+      build needs it, and so does progress publishing (`run-progress.mjs`, section 14): without it the
+      agents still write `review/progress.json` locally and report the publish failure.
+
 Dry build into a scratch folder (nothing uploaded, nothing committed):
 
 ```bash
@@ -325,6 +333,31 @@ Every command assumes the env file is sourced and `cd "$BOOSTLY_RUN_ROOT"`.
    page rebuilt and pushed so it shows "Closed out".
 6. End of day: `review-checklist.py --publish-status` once more; held links and ship-to gaps go to
    the CSM in Slack. The board is public: never put a ship-to name or address in a note line.
+
+## 14. Resuming a location from another machine
+
+Every agent stamps its step boundaries with `run-progress.mjs set` (stage, last step, next step, what
+Travisse owes). The stamp writes `<run dir>/review/progress.json` and publishes `status/<slug>.json`
+plus a small bundle (run.json with ship-to and contact fields redacted, candidates, proofs, handoff
+files) to the review site's Blob store, so the board at https://fulfillment-reviews.vercel.app shows
+the stage, the next step, the blocked-on item, and who stamped it. To pick a location up here that was
+started on Travisse's Mac (or the other way round):
+
+```bash
+set -a; . ~/.config/boostly-branding/.env; set +a
+node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs list                       # every published status
+node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs resume --slug <run dir name> --run-root "$BOOSTLY_RUN_ROOT"
+node ~/.claude/skills/boostly-brand-design/scripts/run-progress.mjs pull --slug <run dir name> --run-root "$BOOSTLY_RUN_ROOT"
+```
+
+`resume` prints the brief (stage, last and next step, blocked-on, pick, branding write, Figma, bundle
+manifest); `pull` downloads the bundle into `$BOOSTLY_RUN_ROOT/<run dir name>`. Then launch the agent
+for the stage the brief names (`fulfill-location`, `closeout-location`, or `closeout-finish`) with that
+run dir; each agent's resume rule continues from `next_step` and never re-runs a stage the bundle
+shows done. The bundle is public read, so ship-to and contact data are not in it; the finish agent
+reads the ship-to live from Boostly (`fulfillment get`), and `production-readback.json` is rewritten
+from a live `branding get` when the pull did not bring it. Progress text never carries ship-to data,
+cookies, or tokens.
 
 Escalate to Travisse (do not improvise): a refused gate override, an identity conflict between sources,
 a logo that cannot be rebuilt crisp from any ladder rung, a held link that needs a business decision, a

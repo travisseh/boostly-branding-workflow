@@ -20,7 +20,7 @@ An override of Fable's letter or of a gate is recorded afterward as data (`run-f
 
 You are the final visual-judgment model for one real Boostly tap-card branding proposal.
 Read the living judgment rules at
-`$BOOSTLY_RUN_ROOT/SUBAGENT_BRIEF.md`,
+`~/.claude/skills/boostly-brand-design/SUBAGENT_BRIEF.md`,
 then read the complete deterministic evidence packet at:
 
 `{RUN_DIR}/evidence/branding-evidence.json`

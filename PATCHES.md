@@ -259,6 +259,36 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - This prevents future export corruption. Historical postal-code corrections still require checking
   the authoritative source; never guess or pad an already-numeric value.
 
+## 2026-10-14: run-progress: resume state on the review site Blob store
+
+- New `skills/boostly-brand-design/scripts/run-progress.mjs` (copied from the live skill, no package patch):
+  `set --run <dir> --stage <intake|fulfill|review|closeout|closeout-finish|done> --last "<step done>" --next "<next step>"
+  [--blocked-on "<what Travisse owes>" | --clear-blocked] --by <agent>` writes `<dir>/review/progress.json` and publishes
+  `status/<slug>.json` plus a small bundle (run.json with ship-to and contact fields redacted, review JSON, root .md
+  handoff files with address-looking lines dropped, candidates, variants JSON, signage shots, the images run.json
+  points at; secret-looking files refused) to the Vercel Blob store the review site uses (token from the
+  fulfillment-reviews clone's `.env.local`, or `BLOB_READ_WRITE_TOKEN` in the env). `get`, `publish`, `list`,
+  `resume --slug`, `pull --slug --run-root` let a fresh agent on another machine continue from `next_step`.
+- `agents/fulfill-location.md`, `agents/closeout-location.md`, `agents/closeout-finish.md`: resynced from the live
+  copies. Each gained a resume rule at startup (no `run.json` here: `resume`, then `pull`, continue from `next_step`,
+  never re-run a done stage; fulfill starts over when Blob has nothing, closeout and finish stop and report), a
+  `run-progress.mjs set` stamp at each step boundary, and a hard rule that progress text never carries ship-to data,
+  cookies, or tokens and that a failed publish (missing Blob token) is reported, not retried. `discovery-transport.md`
+  is unchanged (it has no stage boundary of its own; the fulfill agent stamps around it) and keeps its package-only
+  working-directory patch.
+- `skills/boostly-box-fulfillment/SKILL.md` ("Status board on the review site": progress per run, resume on another
+  machine), `skills/boostly-brand-design/SKILL.md` (script list: `review-status.mjs`, `run-progress.mjs`),
+  `skills/boostly-box-fulfillment/scripts/review-checklist.py` (folds `review/progress.json` into the published
+  board as `progress`): resynced from the live copies, no package patch.
+- `docs/BOOTSTRAP.md`: section 14 "Resuming a location from another machine"; section 9 checklist line for
+  `BLOB_READ_WRITE_TOKEN`; section 0 note that the Chrome profile name the extension reports must be exactly
+  `Boostly.com` (rename the profile or connect the extension in it; the fix is on the operator's machine).
+- `SUBAGENT_BRIEF.md` now ships in `skills/boostly-brand-design/` (the live brief moved into the skill on 2026-10-14;
+  the project-root copy is a pointer), so `~/.claude/skills/boostly-brand-design/SUBAGENT_BRIEF.md` exists after
+  `setup.sh`. `references/subagent-prompt-template.md` now points there on both machines, so its earlier
+  `$BOOSTLY_RUN_ROOT/SUBAGENT_BRIEF.md` doc substitution is superseded and dropped. The brief is byte-identical to
+  the live copy; its one `/Users/travisse/Programming/boostly` mention reads as `$BOOSTLY_REPO_DIR` here.
+
 ## 2026-10-14: Slack bot token instead of per-operator user tokens
 
 - `setup/env.example`, `docs/BOOTSTRAP.md`: `SLACK_USER_OAUTH_TOKEN` now carries the shared xoxb bot token of the
