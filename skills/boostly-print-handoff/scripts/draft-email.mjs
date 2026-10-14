@@ -3,12 +3,15 @@
 // "on the closeout now just send the email rather than creating a draft that waits on me").
 // Usage: node draft-email.mjs --run-dir <dir> [--redraft] [--print-only] [--no-send]
 // --no-send leaves the draft unsent (the pre-2026-10-14 behaviour). A recorded draft that is not yet sent is sent on rerun.
+// After a successful send the summary sheet's "Order placed (email sent)" column (N) gets the send date (vendor request,
+// Gracie 2026-10-14); a sent draft whose stamp is missing (stamp failed, or sent before the column existed) is stamped on rerun.
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, log } from "./lib/common.mjs";
+import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, MASTER_REF, log } from "./lib/common.mjs";
+import { stampSummaryOrderDate, orderDate } from "./lib/drive.mjs";
 
 export const VENDOR_TO = "ckbrandsmktg@gmail.com";
 export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>"];
@@ -55,7 +58,26 @@ const bodySha = crypto.createHash("sha256").update(body).digest("hex");
 fs.writeFileSync(path.join(handoffDir(runDir), "draft-body.txt"), `To: ${VENDOR_TO}\nCc: ${VENDOR_CC.join(", ")}\nSubject: ${subject}\n\n${body}\n`);
 if (args["print-only"]) { log(body); process.exit(0); }
 
-function sendRecordedDraft() {
+// Stamp column N of the summary row with the send date. The send is already recorded in handoff.json,
+// so a failure here never loses it; it is recorded under draft.order_placed_error and the rerun retries.
+async function stampOrderDate() {
+  const sheetId = h.drive?.summary?.id || (fs.existsSync(MASTER_REF) ? JSON.parse(fs.readFileSync(MASTER_REF, "utf8")).summary_sheet_id : null);
+  const key = h.drive?.folder_name;
+  const date = orderDate(h.draft.sent_at);
+  try {
+    const r = await stampSummaryOrderDate(sheetId, "Print order summary", key, date);
+    h.draft.order_placed = { date, column: "N", row: r.row, range: r.range, action: r.action, previous: r.previous, sheet_id: r.id, stamped_at: new Date().toISOString() };
+    delete h.draft.order_placed_error;
+    writeHandoff(runDir, h);
+    log(JSON.stringify({ order_placed: date, range: r.range, action: r.action }));
+  } catch (e) {
+    h.draft.order_placed_error = { message: e.message, at: new Date().toISOString() };
+    writeHandoff(runDir, h);
+    throw new Error(`vendor email sent (message ${h.draft.message_id}) but the summary sheet order date was not stamped: ${e.message}. Rerun draft-email.mjs to retry the stamp.`);
+  }
+}
+
+async function sendRecordedDraft() {
   const out = execFileSync("node", [GMAIL_CLI, "drafts", "send", "boostly", h.draft.id], { encoding: "utf8" });
   const l = out.split("\n").find((x) => x.includes("draft_sent"));
   if (!l) throw new Error(`gmail.js did not report a send: ${out.slice(0, 300)}`);
@@ -63,11 +85,13 @@ function sendRecordedDraft() {
   h.draft = { ...h.draft, sent: true, sent_at: new Date().toISOString(), message_id: r.message_id, thread_id: r.thread_id, via: "gmail.js draft + drafts send" };
   writeHandoff(runDir, h);
   log(JSON.stringify({ sent: true, draft_id: h.draft.id, message_id: r.message_id, subject: h.draft.subject }));
+  await stampOrderDate();
 }
 
 if (h.draft?.id && !args.redraft) {
   log("draft already recorded", h.draft.id, h.draft.body_sha256 === bodySha ? "(body unchanged)" : "(body differs; pass --redraft to make a new draft)");
-  if (!h.draft.sent && !args["no-send"]) sendRecordedDraft();
+  if (!h.draft.sent && !args["no-send"]) await sendRecordedDraft();
+  else if (h.draft.sent && h.draft.sent_at && !h.draft.order_placed) await stampOrderDate();
   process.exit(0);
 }
 const outp = execFileSync("node", [GMAIL_CLI, "draft", "boostly", VENDOR_TO, subject, body, "--cc", VENDOR_CC.join(", ")], { encoding: "utf8" });
@@ -78,4 +102,4 @@ const prev = h.draft?.id ? [...(h.draft.previous || []), { id: h.draft.id, creat
 h.draft = { id: res.id, account: "boostly", to: VENDOR_TO, cc: VENDOR_CC, subject, body_sha256: bodySha, created_at: new Date().toISOString(), via: "gmail.js draft", sent: false, previous: prev };
 writeHandoff(runDir, h);
 log(JSON.stringify({ draft_id: res.id, subject }));
-if (!args["no-send"]) sendRecordedDraft();
+if (!args["no-send"]) await sendRecordedDraft();

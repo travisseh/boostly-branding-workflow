@@ -27,4 +27,5 @@ console.log(JSON.stringify({
   draft_id: h.draft?.id || null,
   email_sent: !!h.draft?.sent,
   message_id: h.draft?.message_id || null,
+  order_placed: h.draft?.order_placed?.date || null,
 }, null, 2));

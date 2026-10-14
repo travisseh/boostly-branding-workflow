@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { upsertSummarySheet } from "./drive.mjs";
+import { upsertSummarySheet, stampSummaryOrderDate, orderDate, ORDER_PLACED_HEADER } from "./drive.mjs";
 
 // Fail closed if a regression accidentally bypasses the injected local API.
 globalThis.fetch = async () => { throw new Error("Network is forbidden in these tests"); };
@@ -28,10 +28,31 @@ function fixture(initialRows = [], { title = name, rowCount = 1000, corruptReadb
       return { sheets: [{ properties: { ...metadata, title: "Unrelated tab", index: 1 } }, { properties: metadata }] };
     }
     const decoded = decodeURIComponent(url.pathname);
+    const tabPrefix = `'${title.replace(/'/g, "''")}'`;
     if (method === "GET") {
       assert.equal(url.searchParams.get("valueRenderOption"), "UNFORMATTED_VALUE");
-      assert.ok(decoded.endsWith(`'${title.replace(/'/g, "''")}'!A:M`));
-      return { values: rows.map((r) => r.slice(0, 13)) };
+      const width = decoded.endsWith(`${tabPrefix}!A:N`) ? 14 : 13;
+      if (width === 13) assert.ok(decoded.endsWith(`${tabPrefix}!A:M`));
+      return { values: rows.map((r) => r.slice(0, width)) };
+    }
+    if (method === "POST" && decoded.endsWith("/values:batchUpdate")) {
+      // The order-date stamp: single cells in column N only, RAW, verified readback.
+      assert.equal(body.valueInputOption, "RAW");
+      assert.equal(body.includeValuesInResponse, true);
+      assert.equal(body.responseValueRenderOption, "UNFORMATTED_VALUE");
+      const responses = [];
+      for (const d of body.data) {
+        assert.ok(d.range.startsWith(`${tabPrefix}!N`), `stamp range ${d.range} is in column N of the right tab`);
+        const rowNumber = d.range.slice(tabPrefix.length + 2);
+        assert.match(rowNumber, /^\d+$/);
+        assert.equal(d.values.length, 1); assert.equal(d.values[0].length, 1);
+        const index = Number(rowNumber) - 1;
+        rows[index] = rows[index] || [];
+        while (rows[index].length < 13) rows[index].push("");
+        rows[index][13] = d.values[0][0];
+        responses.push({ updatedData: { values: [[d.values[0][0]]] } });
+      }
+      return { responses };
     }
     if (method === "POST") {
       assert.ok(decoded.endsWith(":batchUpdate"));
@@ -147,4 +168,59 @@ test("active upload entrypoint uses the typed writer, with no CSV conversion", (
   const source = readFileSync(new URL("../drive-upload.mjs", import.meta.url), "utf8");
   assert.match(source, /await upsertSummarySheet\(/);
   assert.doesNotMatch(source, /uploadCsvAsSheet|exportSheetCsv|toCsv\(|parseCsv\(/);
+});
+
+test("orderDate is the Mountain-time calendar date of the send", () => {
+  assert.equal(orderDate("2026-10-14T21:38:36.255Z"), "2026-10-14");
+  assert.equal(orderDate("2026-10-15T05:30:00.000Z"), "2026-10-14"); // 23:30 in Denver
+  assert.equal(orderDate("2026-10-15T06:30:00.000Z"), "2026-10-15");
+  assert.throws(() => orderDate("nope"), /Invalid send timestamp/);
+});
+
+test("order-date stamp writes the header once and the keyed row's N cell, leaving A:M alone", async () => {
+  const other = rowFor("00501", "other-order");
+  const mine = rowFor("07940");
+  const f = fixture([header, other, mine]);
+  const first = await stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "2026-10-14", f.request);
+  assert.deepEqual({ action: first.action, header_action: first.header_action, row: first.row, previous: first.previous }, { action: "stamped", header_action: "written", row: 3, previous: null });
+  assert.equal(f.rows[0][13], ORDER_PLACED_HEADER);
+  assert.deepEqual(f.rows[0].slice(0, 13), header);
+  assert.deepEqual(f.rows[1], other);
+  assert.deepEqual(f.rows[2].slice(0, 13), mine);
+  assert.equal(f.rows[2][13], "2026-10-14");
+  const writes = f.calls.filter((c) => c.method !== "GET");
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].body.data.map((d) => d.range), ["'Print order summary'!N1", "'Print order summary'!N3"]);
+  // Second stamp with the same date is a no-op; a later date updates and reports the previous one.
+  const again = await stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "2026-10-14", f.request);
+  assert.equal(again.action, "unchanged");
+  assert.equal(f.calls.filter((c) => c.method !== "GET").length, 1);
+  const later = await stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "2026-10-20", f.request);
+  assert.deepEqual({ action: later.action, previous: later.previous, header_action: later.header_action }, { action: "updated", previous: "2026-10-14", header_action: "existing" });
+  assert.deepEqual(f.calls.at(-1).body.data.map((d) => d.range), ["'Print order summary'!N3"]);
+});
+
+test("order-date stamp refuses a missing row, a duplicate row, a foreign N header, or a bad date", async () => {
+  const f = fixture([header, rowFor("07940")]);
+  await assert.rejects(stampSummaryOrderDate("sheet", name, "nope - x", "2026-10-14", f.request), /No print order summary row/);
+  await assert.rejects(stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "10/14/2026", f.request), /YYYY-MM-DD/);
+  await assert.rejects(stampSummaryOrderDate(undefined, name, "Example Restaurant - request1", "2026-10-14", f.request), /No spreadsheet id/);
+  const dup = fixture([header, rowFor("07940"), rowFor("07940")]);
+  await assert.rejects(stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "2026-10-14", dup.request), /Duplicate/);
+  const foreign = fixture([[...header, "Notes"], [...rowFor("07940"), "keep"]]);
+  await assert.rejects(stampSummaryOrderDate("sheet", name, "Example Restaurant - request1", "2026-10-14", foreign.request), /column N header/);
+  assert.equal(foreign.rows[1][13], "keep");
+  for (const x of [f, dup, foreign]) assert.ok(x.calls.every((c) => c.method === "GET"));
+});
+
+test("the A:M row writer never touches column N and the email script stamps after the send", async () => {
+  const f = fixture([[...header, ORDER_PLACED_HEADER], [...rowFor("07940"), "2026-10-14"]]);
+  await upsertSummarySheet("parent", name, header, rowFor("07940-1234"), "sheet", f.request);
+  assert.equal(f.rows[1][13], "2026-10-14");
+  assert.equal(f.rows[1][12], "07940-1234");
+  const email = readFileSync(new URL("../draft-email.mjs", import.meta.url), "utf8");
+  assert.match(email, /await stampOrderDate\(\)/);
+  assert.ok(email.indexOf("drafts\", \"send\"") < email.indexOf("await stampOrderDate()"), "stamp runs after drafts send");
+  const upload = readFileSync(new URL("../drive-upload.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(upload, /stampSummaryOrderDate|ORDER_PLACED/);
 });

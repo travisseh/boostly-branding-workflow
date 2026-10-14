@@ -1,6 +1,6 @@
 ---
 name: boostly-print-handoff
-description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Exports every "Print Sheet - " frame in the location's Figma section as VECTOR PDF through the Figma REST API, uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, and emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14). Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
+description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Exports every "Print Sheet - " frame in the location's Figma section as VECTOR PDF through the Figma REST API, uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14), and stamps the row's "Order placed (email sent)" date. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
 ---
 
 # Boostly Print Hand-off (customstickers.com)
@@ -88,6 +88,13 @@ Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH),
    location folder link, quantities, offer, ship-to, master folder link, the summary-sheet line,
    signed "Travisse". No file list, no vector-PDF explanation, no "let me know" closer. Plain
    text, no em dashes, no corporate filler.
+   Right after a successful `drafts send` it stamps the summary row's column N, "Order placed
+   (email sent)", with the send date as `YYYY-MM-DD` in Mountain time (Gracie asked for this on
+   2026-10-14 so no order is missed). The stamp is keyed on the Drive folder name like the row,
+   writes the N1 header once when blank, refuses any other N1 text, and verifies the readback.
+   A stamp failure never loses the send: it is recorded as `draft.order_placed_error` and the
+   next run retries (a sent draft with no `draft.order_placed` is stamped on rerun). A
+   `--redraft` resend overwrites the date with the new send date and reports the previous one.
    An existing `draft.id` in handoff.json means no second draft unless `--redraft` (the old id
    is kept under `draft.previous`). To inspect or remove a stale draft by id:
    `node ~/.config/gmail-tools/gmail.js drafts list boostly` and `drafts delete boostly <id>`
@@ -112,7 +119,10 @@ https://drive.google.com/drive/folders/1hSrRZc-ZFTztR8OqQXhcPQBbURaINnIS, shared
 anyone-with-link reader. Inside: `Boostly logos (roll binding stickers)` (six Boostly logo
 files), `Print order summary` (Google Sheet, columns Location, Drive folder, Offer, Tables,
 Bathroom stalls, To-go label rolls, POP sign sets, Ship to name, Address 1, Address 2, City,
-State, Zip), and one folder per location holding the six PDFs and `logos/`.
+State, Zip, Order placed (email sent)), and one folder per location holding the six PDFs and `logos/`.
+The row writer fills A:M; column N is filled only by draft-email.mjs after the send, so a blank
+N means the vendor email has not gone out. The 15 rows that predate the column were backfilled
+from sent mail on 2026-10-14 (12 sent by hand on 2026-10-13, 3 by the script on 2026-10-14).
 If `references/drive-master.json` is lost, the script finds the folder by name at the boostly
 Drive root before creating a new one.
 
@@ -120,7 +130,8 @@ Drive root before creating a new one.
 
 `<RUN_DIR>/print-handoff/handoff.json` holds the Figma target, per-kind page counts and vector
 checks, logo hashes, the live facts used, Drive ids and links for the folder and every file,
-the summary row action, the draft id, and timestamps. `sheets.json` and `raw-frames.json`
+the summary row action, the draft id, the send receipt, the `order_placed` stamp (date, row,
+range), and timestamps. `sheets.json` and `raw-frames.json`
 hold the discovery. Reruns re-export only missing pages, keep the merged PDF when its pages
 are unchanged (so Drive md5 skip works), update the summary row in place, and never create a
 second draft. A changed Figma section after approval: rerun with `--force`, the PDFs are
@@ -132,7 +143,8 @@ folders, not files.
 Run `node --test ~/.claude/skills/boostly-print-handoff/scripts/lib/drive.test.mjs`.
 These tests mock every API call and forbid network access. They cover initial creation,
 updates, append/retry, `07940`, `00501`, `84043`, ZIP+4, international postal codes, numeric
-quantities, and preservation of unrelated cells.
+quantities, preservation of unrelated cells, and the column N order-date stamp (header once,
+keyed row only, A:M untouched, refusals, Mountain-time date).
 
 Never restore CSV-to-Sheet conversion or use display-only ZIP formatting. Store the postal
 code as text with RAW writes. Numeric postal input or a mismatched readback must stop the
@@ -154,4 +166,5 @@ incorrect postal values require comparison with the source address and a separat
 ## Report line for closeout-finish
 
 "Print hand-off: folder <link>, <n> PDFs vector OK (<kind> p/p ...), summary row
-<appended|updated>, vendor email sent (draft <id>, message <id>) to ckbrandsmktg@gmail.com, cc Colin and Maren."
+<appended|updated>, vendor email sent (draft <id>, message <id>) to ckbrandsmktg@gmail.com, cc Colin and Maren,
+order placed <YYYY-MM-DD> stamped in column N."

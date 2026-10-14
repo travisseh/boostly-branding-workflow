@@ -351,3 +351,23 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   exports only the ordered kinds; the sheet_ids cross-check follows the filter.
 - `setup/env.example`: `ADHOC_AUTO_APPLY=0`.
 
+
+## 2026-10-14: "Order placed (email sent)" column on the Print order summary sheet
+
+- Vendor request (Gracie, CK Brands, 2026-10-14): a column with the date each order's email was sent, so no order
+  is missed. Column N, header `Order placed (email sent)`, value `YYYY-MM-DD` in Mountain time.
+- `skills/boostly-print-handoff/scripts/lib/drive.mjs` (patched in place, keeps the package `GOOGLE_TOOLS_DIR`
+  line): new `stampSummaryOrderDate()` and `orderDate()`; the tab lookup moved into a shared `gridSheet()` helper.
+  The stamp is keyed on the Drive folder name like the A:M row writer, writes the N1 header once when blank,
+  refuses any other N1 text, writes only the keyed row's N cell through `values:batchUpdate` with RAW, and verifies
+  the readback. The A:M row writer never touches N, so a blank N means the email has not gone out.
+- `skills/boostly-print-handoff/scripts/draft-email.mjs` (mirrored): after a successful `drafts send` the row is
+  stamped with the send date; a failure is recorded as `draft.order_placed_error` without losing the send receipt,
+  and a rerun stamps any sent draft that has no `draft.order_placed`. `print-handoff.mjs` (mirrored) prints
+  `order_placed` in its summary.
+- `skills/boostly-print-handoff/scripts/lib/drive.test.mjs` (patched in place, keeps the package fixture names and
+  sheet id): fixture serves `A:N` reads and `values:batchUpdate` stamps; four new tests (Mountain-time date, header
+  once and keyed row only with A:M untouched, refusals, row writer leaves N alone and the email script stamps after
+  the send). 23 tests pass on both copies.
+- `skills/boostly-print-handoff/SKILL.md` (mirrored): column list, step 3 stamp behaviour, receipts, test coverage,
+  report line. The 15 live rows that predate the column were backfilled from boostly sent mail on 2026-10-14.

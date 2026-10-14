@@ -110,6 +110,15 @@ export async function shareAnyoneReader(fileId) {
   return { action: "created" };
 }
 
+// The first grid tab titled like the sheet (else the first tab) and its quoted A1 tab prefix.
+async function gridSheet(url, name, request) {
+  const meta = await request("GET", `${url}?fields=sheets.properties`);
+  const sheet = meta.sheets?.find((s) => s.properties.title === name)?.properties
+    || meta.sheets?.find((s) => s.properties.index === 0)?.properties;
+  if (!sheet || sheet.sheetType !== "GRID") throw new Error("Print order summary has no grid sheet");
+  return { sheet, tab: `'${sheet.title.replace(/'/g, "''")}'` };
+}
+
 // Drive's existing OAuth scope also authorizes the Sheets API. Write typed values
 // directly: CSV conversion infers numeric ZIPs and used to turn "07940" into 7940.
 // `request` is injectable so regression tests never authenticate or call Google.
@@ -132,11 +141,7 @@ export async function upsertSummarySheet(parentId, name, header, row, existingId
   if (!id) throw new Error("No spreadsheet id returned");
 
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}`;
-  const meta = await request("GET", `${url}?fields=sheets.properties`);
-  const sheet = meta.sheets?.find((s) => s.properties.title === name)?.properties
-    || meta.sheets?.find((s) => s.properties.index === 0)?.properties;
-  if (!sheet || sheet.sheetType !== "GRID") throw new Error("Print order summary has no grid sheet");
-  const tab = `'${sheet.title.replace(/'/g, "''")}'`;
+  const { sheet, tab } = await gridSheet(url, name, request);
   const current = await request("GET", `${url}/values/${encodeURIComponent(`${tab}!A:M`)}?valueRenderOption=UNFORMATTED_VALUE`);
   const rows = current.values || [];
   if (rows.length && header.some((value, i) => rows[0]?.[i] !== value)) {
@@ -175,5 +180,59 @@ export async function upsertSummarySheet(parentId, name, header, row, existingId
     id, webViewLink: `https://docs.google.com/spreadsheets/d/${id}/edit#gid=${sheet.sheetId}`,
     row_action: matches.length ? "updated" : "appended",
     rows: Math.max(rows.length - 1, 0) + (matches.length ? 0 : 1),
+  };
+}
+
+// Column N, "Order placed (email sent)": the calendar date the vendor email for the row's order was
+// sent (vendor request, Gracie 2026-10-14). Stamped by draft-email.mjs right after `drafts send`,
+// never by the A:M row writer, so an unsent order reads blank. Keyed on the Drive folder name like
+// the row writer; the header is written once when N1 is blank and refused when it reads anything else.
+export const ORDER_PLACED_HEADER = "Order placed (email sent)";
+export const ORDER_PLACED_COLUMN = "N";
+// Calendar date of the send as the vendor reads it (Boostly is in Mountain time), YYYY-MM-DD.
+export const ORDER_DATE_ZONE = "America/Denver";
+export function orderDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid send timestamp ${JSON.stringify(iso)}`);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ORDER_DATE_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+export async function stampSummaryOrderDate(sheetId, name, folderKey, date, request = api) {
+  if (!sheetId) throw new Error("No spreadsheet id for the order-placed stamp");
+  if (!folderKey) throw new Error("A Drive folder key is required to stamp the order date");
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Order date must be YYYY-MM-DD, got ${JSON.stringify(date)}`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`;
+  const { sheet, tab } = await gridSheet(url, name, request);
+  const col = ORDER_PLACED_COLUMN;
+  const current = await request("GET", `${url}/values/${encodeURIComponent(`${tab}!A:${col}`)}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows = current.values || [];
+  if (!rows.length) throw new Error("Print order summary is empty; write the row before stamping its order date");
+  const n = 13; // 0-based index of column N
+  const headerCell = rows[0][n] ?? "";
+  if (headerCell !== "" && headerCell !== ORDER_PLACED_HEADER) {
+    throw new Error(`Print order summary column ${col} header is ${JSON.stringify(headerCell)}; refusing to overwrite it`);
+  }
+  const matches = rows.flatMap((r, i) => i > 0 && r[1] === folderKey ? [i] : []);
+  if (!matches.length) throw new Error(`No print order summary row for ${folderKey}; run drive-upload.mjs first`);
+  if (matches.length > 1) throw new Error(`Duplicate print order summary rows for ${folderKey}`);
+  if (sheet.gridProperties.columnCount < n + 1) throw new Error("Print order summary grid has too few columns for the order date");
+  const rowNumber = matches[0] + 1;
+  const previous = rows[matches[0]][n] ?? "";
+  const data = [];
+  if (headerCell === "") data.push({ range: `${tab}!${col}1`, majorDimension: "ROWS", values: [[ORDER_PLACED_HEADER]] });
+  if (previous !== date) data.push({ range: `${tab}!${col}${rowNumber}`, majorDimension: "ROWS", values: [[date]] });
+  if (data.length) {
+    const saved = await request("POST", `${url}/values:batchUpdate`, {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ valueInputOption: "RAW", includeValuesInResponse: true, responseValueRenderOption: "UNFORMATTED_VALUE", data }),
+    });
+    const got = (saved.responses || []).map((r) => r.updatedData?.values?.[0]?.[0]);
+    if (got.length !== data.length || data.some((d, i) => got[i] !== d.values[0][0])) {
+      throw new Error("Print order summary order-date readback differs from the submitted values");
+    }
+  }
+  return {
+    id: sheetId, row: rowNumber, range: `${tab}!${col}${rowNumber}`, date, previous: previous === "" ? null : previous,
+    header_action: headerCell === "" ? "written" : "existing",
+    action: previous === date ? "unchanged" : previous === "" ? "stamped" : "updated",
   };
 }
