@@ -109,12 +109,20 @@ Do, in order:
       `subagent_type: "discovery-transport"` (Sonnet, fresh context) and give it RUN_DIR and
       the location id. It runs the Claude Chrome chunk loop, reruns discovery, runs the
       validator, and reports the exit code and errors. Do not run the chunk loop yourself.
+      Its Boostly.com profile check has two paths: the profile name the extension reports
+      (first), or, when the extension reports no profile name at all, exactly one connected
+      browser on this computer plus exactly one Chrome profile in Local State named Boostly.com
+      (any casing, at the `BOOSTLY_CHROME_PROFILE` directory when set). Either path records
+      `chrome_profile_resolved: Boostly.com` plus a `chrome_profile_resolution` object; a report
+      with neither is a stop, not something to work around.
       If the lead prefers, Travisse can start (a) himself from a terminal with the same
       command; you then pick up from the report file.
    c. The gate, run by you whichever transport produced the report:
       `validate-discovery-report.mjs --report RUN_DIR/link-discovery-report.json --location-id <id> --require-browser-provider fulfillment --require-chrome-profile Boostly.com`
-      (accepts codex-extension or claude-chrome, always Boostly.com and preflighted; Playwright
-      and static reports fail). Never edit a report, a results file, or a provider field.
+      (accepts codex-extension or claude-chrome, always Boostly.com and preflighted; a
+      Local State resolution must carry its device id and directory; Playwright
+      and static reports fail). Never edit a report, a results file, a provider field, or a
+      profile field.
    d. Pages neither transport could read (a blocked read, a refused extractor, a login wall)
       stay unread: hold those candidates with the reason. No workarounds of any kind.
    If neither transport is available, stop after the static pass, hold every

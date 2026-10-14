@@ -20,11 +20,17 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
       account (Pro or Team seat). No Anthropic API key is needed.
 - [ ] Google Chrome with a profile named `Boostly.com` (any casing, `boostly.com` is fine), signed in to new.boostly.com as the
       operator's own Boostly admin user, and the "Claude in Chrome" extension installed and enabled in
-      that profile. The discovery scripts and the validator check the profile name the extension
-      reports (`list_connected_browsers`), not the profile directory: if an agent reports "the
-      Chrome extension doesn't report the Boostly.com profile name", name the profile
-      `Boostly.com` (casing does not matter since 2026-10-14) or connect the extension inside that profile; the fix
-      is on this machine, nothing on Travisse's side.
+      that profile. The discovery scripts and the validator first check the profile name the
+      extension reports (`list_connected_browsers`, `metadata.profileName`); casing does not matter
+      since 2026-10-14. The extension may report no profile name at all (the browser shows only as
+      "Browser 1"). Then the fallback applies (since 2026-10-14): the ONLY Chrome profile on this Mac
+      (`~/Library/Application Support/Google/Chrome/Local State`, `profile.info_cache`) must be named
+      `Boostly.com` (any casing) and `BOOSTLY_CHROME_PROFILE` in the env file must be that profile's
+      directory (usually `Default`). A second Chrome profile on the Mac, another name, or two
+      connected browsers makes the agent stop with `chrome_profile_fallback_refused`; delete or
+      rename the extra profile. `node ~/.claude/skills/boostly-link-discovery/scripts/claude-chrome-browser.mjs profile probe`
+      prints the profiles (directory and name only). The fix is on this machine, nothing on
+      Travisse's side.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.
 - [ ] A GitHub account that is a member of the Boostly GitHub org (github.com/Boostly/boostly for the

@@ -3,6 +3,12 @@
 //
 // discover-links.mjs cannot call the claude-in-chrome MCP tools from Node. The flow is:
 //   1. `results init --out <results.json> --profile Boostly.com`  (profile from tabs_context/list_connected_browsers, never guessed)
+//      When the extension reports no profile name at all (Karissa's Mac, 2026-10-14), add
+//      `--profile-source local-state --browsers <list_connected_browsers.json>` (or `--device-id <id>
+//      --browser-label "Browser 1"`): the init then passes only when exactly one connected browser is on
+//      this computer AND Chrome's Local State has exactly one profile named Boostly.com (any casing),
+//      at the directory BOOSTLY_CHROME_PROFILE names when that is set. `profile probe` prints the
+//      Local State profiles as JSON so the agent can show what it checked.
 //   2. discovery with `--browser-provider claude-chrome --browser-results <results.json>` writes browser-needed.json
 //   3. for each manifest url: navigate in the live tab, run the manifest's extractor_js with
 //      javascript_tool (it parks compact JSON on window.__boostlyPage and returns the chunk
@@ -17,8 +23,13 @@ import {
   BROWSER_MANIFEST_FORMAT,
   BROWSER_RESULTS_FORMAT,
   CLAUDE_CHROME_PROVIDER,
+  PROFILE_RESOLUTION_EXTENSION,
+  PROFILE_RESOLUTION_LOCAL_STATE,
   browserResultKey,
+  defaultChromeLocalStatePath,
   parseArgs,
+  readChromeLocalStateProfiles,
+  resolveChromeProfileViaLocalState,
 } from "./discover-links.mjs";
 import { claudeChromeChecksum, claudeChromeChunkReadSource, claudeChromeExtractorSource } from "../../boostly-link-verifier/lib/verify-core.mjs";
 
@@ -54,19 +65,60 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
 
-function initResults(file, { profile, capturedBy = "claude-in-chrome" } = {}) {
+// profileSource "extension" (default): the extension reported `profile` as its profile name.
+// profileSource "local-state": the extension reported no profile name; both fallback checks run
+// here and the init refuses unless they hold. chrome_profile_resolved stays the canonical name
+// in both cases (the validator compares it by name); the method and its evidence go into
+// chrome_profile_resolution.
+function initResults(file, {
+  profile,
+  capturedBy = "claude-in-chrome",
+  profileSource = PROFILE_RESOLUTION_EXTENSION,
+  browsers,
+  deviceId,
+  browserLabel,
+  profileDir,
+  localStateFile,
+  env = process.env,
+} = {}) {
   if (!profile) throw new Error("--profile is required (the connected Chrome profile name, e.g. Boostly.com)");
   if (fs.existsSync(file)) throw new Error(`${file} already exists; add results to it instead of re-initializing`);
+  const source = profileSource === "extension" ? PROFILE_RESOLUTION_EXTENSION
+    : profileSource === "local-state" ? PROFILE_RESOLUTION_LOCAL_STATE
+    : profileSource;
+  let resolution;
+  if (source === PROFILE_RESOLUTION_EXTENSION) {
+    resolution = { method: PROFILE_RESOLUTION_EXTENSION };
+    if (deviceId) resolution.device_id = deviceId;
+    if (browserLabel) resolution.browser_label = browserLabel;
+  } else if (source === PROFILE_RESOLUTION_LOCAL_STATE) {
+    resolution = resolveChromeProfileViaLocalState({ expected: profile, browsers, deviceId, browserLabel, profileDir, localStateFile, env });
+  } else {
+    throw new Error(`--profile-source must be extension or local-state, got '${profileSource}'`);
+  }
   const results = {
     format: BROWSER_RESULTS_FORMAT,
     provider: CLAUDE_CHROME_PROVIDER,
     chrome_profile_resolved: profile,
+    chrome_profile_resolution: resolution,
     captured_by: capturedBy,
     created_at: new Date().toISOString(),
     results: {},
   };
   writeJson(file, results);
   return results;
+}
+
+// `profile probe`: the Local State profiles (directory and name only) plus the env directory, as JSON.
+function probeLocalStateProfiles({ localStateFile, env = process.env } = {}) {
+  const file = localStateFile || defaultChromeLocalStatePath(env);
+  const profiles = readChromeLocalStateProfiles(file);
+  return {
+    local_state_file: file,
+    profile_count: profiles.length,
+    profiles,
+    env_profile_dir: env.BOOSTLY_CHROME_PROFILE || null,
+  };
 }
 
 function validatePage(page) {
@@ -121,10 +173,28 @@ function main(argv) {
     console.log(JSON.stringify(pendingUrls(args.manifest, args.results), null, 2));
     return;
   }
+  if (command === "profile" && subcommand === "probe") {
+    console.log(JSON.stringify(probeLocalStateProfiles({ localStateFile: args["local-state"] }), null, 2));
+    return;
+  }
   if (command === "results" && subcommand === "init") {
     if (!args.out) throw new Error("--out <results.json> is required");
-    initResults(args.out, { profile: args.profile, capturedBy: args["captured-by"] });
-    console.log(JSON.stringify({ ok: true, file: path.resolve(args.out), chrome_profile_resolved: args.profile }));
+    const results = initResults(args.out, {
+      profile: args.profile,
+      capturedBy: args["captured-by"],
+      profileSource: args["profile-source"] || "extension",
+      browsers: args.browsers ? readJson(args.browsers) : undefined,
+      deviceId: args["device-id"],
+      browserLabel: args["browser-label"],
+      profileDir: args["profile-dir"],
+      localStateFile: args["local-state"],
+    });
+    console.log(JSON.stringify({
+      ok: true,
+      file: path.resolve(args.out),
+      chrome_profile_resolved: results.chrome_profile_resolved,
+      chrome_profile_resolution: results.chrome_profile_resolution,
+    }));
     return;
   }
   if (command === "results" && subcommand === "add") {
@@ -147,7 +217,9 @@ function main(argv) {
     "  claude-chrome-browser.mjs extractor            # in-page script for javascript_tool; parks JSON on window.__boostlyPage",
     "  claude-chrome-browser.mjs chunk --index <n>    # javascript_tool expression that reads chunk n",
     "  claude-chrome-browser.mjs manifest pending --manifest <browser-needed.json> [--results <results.json>]",
+    "  claude-chrome-browser.mjs profile probe [--local-state <Local State file>]   # Chrome profiles (directory, name) as JSON",
     "  claude-chrome-browser.mjs results init --out <results.json> --profile <Chrome profile name>",
+    "      [--profile-source local-state (--browsers <list_connected_browsers.json> | --device-id <id> [--browser-label <label>]) [--profile-dir <directory>] [--local-state <file>]]",
     "  claude-chrome-browser.mjs results add --file <results.json> --url <url> [--final-url <url>] [--status <n>] (--page <page.json> | --page-json '<json>' | --page-parts <dir of 01.txt,02.txt,...> [--expect-chars <n> --expect-sum <n>])",
   ].join("\n"));
 }
@@ -161,4 +233,4 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   }
 }
 
-export { addResult, assemblePageParts, initResults, pendingUrls, validatePage };
+export { addResult, assemblePageParts, initResults, pendingUrls, probeLocalStateProfiles, validatePage };

@@ -307,3 +307,19 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - `agents/fulfill-location.md`, `closeout-location.md`, `closeout-finish.md`: the working directory is `$BOOSTLY_RUN_ROOT` again and the
   review-site rebuild cds into `${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}`. An earlier resync had
   copied Travisse's literal paths over these lines. Re-apply after every mirror of the agents (diff the package copy before copying).
+
+## 2026-10-14: Chrome profile fallback via Local State when the extension reports no profile name
+
+- `skills/boostly-link-discovery/scripts/discover-links.mjs` (patched in place, keeps the package env-path and
+  Playwright-module patches), `claude-chrome-browser.mjs`, `validate-discovery-report.mjs`, new
+  `chrome-profile-fallback.test.mjs` (mirrored): the extension profile-name match stays the first path. When no
+  connected browser reports a profile name, the run may go on only when exactly one connected browser is on this
+  computer AND Chrome's `Local State` has exactly one profile named Boostly.com (any casing) at the
+  `BOOSTLY_CHROME_PROFILE` directory when set. `results init` takes `--profile-source local-state` with
+  `--browsers <list_connected_browsers.json>` or `--device-id`; `profile probe` prints the Local State profiles.
+  `chrome_profile_resolved` stays the canonical `Boostly.com`; the new `chrome_profile_resolution` object records
+  the method, directory, Local State name, device id, and browser label. The validator requires the device id and
+  directory for the fallback method.
+- `agents/discovery-transport.md`, `agents/fulfill-location.md`: step 1 profile check with both paths; the
+  `$BOOSTLY_RUN_ROOT`, reviews-repo, and `$BOOSTLY_HEARTBEAT_ROOT` package lines kept.
+- `docs/BOOTSTRAP.md` section 0: the fallback requirement (single profile named Boostly.com, env directory set).

@@ -24,7 +24,8 @@ Never use em dashes in anything you write.
 
 ## Browser rules (standing, all mandatory)
 - Use only the Claude Chrome extension MCP tools (`mcp__claude-in-chrome__*`) in the
-  Boostly.com profile. Work in ONE tab that you create yourself with `tabs_create_mcp`.
+  Boostly.com profile (confirmed by the profile check in step 1). Work in ONE tab that you
+  create yourself with `tabs_create_mcp`.
   Never touch, navigate, read, or close any other tab.
 - Never steal Travisse's screen focus. Never use AppleScript, osascript, `open <url>`, or
   anything that activates Chrome or switches his tabs.
@@ -42,14 +43,35 @@ Never use em dashes in anything you write.
   results entry by hand, derive one page from another, or drop the `--expect-chars` and `--expect-sum` checks.
   Do not fall back to Playwright, a debug Chrome, or any other browser.
 - If the Chrome tools are unavailable or the connected profile cannot be shown to be
-  Boostly.com, stop and report. Never guess the profile name and never fake a results file.
+  Boostly.com by one of the two checks in step 1, stop and report. Never guess the profile
+  name, never pass `--profile-source local-state` when a browser reports a profile name, and
+  never fake a results file.
 
 ## Steps
 H=~/.claude/skills/boostly-link-discovery/scripts
-1. Confirm the connection with `tabs_context_mcp` (and `list_connected_browsers`). Create your
-   own tab. Initialize the results file only when it does not exist:
-   `node $H/claude-chrome-browser.mjs results init --out RUN_DIR/browser-results.json --profile Boostly.com`.
-   When it already exists, add to it; never re-initialize or delete it.
+1. Confirm the connection with `tabs_context_mcp` and `list_connected_browsers`, then confirm
+   the profile by the first check that applies (the name check is always tried first):
+   a. Name check. A connected browser reports `metadata.profileName` equal to `Boostly.com`
+      (any casing). Select it, create your own tab, and initialize the results file only when
+      it does not exist:
+      `node $H/claude-chrome-browser.mjs results init --out RUN_DIR/browser-results.json --profile Boostly.com`.
+   b. Local State fallback, only when NO connected browser reports a profile name (the
+      extension then lists the browser as "Browser 1" or similar). It passes only when BOTH
+      hold: exactly one connected browser has `onThisComputer: true`, and this Mac's Chrome
+      `Local State` (`~/Library/Application Support/Google/Chrome/Local State`,
+      `profile.info_cache`) has exactly one profile, named `Boostly.com` (any casing), at the
+      directory `BOOSTLY_CHROME_PROFILE` names when that is set. Run
+      `node $H/claude-chrome-browser.mjs profile probe` to see the profiles (directory and name
+      only), select the one local browser explicitly with `select_browser` by its `deviceId`,
+      write the `list_connected_browsers` output verbatim to `RUN_DIR/connected-browsers.json`,
+      create your own tab, and initialize with
+      `node $H/claude-chrome-browser.mjs results init --out RUN_DIR/browser-results.json --profile Boostly.com --profile-source local-state --browsers RUN_DIR/connected-browsers.json`
+      (or `--device-id <deviceId> --browser-label "<label>"` instead of `--browsers`). The
+      script repeats both checks and refuses otherwise. `chrome_profile_resolved` stays
+      `Boostly.com`; the method, directory, device id, and label are recorded in
+      `chrome_profile_resolution`. Two browsers, two profiles, or another name: stop and report
+      the script's message.
+   When the results file already exists, add to it; never re-initialize or delete it.
 2. When `RUN_DIR/browser-needed.json` does not exist, run the discovery command in step 4
    once to create it.
 3. List what is pending:
@@ -77,7 +99,10 @@ H=~/.claude/skills/boostly-link-discovery/scripts
      --require-chrome-profile Boostly.com > RUN_DIR/validate-discovery.log 2>&1; echo "exit=$?"
    ```
    Do not try to make the validator pass. A nonzero exit with `browser_results_pending` is the
-   honest result when pages were blocked.
+   honest result when pages were blocked. The validator compares `chrome_profile_resolved` by
+   name and, for the Local State fallback, requires the device id and directory in
+   `chrome_profile_resolution`; a `chrome_profile_mismatch` means step 1 was not done, never
+   something to edit around.
 6. Close your tab with `tabs_close_mcp`. Set file mode 0600 on `browser-results.json` and 0700
    on `browser-pages/` (captures can contain logged-in page chrome).
 

@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CATEGORY_SET, CLAUDE_CHROME_PROVIDER, FULFILLMENT_BROWSER_PROVIDERS } from "./discover-links.mjs";
+import { CATEGORY_SET, CLAUDE_CHROME_PROVIDER, FULFILLMENT_BROWSER_PROVIDERS, chromeProfileResolutionErrors } from "./discover-links.mjs";
 
 const REQUIRED_TOP_LEVEL_KEYS = [
   "checked_at",
@@ -197,6 +197,9 @@ function validateBrowserRuntime(runtime, {
   if (requiredChromeProfile && !sameProfile(runtime.chrome_profile_resolved, requiredChromeProfile)) {
     errors.push(`chrome_profile_mismatch:expected=${requiredChromeProfile}:actual=${String(runtime.chrome_profile_resolved)}`);
   }
+  // chrome_profile_resolution says how the name was established. Absent means the extension reported
+  // it (reports older than 2026-10-14). The Local State fallback must show its device id and directory.
+  if (requiredChromeProfile || anyFulfillment) errors.push(...chromeProfileResolutionErrors(runtime.chrome_profile_resolution));
   if (anyFulfillment) {
     // The alias is the write gate: it never passes a report that was not a live fulfillment run.
     if (runtime.fulfillment_mode !== true) errors.push("fulfillment_mode_required");

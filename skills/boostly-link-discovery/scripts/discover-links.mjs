@@ -305,6 +305,7 @@ async function discoverLocation(locationId, args = {}) {
       browser_provider_preflighted: fixtureStore.browserProviderPreflighted,
       chrome_profile_requested: fixtureStore.requestedChromeProfileName,
       chrome_profile_resolved: fixtureStore.chromeProfileResolved(),
+      chrome_profile_resolution: fixtureStore.chromeProfileResolution(),
       ...claudeChromeRuntime,
     },
     discovery_limits: {
@@ -2025,16 +2026,23 @@ class FixtureStore {
       : null;
     // claude-chrome state: recorded results (url -> result), URLs still needing a visit,
     // and the profile the results were captured in.
+    this.chromeLocalStateFile = options.chromeLocalStateFile || "";
     this.browserResultsFile = options.browserResultsFile || "";
     this.browserManifestFile = options.browserManifestFile || "";
     this.browserResults = null;
     this.browserNeeded = [];
     this.claudeChromeProfileName = null;
+    this.claudeChromeProfileResolution = null;
+    this.codexExtensionProfileResolution = null;
     this.currentFetchKind = null;
   }
 
   chromeProfileResolved() {
     return this.codexExtensionProfileName ?? this.claudeChromeProfileName ?? null;
+  }
+
+  chromeProfileResolution() {
+    return this.codexExtensionProfileResolution ?? this.claudeChromeProfileResolution ?? null;
   }
 
   noteBrowserNeeded(url, kind) {
@@ -2052,8 +2060,13 @@ class FixtureStore {
     if (!sameProfileName(results.chrome_profile_resolved, this.requestedChromeProfileName)) {
       throw new Error(`Claude Chrome browser results were captured in profile '${results.chrome_profile_resolved}', required '${this.requestedChromeProfileName}'. Refusing to use another profile's evidence.`);
     }
+    const resolutionErrors = chromeProfileResolutionErrors(results.chrome_profile_resolution);
+    if (resolutionErrors.length) {
+      throw new Error(`Claude Chrome browser results carry an incomplete chrome_profile_resolution (${resolutionErrors.join(", ")}). Refusing evidence whose profile check cannot be shown.`);
+    }
     this.browserResults = results;
     this.claudeChromeProfileName = results.chrome_profile_resolved;
+    this.claudeChromeProfileResolution = results.chrome_profile_resolution ?? { method: PROFILE_RESOLUTION_EXTENSION };
     this.browserProviderPreflighted = true;
   }
 
@@ -2299,12 +2312,40 @@ class FixtureStore {
     const browsers = await agent.browsers.list();
     const extensionBrowsers = browsers.filter((browser) => browser.type === "extension");
     const selected = extensionBrowsers.find((browser) => sameProfileName(browser.profileName ?? browser.metadata?.profileName, requestedProfile));
-    if (!selected) {
-      const available = extensionBrowsers.map((browser) => browser.profileName ?? browser.metadata?.profileName).filter(Boolean).join(", ") || "none";
-      throw new Error(`No Codex Chrome extension session matches required profile '${requestedProfile}' (available: ${available}). Refusing to bind a random profile.`);
+    if (selected) {
+      this.codexExtensionProfileName = selected.profileName ?? selected.metadata?.profileName ?? null;
+      this.codexExtensionProfileResolution = { method: PROFILE_RESOLUTION_EXTENSION };
+      return agent.browsers.get(selected.id);
     }
-    this.codexExtensionProfileName = selected.profileName ?? selected.metadata?.profileName ?? null;
-    return agent.browsers.get(selected.id);
+    // Fallback: the extension reports no profile name at all. Exactly one browser on this computer
+    // plus exactly one Chrome profile in Local State named like the requested one.
+    const fallback = this.selectLocalStateExtensionBrowser(extensionBrowsers, requestedProfile);
+    if (fallback) {
+      this.codexExtensionProfileName = requestedProfile;
+      this.codexExtensionProfileResolution = fallback.resolution;
+      return agent.browsers.get(fallback.browser.id);
+    }
+    const available = extensionBrowsers.map((browser) => browser.profileName ?? browser.metadata?.profileName).filter(Boolean).join(", ") || "none";
+    throw new Error(`No Codex Chrome extension session matches required profile '${requestedProfile}' (available: ${available}). Refusing to bind a random profile.`);
+  }
+
+  // Returns { browser, resolution } when both fallback checks hold, null when the fallback does not
+  // apply (a browser reports a profile name), and throws when it applies but a check fails.
+  selectLocalStateExtensionBrowser(extensionBrowsers, requestedProfile) {
+    const named = extensionBrowsers.some((browser) => browser.profileName ?? browser.metadata?.profileName);
+    if (named) return null;
+    const local = extensionBrowsers.filter((browser) => browser.onThisComputer === true);
+    if (local.length !== 1) {
+      throw new Error(`No Codex Chrome extension session reports a profile name and ${local.length} of ${extensionBrowsers.length} are on this computer (the Local State fallback needs exactly one). Refusing to bind a random profile.`);
+    }
+    const browser = local[0];
+    const deviceId = browser.deviceId ?? browser.id ?? null;
+    const resolution = resolveChromeProfileViaLocalState({
+      expected: requestedProfile,
+      browsers: [{ ...browser, deviceId, type: "extension" }],
+      localStateFile: this.chromeLocalStateFile || undefined,
+    });
+    return { browser, resolution };
   }
 
   async close() {
@@ -2414,6 +2455,10 @@ function loadBrowserResults(file) {
   if (typeof parsed.chrome_profile_resolved !== "string" || !parsed.chrome_profile_resolved) {
     throw new Error(`${file} does not declare chrome_profile_resolved`);
   }
+  const resolutionErrors = chromeProfileResolutionErrors(parsed.chrome_profile_resolution);
+  if (resolutionErrors.length) {
+    throw new Error(`${file} has an invalid chrome_profile_resolution: ${resolutionErrors.join(", ")}`);
+  }
   const results = {};
   for (const [key, value] of Object.entries(parsed.results || {})) {
     if (!value || typeof value !== "object" || !value.page || typeof value.page !== "object") {
@@ -2443,6 +2488,125 @@ function profileNameForKey(profile) {
   if (["denada", "denada.design"].includes(key)) return "denada.design";
   if (["gmr", "getmorereviews"].includes(key)) return "GMR";
   return profile || "Boostly.com";
+}
+
+// Chrome profile resolution methods recorded in results files and reports.
+//   extension-profile-name: the extension reported metadata.profileName and it matched (the first path).
+//   local-state-single-profile: the extension reported no profile name (Karissa's Mac, 2026-10-14);
+//     exactly one connected browser is on this computer and this Mac's Chrome Local State has exactly
+//     one profile whose name matches the required one. Both halves must hold or the run stops.
+const PROFILE_RESOLUTION_EXTENSION = "extension-profile-name";
+const PROFILE_RESOLUTION_LOCAL_STATE = "local-state-single-profile";
+const PROFILE_RESOLUTION_METHODS = [PROFILE_RESOLUTION_EXTENSION, PROFILE_RESOLUTION_LOCAL_STATE];
+
+function defaultChromeLocalStatePath(env = process.env) {
+  if (env.BOOSTLY_CHROME_LOCAL_STATE) return env.BOOSTLY_CHROME_LOCAL_STATE;
+  return path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome", "Local State");
+}
+
+// Reads profile.info_cache from Chrome's Local State file: [{ directory, name }], never anything else
+// (the file also holds account emails; those are not read or printed).
+function readChromeLocalStateProfiles(file = defaultChromeLocalStatePath()) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error(`Unable to read Chrome Local State ${file}: ${error.message}`);
+  }
+  const cache = parsed?.profile?.info_cache;
+  if (!cache || typeof cache !== "object" || Array.isArray(cache)) {
+    throw new Error(`${file} has no profile.info_cache`);
+  }
+  return Object.entries(cache).map(([directory, info]) => ({
+    directory,
+    name: typeof info?.name === "string" ? info.name : "",
+  }));
+}
+
+// list_connected_browsers rows in any of the shapes the tool has used; profile name is read the same
+// way selectCodexExtensionBrowser reads it.
+function connectedBrowserRows(browsers) {
+  const rows = Array.isArray(browsers) ? browsers : Array.isArray(browsers?.browsers) ? browsers.browsers : null;
+  if (!rows) throw new Error("connected browsers must be an array or an object with a browsers array");
+  return rows
+    .filter((browser) => !browser?.type || browser.type === "extension")
+    .map((browser) => ({
+      deviceId: browser.deviceId ?? browser.device_id ?? browser.id ?? null,
+      label: browser.label ?? browser.name ?? browser.browserName ?? browser.browser_name ?? null,
+      onThisComputer: browser.onThisComputer === true || browser.on_this_computer === true,
+      profileName: browser.profileName ?? browser.metadata?.profileName ?? null,
+    }));
+}
+
+// Half one of the fallback: no browser reports a profile name and exactly one is on this computer.
+function selectSingleLocalBrowser(browsers) {
+  const rows = connectedBrowserRows(browsers);
+  const named = rows.filter((row) => row.profileName);
+  if (named.length) {
+    throw new Error(`chrome_profile_fallback_refused: a connected browser reports a profile name (${named.map((row) => row.profileName).join(", ")}); the name match is the only path then`);
+  }
+  const local = rows.filter((row) => row.onThisComputer);
+  if (local.length !== 1) {
+    throw new Error(`chrome_profile_fallback_refused: expected exactly one connected browser on this computer, found ${local.length} of ${rows.length}`);
+  }
+  if (!local[0].deviceId) throw new Error("chrome_profile_fallback_refused: the connected browser has no deviceId");
+  return local[0];
+}
+
+// Half two of the fallback: this Mac's Chrome has exactly one profile, named like the required one,
+// and BOOSTLY_CHROME_PROFILE (the profile directory, when set) points at it.
+function resolveLocalStateProfile({ expected, profileDir, localStateFile, env = process.env } = {}) {
+  if (!expected) throw new Error("expected profile name is required");
+  const file = localStateFile || defaultChromeLocalStatePath(env);
+  const profiles = readChromeLocalStateProfiles(file);
+  if (profiles.length !== 1) {
+    throw new Error(`chrome_profile_fallback_refused: Chrome Local State lists ${profiles.length} profiles (${profiles.map((p) => `${p.directory}=${p.name || "?"}`).join(", ") || "none"}); the fallback needs exactly one, named ${expected}`);
+  }
+  const [only] = profiles;
+  if (!sameProfileName(only.name, expected)) {
+    throw new Error(`chrome_profile_fallback_refused: the only Chrome profile is named '${only.name}' (${only.directory}), required '${expected}'`);
+  }
+  const requiredDir = profileDir || env.BOOSTLY_CHROME_PROFILE || "";
+  if (requiredDir && requiredDir !== only.directory) {
+    throw new Error(`chrome_profile_fallback_refused: BOOSTLY_CHROME_PROFILE is '${requiredDir}' but the only Chrome profile directory is '${only.directory}'`);
+  }
+  return { directory: only.directory, local_state_name: only.name, local_state_file: file };
+}
+
+// Builds the chrome_profile_resolution object for a results file or report. The resolved name
+// stays the canonical requested name so every name compare keeps working.
+function resolveChromeProfileViaLocalState({ expected, browsers, deviceId, browserLabel, profileDir, localStateFile, env } = {}) {
+  let browser = null;
+  if (browsers !== undefined && browsers !== null) {
+    browser = selectSingleLocalBrowser(browsers);
+    if (deviceId && browser.deviceId !== deviceId) {
+      throw new Error(`chrome_profile_fallback_refused: --device-id '${deviceId}' is not the connected browser on this computer ('${browser.deviceId}')`);
+    }
+  } else if (!deviceId) {
+    throw new Error("chrome_profile_fallback_refused: the local-state fallback needs the selected browser's device id (--device-id) or the list_connected_browsers output (--browsers)");
+  }
+  const profile = resolveLocalStateProfile({ expected, profileDir, localStateFile, env });
+  return {
+    method: PROFILE_RESOLUTION_LOCAL_STATE,
+    directory: profile.directory,
+    local_state_name: profile.local_state_name,
+    device_id: browser?.deviceId ?? deviceId,
+    browser_label: browser?.label ?? browserLabel ?? null,
+  };
+}
+
+// Shape check shared by the results loader and the validator: a local-state resolution without the
+// device id and directory is not evidence that both halves were checked.
+function chromeProfileResolutionErrors(resolution) {
+  if (resolution == null) return [];
+  if (typeof resolution !== "object" || Array.isArray(resolution)) return ["chrome_profile_resolution_invalid"];
+  if (!PROFILE_RESOLUTION_METHODS.includes(resolution.method)) return [`chrome_profile_resolution_unknown_method:${String(resolution.method)}`];
+  const errors = [];
+  if (resolution.method === PROFILE_RESOLUTION_LOCAL_STATE) {
+    if (typeof resolution.device_id !== "string" || !resolution.device_id) errors.push("chrome_profile_resolution_missing:device_id");
+    if (typeof resolution.directory !== "string" || !resolution.directory) errors.push("chrome_profile_resolution_missing:directory");
+  }
+  return errors;
 }
 
 function fetchFailureEvidence(inputUrl, fetchMethod, error) {
@@ -3871,9 +4035,20 @@ export {
   FULFILLMENT_BROWSER_PROVIDERS,
   FixtureStore,
   MissingFixtureError,
+  PROFILE_RESOLUTION_EXTENSION,
+  PROFILE_RESOLUTION_LOCAL_STATE,
   browserResultKey,
+  chromeProfileResolutionErrors,
+  connectedBrowserRows,
+  defaultChromeLocalStatePath,
   loadBrowserResults,
+  profileNameForKey,
+  readChromeLocalStateProfiles,
   resolveBrowserManifestPath,
+  resolveChromeProfileViaLocalState,
+  resolveLocalStateProfile,
+  sameProfileName,
+  selectSingleLocalBrowser,
   applyLunaEventReview,
   bestByStatus,
   buildEventLunaPacket,
