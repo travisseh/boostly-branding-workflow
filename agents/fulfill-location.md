@@ -127,7 +127,7 @@ Do, in order:
    written at closeout without another look); only a candidate that needs a human decision gets
    `action: "hold"` with the question in `reason`. Never label a verified social or a Places
    website bootstrap as a hold. Check
-   `~/.codex/skills/boostly-link-discovery/runs/` (the shared heartbeat location) for a heartbeat
+   `$BOOSTLY_HEARTBEAT_ROOT` (the shared heartbeat location) for a heartbeat
    report on this location and read it if present. State whether the stored `ordering_url`
    matches what the customer's own website links (the website wins).
    Holds are for genuine ambiguity (a login wall you could not read, the same name in a different
