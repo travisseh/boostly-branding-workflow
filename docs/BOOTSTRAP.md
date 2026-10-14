@@ -29,8 +29,8 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
 - [ ] A Vercel account that is a member of the Boostly Vercel team (`boostly`), and the Vercel CLI
       (`npm i -g vercel`, then `vercel login` in the terminal). Needed once, to pull the review site's
       image-upload token (step 9).
-- [ ] Travisse has, ready to paste into files himself: the operator's Boostly admin MCP key, a Slack user
-      token for the operator, a Notion internal integration token, the SearchAPI key, the Google Places
+- [ ] Travisse has, ready to paste into files himself: the operator's Boostly admin MCP key, the shared Slack bot
+      token (Boostly Fulfillment Notifications app), the SearchAPI key, the Google Places
       key, the DataForSEO login and password, and the signage service API key (`BOOSTLY_V2_API_KEY`).
       Optional: AskElephant, TinyPNG, Replicate, OpenAI keys.
 
@@ -100,7 +100,9 @@ Order (one checkpoint each; stop and ask before each file edit):
    ```
    Put the directory (for example `Profile 3`) whose name is `Boostly.com` into the env file.
 3. `BOOSTLY_ADMIN_MCP_KEY` (new.boostly.com admin, the operator's own user, MCP/API key). Travisse pastes.
-4. `SLACK_USER_OAUTH_TOKEN` (xoxp, the operator's user token from the Boostly Slack app). Travisse pastes.
+4. `SLACK_USER_OAUTH_TOKEN`: the shared bot token (xoxb) of the "Boostly Fulfillment Notifications" Slack app,
+   sent by Travisse with the other keys. Closeout posts appear as that bot. (The name is historical; a personal
+   xoxp user token also works.)
 5. `NOTION_API_TOKEN`: no longer needed for the review workflow (2026-10-13: statuses live on the
    review site, the Notion review queue is retired). Leave it empty unless Travisse asks for it.
 6. `SEARCHAPI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`,
@@ -258,7 +260,7 @@ site's Blob store (`status/checklist.json`; the token comes from the fulfillment
 every location page overlay it on load. The 5-minute refresh job keeps it current without a model:
 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist`.
 Only one machine should run that job at a time (it overwrites the same board); Travisse's runs it today.
-CHECKPOINT 10: Slack auth check shows the operator, the publish prints `status published: ok`, the
+CHECKPOINT 10: Slack auth check shows "Boostly Fulfillment Notifications" (or the operator, with a user token), the publish prints `status published: ok`, the
 review server answers on 127.0.0.1:3917.
 
 ## 11. Doctor

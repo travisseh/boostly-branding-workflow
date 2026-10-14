@@ -258,3 +258,10 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   Run `node --test skills/boostly-print-handoff/scripts/lib/drive.test.mjs` from the repo root.
 - This prevents future export corruption. Historical postal-code corrections still require checking
   the authoritative source; never guess or pad an already-numeric value.
+
+## 2026-10-14: Slack bot token instead of per-operator user tokens
+
+- `setup/env.example`, `docs/BOOTSTRAP.md`: `SLACK_USER_OAUTH_TOKEN` now carries the shared xoxb bot token of the
+  "Boostly Fulfillment Notifications" app (scopes chat:write, files:write, channels:history, channels:read, users:read,
+  files:read; bot already in #boosted-box-requests). No code change: aos-slack and post-review.mjs send the token as
+  a bearer either way, and post-review's thread scan already matches bot replies (`m.bot_id`).
