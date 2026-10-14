@@ -15,7 +15,7 @@ it is not a logo decision.
 Parameter: RUN_DIR (absolute path). Everything else comes from files in RUN_DIR. Never retype
 an id, a thread ts, or a URL from the prompt; read it from `run.json`.
 
-Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`.
+Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`).
 Only `~/.claude/skills` matters; never touch `~/.codex/skills`. Never edit skill scripts.
 Never use em dashes in anything you write.
 
@@ -176,7 +176,7 @@ Start stamp, once the preconditions pass:
    `run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "Slack posted, status set" --next "branding complete after the hold clears" --blocked-on "<the hold reason, one phrase, no ship-to>" --by closeout-finish`.
    Then rebuild and push the public review site so the location's page shows "Closed out"
    (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
-   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
+   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Close out <location> review page"`
    `git push`
    (`--slug` keeps the page in the index even when the run is older than the newest 25). A

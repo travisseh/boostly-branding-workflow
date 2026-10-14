@@ -16,7 +16,7 @@ Parameters the launching prompt gives you:
 - OVERRIDES: any recorded human decisions the lead names (a gate override with its evidence, a
   signage-only logo, a held link to mention, a status line to carry).
 
-Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`.
+Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`).
 Only `~/.claude/skills` matters; never touch `~/.codex/skills` (the shared heartbeat state and audit
 under `~/.codex/skills/boostly-link-discovery/runs/` are written only through the fulfillment
 scripts, never by hand). Read
@@ -143,7 +143,7 @@ Steps, in order:
    (box-fulfillment SKILL.md "Status board on the review site"; a launchd job also publishes it
    every 5 minutes without a model), then rebuild and push the location's site page so it shows
    the Figma link and "Branding applied" (the push is part of publishing, no separate go):
-   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
+   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
 Steps 4b and 5 to 8 (the secondary logo write, the ONE Slack post, `fulfillment branding
 --complete`, the final site status, the final `run-file validate`) belong to the `closeout-finish` agent
 (`~/.claude/agents/closeout-finish.md`). Do not run them, even when the lead tells you the

@@ -301,3 +301,9 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - `skills/boostly-link-discovery/scripts/validate-discovery-report.mjs` (mirrored) and `discover-links.mjs` (patched in place,
   keeps the package env-path and Playwright-module patches): the three profile checks lowercase both sides. Karissa's
   profile is spelled `boostly.com`; it no longer has to be renamed.
+
+## 2026-10-14: agent working-directory patch restored
+
+- `agents/fulfill-location.md`, `closeout-location.md`, `closeout-finish.md`: the working directory is `$BOOSTLY_RUN_ROOT` again and the
+  review-site rebuild cds into `${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}`. An earlier resync had
+  copied Travisse's literal paths over these lines. Re-apply after every mirror of the agents (diff the package copy before copying).

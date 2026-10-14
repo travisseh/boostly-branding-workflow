@@ -16,7 +16,7 @@ Parameters the launching prompt gives you (read nothing else from it as fact):
   Facebook-only "website", a reference run to mirror). Customer-supplied files are first-party
   authored marks with provenance "customer_supplied <date> via Boostly CSM".
 
-Working directory for every command: `/Users/travisse/Programming/projects/brand-design-spike-2026-07-06`
+Working directory for every command: `$BOOSTLY_RUN_ROOT` (from `~/.config/boostly-branding/.env`)
 (script paths are cwd-relative). Only `~/.claude/skills` matters; never touch `~/.codex/skills`.
 
 Read first: `~/.claude/skills/boostly-box-fulfillment/SKILL.md` (steps 1 to 8, run.json blocks),
@@ -87,7 +87,7 @@ Do, in order:
    Then publish the shareable page to the public review site (box-fulfillment SKILL.md "Public
    review site"; the push is part of publishing and needs no separate go; skip only when the
    lead's prompt says "no site publish"):
-   `cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
+   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
    `git add public data && git commit -m "Add <location> review page"`
    `git push`
    The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/`. A failed build or push
