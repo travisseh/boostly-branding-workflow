@@ -295,3 +295,9 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   "Boostly Fulfillment Notifications" app (scopes chat:write, files:write, channels:history, channels:read, users:read,
   files:read; bot already in #boosted-box-requests). No code change: aos-slack and post-review.mjs send the token as
   a bearer either way, and post-review's thread scan already matches bot replies (`m.bot_id`).
+
+## 2026-10-14: Chrome profile name compares case-insensitively
+
+- `skills/boostly-link-discovery/scripts/validate-discovery-report.mjs` (mirrored) and `discover-links.mjs` (patched in place,
+  keeps the package env-path and Playwright-module patches): the three profile checks lowercase both sides. Karissa's
+  profile is spelled `boostly.com`; it no longer has to be renamed.

@@ -18,12 +18,12 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
 
 - [ ] Claude Code installed (`claude --version` works) and signed in with the operator's own Claude
       account (Pro or Team seat). No Anthropic API key is needed.
-- [ ] Google Chrome with a profile named exactly `Boostly.com`, signed in to new.boostly.com as the
+- [ ] Google Chrome with a profile named `Boostly.com` (any casing, `boostly.com` is fine), signed in to new.boostly.com as the
       operator's own Boostly admin user, and the "Claude in Chrome" extension installed and enabled in
       that profile. The discovery scripts and the validator check the profile name the extension
       reports (`list_connected_browsers`), not the profile directory: if an agent reports "the
-      Chrome extension doesn't report the Boostly.com profile name", rename the profile to exactly
-      `Boostly.com` in Chrome's profile settings or connect the extension inside that profile; the fix
+      Chrome extension doesn't report the Boostly.com profile name", name the profile
+      `Boostly.com` (casing does not matter since 2026-10-14) or connect the extension inside that profile; the fix
       is on this machine, nothing on Travisse's side.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.

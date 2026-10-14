@@ -192,7 +192,9 @@ function validateBrowserRuntime(runtime, {
   if (acceptedProviders.length > 0 && !acceptedProviders.includes(provider)) {
     errors.push(`browser_provider_mismatch:expected=${acceptedProviders.join("|")}:actual=${String(provider)}`);
   }
-  if (requiredChromeProfile && runtime.chrome_profile_resolved !== requiredChromeProfile) {
+  // profile names compare case-insensitively (Karissa's profile is "boostly.com", 2026-10-14)
+  const sameProfile = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
+  if (requiredChromeProfile && !sameProfile(runtime.chrome_profile_resolved, requiredChromeProfile)) {
     errors.push(`chrome_profile_mismatch:expected=${requiredChromeProfile}:actual=${String(runtime.chrome_profile_resolved)}`);
   }
   if (anyFulfillment) {
@@ -201,7 +203,7 @@ function validateBrowserRuntime(runtime, {
     if (runtime.browser_provider_preflighted !== true && !errors.includes("fulfillment_browser_provider_not_preflighted")) {
       errors.push("fulfillment_browser_provider_not_preflighted");
     }
-    if (requiredChromeProfile !== FULFILLMENT_CHROME_PROFILE && runtime.chrome_profile_resolved !== FULFILLMENT_CHROME_PROFILE) {
+    if (!sameProfile(requiredChromeProfile, FULFILLMENT_CHROME_PROFILE) && !sameProfile(runtime.chrome_profile_resolved, FULFILLMENT_CHROME_PROFILE)) {
       errors.push(`chrome_profile_mismatch:expected=${FULFILLMENT_CHROME_PROFILE}:actual=${String(runtime.chrome_profile_resolved)}`);
     }
   }

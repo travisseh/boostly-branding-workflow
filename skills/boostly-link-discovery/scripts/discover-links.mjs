@@ -2049,7 +2049,7 @@ class FixtureStore {
     // unpreflighted (the validator refuses it for fulfillment) until results are supplied.
     if (!this.browserResultsFile) return;
     const results = loadBrowserResults(this.browserResultsFile);
-    if (results.chrome_profile_resolved !== this.requestedChromeProfileName) {
+    if (!sameProfileName(results.chrome_profile_resolved, this.requestedChromeProfileName)) {
       throw new Error(`Claude Chrome browser results were captured in profile '${results.chrome_profile_resolved}', required '${this.requestedChromeProfileName}'. Refusing to use another profile's evidence.`);
     }
     this.browserResults = results;
@@ -2298,7 +2298,7 @@ class FixtureStore {
     const requestedProfile = profileNameForKey(this.chromeProfile || "boostly");
     const browsers = await agent.browsers.list();
     const extensionBrowsers = browsers.filter((browser) => browser.type === "extension");
-    const selected = extensionBrowsers.find((browser) => (browser.profileName ?? browser.metadata?.profileName) === requestedProfile);
+    const selected = extensionBrowsers.find((browser) => sameProfileName(browser.profileName ?? browser.metadata?.profileName, requestedProfile));
     if (!selected) {
       const available = extensionBrowsers.map((browser) => browser.profileName ?? browser.metadata?.profileName).filter(Boolean).join(", ") || "none";
       throw new Error(`No Codex Chrome extension session matches required profile '${requestedProfile}' (available: ${available}). Refusing to bind a random profile.`);
@@ -2429,6 +2429,11 @@ function resolveBrowserManifestPath(args = {}) {
   if (args.browserManifest) return args.browserManifest;
   if (args.out) return path.join(path.dirname(path.resolve(args.out)), "browser-needed.json");
   return "";
+}
+
+// Chrome profile names compare case-insensitively (Karissa's profile is spelled "boostly.com", 2026-10-14).
+function sameProfileName(a, b) {
+  return String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 }
 
 function profileNameForKey(profile) {
