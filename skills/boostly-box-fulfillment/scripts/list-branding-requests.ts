@@ -155,6 +155,10 @@ export type ListOptions = {
   limit?: number | null;
   excludeProcessed?: boolean;
   stateFile?: string;
+  /** Ad hoc orders (order_type = 'ad_hoc'). Default false: the branding pipeline never sees them.
+   *  adhoc-fulfillment.ts (2026-10-14) lists them with includeAdHoc + adHocOnly. */
+  includeAdHoc?: boolean;
+  adHocOnly?: boolean;
 };
 
 export type ListResult = {
@@ -407,7 +411,9 @@ export function listBrandingRequests(options: ListOptions = {}): ListResult {
     const derived = deriveOpenState(row);
     if (!derived || (status !== "open" && derived !== status)) { excluded.other_status += 1; continue; }
     if (row.is_general) { excluded.general += 1; continue; }
-    if (row.order_type !== "full_order") { excluded.ad_hoc += 1; continue; }
+    const adHoc = row.order_type !== "full_order";
+    if (adHoc && !options.includeAdHoc) { excluded.ad_hoc += 1; continue; }
+    if (!adHoc && options.adHocOnly) { excluded.other_status += 1; continue; }
     selected.push({ row, state: derived });
   }
   const accountLocations = fetchAccountLocations([...new Set(selected.map(({ row }) => row.account_id))]);
@@ -466,6 +472,7 @@ export function summaryLine(request: CanonicalRequest): string {
   const flags = [
     request.already_processed ? "processed" : null,
     request.prior_outcome ? `prior=${String((request.prior_outcome as { status?: unknown }).status ?? "?")}` : null,
+    request.order_type === "full_order" ? null : request.order_type,
     request.identity_complete ? null : "address-unparsed",
     request.location_candidates[0]?.google_place_id ? null : "no-place-id",
     request.slack_thread_ts ? null : "no-slack-thread",
@@ -508,6 +515,7 @@ function main(): void {
       "Usage: list-branding-requests.ts [--status branding|digital_fulfillment|store_details|physical_fulfillment|printing_label|open]",
       "         [--after <iso>] [--limit <n>] [--exclude-processed] [--state-file <path>] [--json] [--out <file>]",
       "         [--run-root <dir>]   also create <dir>/<location-slug>/run.json per request (request block; existing files skipped)",
+      "         [--include-ad-hoc] [--ad-hoc-only]   list ad_hoc orders too (or only); default excludes them (adhoc-fulfillment.ts owns them)",
       "Read-only pull of open V2 fulfillment requests in the canonical pipeline request shape.",
     ].join("\n") + "\n");
     return;
@@ -519,6 +527,8 @@ function main(): void {
     after: typeof args.after === "string" ? args.after : null,
     limit,
     excludeProcessed: args["exclude-processed"] === true,
+    includeAdHoc: args["include-ad-hoc"] === true || args["ad-hoc-only"] === true,
+    adHocOnly: args["ad-hoc-only"] === true,
     stateFile: typeof args["state-file"] === "string" ? path.resolve(args["state-file"]) : undefined,
   });
   if (typeof args.out === "string") {

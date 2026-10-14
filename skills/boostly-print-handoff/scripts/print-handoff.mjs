@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One command for the whole hand-off: export (vector PDFs), logos + Drive upload + summary row, Gmail draft.
-// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force]
+// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force] [--kinds <kind[,kind]>]
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseArgs, requireRunDir, readHandoff } from "./lib/common.mjs";
@@ -13,7 +13,7 @@ const step = (script, extra) => {
   console.log(`\n== ${script} ==`);
   execFileSync("node", [path.join(here, script), "--run-dir", runDir, ...extra], { stdio: "inherit" });
 };
-if (!args["skip-export"]) step("export-sheets.mjs", pass(["section", "file-key", "force"]));
+if (!args["skip-export"]) step("export-sheets.mjs", pass(["section", "file-key", "force", "kinds"]));
 step("drive-upload.mjs", pass(["offline", "skip-summary"]));
 if (!args["skip-draft"]) step("draft-email.mjs", pass(["redraft", "no-send"]));
 const h = readHandoff(runDir);

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Export every "Print Sheet - " frame in a location's Figma section(s) as VECTOR PDF through the
 // Figma REST API, merge per kind with pdfunite, verify page counts and that the output is vector.
-// Usage: node export-sheets.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--force]
+// Usage: node export-sheets.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--force] [--kinds <kind[,kind]>]
+// --kinds (2026-10-14, ad hoc orders): export only the listed kinds (table-stickers, review-stickers,
+// bathroom-stickers, bathroom-review-stickers, pop-sign, togo-label); the others read "not included".
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -64,6 +66,17 @@ for (const [si, sec] of sections.entries()) {
   }
 }
 if (!frames.length) throw new Error("no Print Sheet frames found");
+// --kinds: keep only the ordered kinds (an ad hoc order of POP signs exports the POP sheet alone).
+const keepKinds = args.kinds ? String(args.kinds).split(",").map((k) => k.trim()).filter(Boolean) : null;
+if (keepKinds) {
+  const known = new Set(KINDS.map((k) => k.kind));
+  const bad = keepKinds.filter((k) => !known.has(k));
+  if (bad.length) throw new Error(`unknown --kinds ${bad.join(", ")} (known: ${[...known].join(", ")})`);
+  const before = frames.length;
+  for (let i = frames.length - 1; i >= 0; i -= 1) if (!keepKinds.includes(frames[i].kind)) frames.splice(i, 1);
+  log("kinds filter", keepKinds.join(","), `${frames.length}/${before} frames kept`);
+  if (!frames.length) throw new Error(`no Print Sheet frames of kind ${keepKinds.join(",")} in the section`);
+}
 // Order: per kind, section order then page; renumber pages across sections.
 for (const { kind } of KINDS) {
   const fk = frames.filter((f) => f.kind === kind).sort((a, b) => a.section_index - b.section_index || a.page - b.page);
@@ -74,7 +87,8 @@ fs.writeFileSync(path.join(out, "raw-frames.json"), JSON.stringify({ file_key: f
 // Cross-check against run.json figma.sheet_ids when present (warn, never silently diverge).
 const crosscheck = { status: "no sheet_ids in run.json" };
 if (run.figma?.sheet_ids) {
-  const expected = new Set(Object.values(run.figma.sheet_ids).flat());
+  const expectedEntries = Object.entries(run.figma.sheet_ids).filter(([name]) => !keepKinds || keepKinds.includes(classify(name)?.kind));
+  const expected = new Set(expectedEntries.map(([, ids]) => ids).flat());
   const found = new Set(frames.map((f) => f.node_id));
   const missing = [...expected].filter((x) => !found.has(x));
   const extra = [...found].filter((x) => !expected.has(x));

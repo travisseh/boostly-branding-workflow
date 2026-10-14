@@ -331,3 +331,23 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   unchanged). File 8 (`N5uzBBdCz7ySxxaNTxfKGm`) moved to `previous_files`, read-only from 2026-10-14; run.json
   figma blocks built in File 8 still point there. The File 9 template was rebuilt from the File 8 REST dump and
   proved identical by structural hash (12355 nodes counting the section) with the stroke gate passing.
+
+## 2026-10-14: Ad hoc requests auto-fulfill when branding and store details are complete
+
+- `skills/boostly-box-fulfillment/scripts/adhoc-fulfillment.ts` (new, mirrored) and `adhoc-fulfillment.test.ts` (13 tests):
+  per open `ad_hoc` request, eligible when the live V2 branding row has a primary logo, the store details are complete
+  (ship-to plus the offer for printed items) and, for printed items, a prior completed run with a Figma section exists
+  under the run root; then store-details confirm, branding complete, Figma section reuse (or a clone brief for the build
+  agent when the table or stall pages differ), the print hand-off limited to the ordered kinds, the one Slack result,
+  a `<location>-adhoc-<yyyymmdd>` run dir with `adhoc.json`, the status and progress stamps, the board refresh.
+  Otherwise the request is queued for the normal pipeline with a blocked-on stamp and a board note. Dry run by default;
+  `--apply` needs `ADHOC_AUTO_APPLY=1` (environment or the shared env file, `BOOSTLY_BRANDING_ENV_FILE`) or `--go`.
+  No package patch: the script reads `BOOSTLY_BRANDING_ENV_FILE` and `SLACK_TOOLS_DIR` itself.
+- `skills/boostly-box-fulfillment/scripts/list-branding-requests.ts` (mirrored): `--include-ad-hoc` / `--ad-hoc-only`
+  listing options; the default pull still excludes ad hoc orders.
+- `skills/boostly-box-fulfillment/SKILL.md` (mirrored): run loop step 2b with the `ADHOC_AUTO_APPLY` switch, the
+  "Ad hoc orders" rule under Finish (quoting Travisse 2026-10-14), the components table rows.
+- `skills/boostly-print-handoff/scripts/export-sheets.mjs`, `print-handoff.mjs`, `SKILL.md` (mirrored): `--kinds`
+  exports only the ordered kinds; the sheet_ids cross-check follows the filter.
+- `setup/env.example`: `ADHOC_AUTO_APPLY=0`.
+

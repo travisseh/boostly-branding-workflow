@@ -29,12 +29,15 @@ S=~/.claude/skills/boostly-print-handoff/scripts
 # Whole hand-off (export, logos, Drive, summary row, draft), idempotent:
 node $S/print-handoff.mjs --run-dir <RUN_DIR>
 # Steps on their own:
-node $S/export-sheets.mjs --run-dir <RUN_DIR> [--section <id[,id]>] [--file-key <key>] [--force]
+node $S/export-sheets.mjs --run-dir <RUN_DIR> [--section <id[,id]>] [--file-key <key>] [--force] [--kinds <kind[,kind]>]
 node $S/drive-upload.mjs  --run-dir <RUN_DIR> [--offline] [--skip-summary]
 node $S/draft-email.mjs   --run-dir <RUN_DIR> [--redraft] [--print-only] [--no-send]
 ```
 
-Flags: `--section` / `--file-key` override run.json `figma.section_node_id` / `figma.file_key`
+Flags: `--kinds <kind[,kind]>` (2026-10-14) exports only the listed kinds (`table-stickers`,
+`review-stickers`, `bathroom-stickers`, `bathroom-review-stickers`, `pop-sign`, `togo-label`); the
+ad hoc path passes the ordered kinds so a POP-only order ships the POP PDF alone and the others
+read "not included". `--section` / `--file-key` override run.json `figma.section_node_id` / `figma.file_key`
 (comma-separate several sections when a location spans more than one, in grid order);
 `--force` re-exports pages that already exist; `--offline` uses run.json request facts instead
 of live v2-db reads (only when v2-db is down; say so in the report); `--redraft` makes a new

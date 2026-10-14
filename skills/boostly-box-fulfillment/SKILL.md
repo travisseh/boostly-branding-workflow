@@ -26,7 +26,8 @@ depend on Slack for intake.
 
 | Step | Tool | Notes |
 |---|---|---|
-| Pull requests | `scripts/list-branding-requests.ts` | read-only `v2-db`; Branding lane; emits canonical requests with `location_id`/`account_id` resolved |
+| Pull requests | `scripts/list-branding-requests.ts` | read-only `v2-db`; Branding lane; emits canonical requests with `location_id`/`account_id` resolved; `--include-ad-hoc` / `--ad-hoc-only` list ad hoc orders (used by the ad hoc path only) |
+| Ad hoc orders | `scripts/adhoc-fulfillment.ts` | the auto-fulfillment path for `order_type = 'ad_hoc'` (dry run by default; `--apply` behind `ADHOC_AUTO_APPLY`), see "Ad hoc orders" |
 | Verify location | `~/.claude/skills/v2-database/bin/v2-db query` | read-only replica; exact-match verification of the pre-resolved row, see references/location-resolve.sql |
 | Optional Slack thread reply | `~/.config/slack-tools/slack.js` | channel `C09MSM8MA9Y` (`boosted-box-requests`) in workspace `boostly`, only when the request has `slack_thread_ts` |
 | Discover + verify links | `/boostly-link-discovery` + shared verifier | static fetch first; the live Chrome session (Claude in Chrome, Boostly.com profile) only when required |
@@ -65,7 +66,9 @@ receipts under `fix/live-*/`, `variants*/variant-sheet.json`, `evidence/`, `fabl
    `fulfillment_requests` joined to `locations`, `accounts`, `users` (CSM and requester), and
    `fulfillment_items` through the read-only `v2-db` CLI, derives the admin lane exactly like
    `src/lib/fulfillment/status.ts` (Branding = `digital_fulfillment` = not canceled, no tracking
-   number, `digital_fulfilled_at IS NULL`), excludes `ad_hoc` orders and General locations, and
+   number, `digital_fulfilled_at IS NULL`), excludes General locations and, by default, `ad_hoc`
+   orders (those belong to the ad hoc path, `adhoc-fulfillment.ts`, which lists them with
+   `--ad-hoc-only`), and
    emits the canonical request shape with `request_key = v2:<fulfillment_request_id>`,
    `fulfillment_request_id`, `expected_location_id`, `expected_account_id`, the resolved row as
    the single `location_candidates` entry, and `account_locations` for scope. Slack is never read
@@ -170,8 +173,12 @@ real request was processed.
    `missing`: the database has no employee count and badges are out of scope here.
 
    `ad_hoc` orders (`order_type = 'ad_hoc'`, the old `In-store ad hoc request` Slack post) are
-   excluded by the script and remain outside this automation's scope. They must not produce a
-   plan, production write, proof, Notion page, audit row, state entry, or Slack reply.
+   not part of this branding pull; they have their own step, **2b** below (Travisse,
+   2026-10-14: "update the skill so that adhoc requests automatically get marked as in-store
+   complete and for signage get sent to customstickers as long as we've previously completed
+   branding and in-store details are complete. I.e. I don't want to manually touch those at all
+   they should go straight to physical fulfillment and to customstickers.com. if those things
+   aren't complete they should be added to the queue").
 
    `canonical_thread_ts` is the request's `slack_thread_ts` (the app's "request created" post in
    `C09MSM8MA9Y`) when the app stored one, otherwise the empty string. Never search Slack to
@@ -180,6 +187,30 @@ real request was processed.
    requests when their discovery cache has expired or a human resolved the hold.
    If nothing is eligible → update `last_checked_at`, write a one-line `last_run`, and exit with
    no commentary and no final response.
+2b. **Ad hoc orders (2026-10-14).** Run the ad hoc path once per heartbeat, after the branding
+   pull and before the batch preflight (see "Ad hoc orders" under Finish for the rule, the
+   switch, and what it writes):
+
+   ```bash
+   # ADHOC_AUTO_APPLY switch (run loop config): off by default. Dry run until Travisse flips it.
+   # On:  ADHOC_AUTO_APPLY=1 in /Users/travisse/Programming/.env (or the environment)
+   # Off: ADHOC_AUTO_APPLY=0, or remove the line
+   node --experimental-strip-types \
+     ~/.claude/skills/boostly-box-fulfillment/scripts/adhoc-fulfillment.ts \
+     --run-root <run_root> --out <run_root>/adhoc-decisions.json          # dry run (default)
+   node --experimental-strip-types \
+     ~/.claude/skills/boostly-box-fulfillment/scripts/adhoc-fulfillment.ts \
+     --run-root <run_root> --apply --out <run_root>/adhoc-decisions.json  # only when ADHOC_AUTO_APPLY=1
+   ```
+
+   With the switch off, `--apply` is refused and the dry run is the whole step (read-only
+   replica queries, nothing written). With it on, eligible ad hoc requests go straight to
+   physical fulfillment and to customstickers.com, the rest land on the queue. Exit 3 means a
+   request waits on a Figma clone (quantities differ from the prior section): launch the build
+   agent with `<run dir>/figma-build-brief.md` (a `closeout-location` style agent with the
+   Figma MCP tools, Figma step only, no branding decision), then rerun the command with
+   `--request <id>`. Exit 1 means a request failed; its `adhoc.json` carries the error and the
+   board note says so.
 3. **Preflight the whole batch before processing any request.** The intake file from step 2 is
    already a valid preflight input (`requests[]` with `fields`, `location_candidates`, and
    `expected_location_id`); run:
@@ -655,6 +686,63 @@ python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py \
   # run once now
   launchctl kickstart gui/$(id -u)/com.boostly.fulfillment-checklist
   ```
+
+### Ad hoc orders (auto-fulfillment path, Travisse 2026-10-14)
+
+Script: `scripts/adhoc-fulfillment.ts` (`--run-root <dir> [--apply [--go]] [--request <id>]
+[--also-root <dir>]... [--json] [--out <file>]`; tests in `adhoc-fulfillment.test.ts`). The
+quoted instruction is in run loop step 2b.
+
+**Hard rule.** The auto path is only for `order_type = 'ad_hoc'` requests whose location
+already completed branding AND whose store details are complete. Concretely, per open ad hoc
+request (lanes `digital_fulfillment`, `store_details`, `physical_fulfillment`; a request whose
+items are all printed is out of scope):
+
+- prior branding: the live V2 `branding` row (location row, else the account row) has a primary
+  `logo_attachment_id` (read-only replica); and, when the order carries anything printed
+  (signage, table or bathroom stickers, to-go rolls), a prior completed run for the same V2
+  `location_id` under the run root (or an `--also-root`): run.json `write.status` applied, a
+  branding-complete receipt (`finish/branding-complete-apply.json`, `finish/fulfillment-after.json`
+  with `digital_fulfilled_at`, or `write.branding_complete`), and a `figma` block with
+  `section_node_id` and `file_key`. That section is the print master.
+- store details complete: ship-to recipient, line1, city, state, zip on the location, plus the
+  offer text when the order carries signage or stickers (the admin lane's own rule).
+
+Both hold: **eligible**, no human touch, no Figma approval stop: (a) store-details confirm when
+`store_details_confirmed_at` is null (`fulfillment store-details <id> --confirm`, dry run then
+`--apply`; an incomplete live ship-to is never confirmed and never invented); (b) branding
+complete when `digital_fulfilled_at` is null (`fulfillment branding <id> --complete`, dry run then
+`--apply`; ad hoc orders normally carry it from creation, then this is a no-op); (c) Figma:
+the prior section is reused unchanged when the order has no table or stall stickers or its
+table and stall counts equal the prior section's; otherwise the script writes
+`figma-build-brief.md`, stamps the run and exits 3, and the build agent clones the prior section
+to the next free slot from a live scan of the target file (`figma-target.json`), trims
+(`figma-trim.mjs`) or expands the pages, runs the QR decode and the stroke gate, writes the
+`figma` block, and the run loop reruns the script; (d) the print hand-off limited to the
+ordered kinds (`print-handoff.mjs --run-dir <dir> --kinds <kinds>`: vector export, the Drive
+folder, the summary row, the vendor email sent) with the prior run's logo files copied to
+`<dir>/inherited/` and an inherited `write` block; the section URL is appended to the
+request's internal notes; (e) the single Slack result in the request thread
+(`post-review.mjs --thread-ts <request ts>` with the prior proof and sheet shots, or a text-only
+`slack.js send` reply when no shots exist on this machine; nothing when the request has no
+thread); (f) the run dir `<location slug>-adhoc-<yyyymmdd of the request>` with run.json
+(`request.adhoc` links the prior run), `adhoc.json` (status and step receipts; `done` is the
+dedupe), `review-status.mjs` done, `run-progress.mjs` stage done, the board note, and the
+checklist publish.
+
+Either fails: **queued**. The request gets the normal intake run dir (request block only), a
+`run-progress` intake stamp with `--blocked-on` naming the failed precondition, review status
+waiting, and a one-line note in `checklist/notes.json` ("Ad hoc order (...) queued for the normal
+pipeline: no prior run."). Field names only, never ship-to values: the board is public. The
+regular pipeline then takes it from the board like any other request.
+
+`--apply` is refused unless `ADHOC_AUTO_APPLY=1` is set (environment, or a line in
+`/Users/travisse/Programming/.env`) or `--go` is passed for a run Travisse authorized in the
+session. Dry run prints, per request, the decision, every check, the reasons, the quantities,
+the prior run and its section, and the exact commands; it writes nothing to production, Figma,
+Drive, Slack, or email. Cookies are minted into a 0700 temp dir and deleted; receipts under
+`<dir>/finish/` are redacted. Ad hoc orders never produce a Fable judgment, a variant sheet, a
+link write, or a branding change.
 
 ### Review checklist
 
