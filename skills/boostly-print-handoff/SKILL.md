@@ -1,6 +1,6 @@
 ---
 name: boostly-print-handoff
-description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Exports every "Print Sheet - " frame in the location's Figma section as VECTOR PDF through the Figma REST API, uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, and creates a Gmail DRAFT to the vendor. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>". Never sends email.
+description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Exports every "Print Sheet - " frame in the location's Figma section as VECTOR PDF through the Figma REST API, uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, and emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14). Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
 ---
 
 # Boostly Print Hand-off (customstickers.com)
@@ -8,7 +8,7 @@ description: Hand a closed-out Boostly location's signage and sticker print file
 customstickers.com (CK Brands Marketing, contact Gracie, ckbrandsmktg@gmail.com, cc Colin Dunn
 <colin@printiverse.com> and Maren Dunn <maren@customstickers.com>) prints all
 Boostly signage and stickers from 2026-10. Every location close-out ends with this hand-off:
-vector PDFs in Drive, a summary row, and a draft email Travisse sends himself.
+vector PDFs in Drive, a summary row, and the vendor email, sent (Travisse 2026-10-14: no draft waiting on him).
 
 ## When it runs
 
@@ -20,9 +20,9 @@ is the print master, and whatever is in it at export time is what the vendor pri
 
 ## Commands
 
-Working directory: `$BOOSTLY_RUN_ROOT`. Scripts read `FIGMA_TOKEN` from the environment or
-`~/.config/boostly-branding/.env` and the boostly Google OAuth token from
-`$GOOGLE_TOOLS_DIR/auth.js` (default `~/.config/google-tools`) inside the scripts only. Never print, echo, cat, or log either.
+Working directory: `/Users/travisse/Programming`. Scripts read `FIGMA_TOKEN` from
+`/Users/travisse/Programming/.env` and the boostly Google OAuth token from
+`~/.config/google-tools/auth.js` inside the scripts only. Never print, echo, cat, or log either.
 
 ```bash
 S=~/.claude/skills/boostly-print-handoff/scripts
@@ -31,18 +31,17 @@ node $S/print-handoff.mjs --run-dir <RUN_DIR>
 # Steps on their own:
 node $S/export-sheets.mjs --run-dir <RUN_DIR> [--section <id[,id]>] [--file-key <key>] [--force]
 node $S/drive-upload.mjs  --run-dir <RUN_DIR> [--offline] [--skip-summary]
-node $S/draft-email.mjs   --run-dir <RUN_DIR> [--redraft] [--print-only]
+node $S/draft-email.mjs   --run-dir <RUN_DIR> [--redraft] [--print-only] [--no-send]
 ```
 
 Flags: `--section` / `--file-key` override run.json `figma.section_node_id` / `figma.file_key`
 (comma-separate several sections when a location spans more than one, in grid order);
 `--force` re-exports pages that already exist; `--offline` uses run.json request facts instead
 of live v2-db reads (only when v2-db is down; say so in the report); `--redraft` makes a new
-draft even though one is recorded; `--print-only` prints the email body without drafting.
+draft even though one is recorded; `--print-only` prints the email body without drafting; `--no-send` creates the draft but leaves it unsent (the pre-2026-10-14 behaviour, only when Travisse asks for a draft).
 
 Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH), the
-`v2-db` CLI, the gmail-tools CLI at `$GMAIL_TOOLS_DIR/gmail.js` (default `~/.config/gmail-tools`) with the `boostly`
-account authorized (its `draft` command needs the `--cc` flag and its `drafts list` / `drafts delete` commands, present since 2026-10-12).
+`v2-db` CLI, `~/.config/gmail-tools/gmail.js` with the `boostly` account.
 
 ## What each step does
 
@@ -63,7 +62,9 @@ account authorized (its `draft` command needs the `--cc` flag and its `drafts li
    shares it anyone-with-link reader, ensures the Boostly logos folder (copied once from the
    one-off batch's folder `1YXmKPvzzCDCcH1uVdqe4pNMOgElpt57w`), ensures
    `<Location name> - <request id first 8>` under the master, uploads the six PDFs and
-   `logos/` with md5 skip (same bytes) or in-place update (changed bytes), reports stray files
+   `logos/` with md5 skip (same bytes) or in-place update (changed bytes); only the kinds the
+   section actually has are required (a zero-table location ships four PDFs, and the absent
+   kinds are recorded as `drive.not_included_kinds` and read "not included" in the draft), reports stray files
    in the vendor folder but never deletes, then upserts the location's row in the
    "Print order summary" Google Sheet (keyed on the Drive folder name) by exporting it as CSV,
    merging, and re-uploading with spreadsheet conversion. The boostly token has the Drive
@@ -73,7 +74,7 @@ account authorized (its `draft` command needs the `--cc` flag and its `drafts li
    (tables = max(table subscribe, table review), stalls likewise, to-go rolls = sum of to_go
    rows, POP sets = signage quantity), offer from `fulfillment_requests.offer_text`.
 3. **draft-email.mjs**: writes `print-handoff/draft-body.txt` and creates a Gmail DRAFT via
-   `node $GMAIL_TOOLS_DIR/gmail.js draft boostly ckbrandsmktg@gmail.com "<subject>" "<body>" --cc "<VENDOR_CC>"`,
+   `node ~/.config/gmail-tools/gmail.js draft boostly ckbrandsmktg@gmail.com "<subject>" "<body>" --cc "<VENDOR_CC>"`,
    where `VENDOR_CC` (exported from the script) is Colin Dunn <colin@printiverse.com> and
    Maren Dunn <maren@customstickers.com>. The `Cc:` line is also written under `To:` in draft-body.txt.
    Subject `Boostly print order: <Location name>`. Body (short, since 2026-10-12): one-line intro,
@@ -82,7 +83,7 @@ account authorized (its `draft` command needs the `--cc` flag and its `drafts li
    text, no em dashes, no corporate filler.
    An existing `draft.id` in handoff.json means no second draft unless `--redraft` (the old id
    is kept under `draft.previous`). To inspect or remove a stale draft by id:
-   `node $GMAIL_TOOLS_DIR/gmail.js drafts list boostly` and `drafts delete boostly <id>`
+   `node ~/.config/gmail-tools/gmail.js drafts list boostly` and `drafts delete boostly <id>`
    (confirm the subject first; delete only ids recorded in handoff.json).
 
 ## Vector requirement (why)
@@ -121,11 +122,12 @@ folders, not files.
 
 ## Hard rules
 
-- Drafts are never sent by the skill or any agent. Travisse reads and sends them. There is no
-  send path in these scripts; do not add one.
+- The vendor email is sent by draft-email.mjs itself (Gmail draft, then `drafts send`) since 2026-10-14.
+  Before that, drafts waited for Travisse; `--no-send` restores that only when he asks for it. A recorded
+  draft that is still unsent is sent on the next run; a sent one is never sent twice (`draft.sent`).
 - Vector PDFs only, from the REST export. No PNG round trips.
 - Never delete anything in Drive. Strays are reported.
-- No production writes: the skill reads V2 and writes only Drive, Gmail drafts, and the run dir.
+- No production writes: the skill reads V2 and writes only Drive, Gmail (one draft, sent), and the run dir.
 - Never print a token or cookie. Never commit.
 - A failed verification (page count, fonts, full-page image, sheet_ids mismatch you cannot
   explain) stops the hand-off; report it, do not upload a bad PDF.
@@ -133,4 +135,4 @@ folders, not files.
 ## Report line for closeout-finish
 
 "Print hand-off: folder <link>, <n> PDFs vector OK (<kind> p/p ...), summary row
-<appended|updated>, Gmail draft <id> to ckbrandsmktg@gmail.com, cc Colin and Maren (not sent)."
+<appended|updated>, vendor email sent (draft <id>, message <id>) to ckbrandsmktg@gmail.com, cc Colin and Maren."

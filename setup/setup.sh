@@ -170,7 +170,7 @@ done
 for k in NOTION_API_TOKEN ASKELEPHANT_API_KEY TINYPNG_API_KEY REPLICATE_API_TOKEN OPENAI_API_KEY; do v="${!k:-}"; [ -n "$v" ] && ok "env $k set (optional)" || warn "env $k empty (optional)"; done
 [ -n "${FIGMA_TOKEN:-}" ] && ok "env FIGMA_TOKEN set (print hand-off)" || warn "env FIGMA_TOKEN empty (print hand-off PDF export will not run)"
 GT="$(eval echo "${GMAIL_TOOLS_DIR:-$HOME/.config/gmail-tools}")"; GO="$(eval echo "${GOOGLE_TOOLS_DIR:-$HOME/.config/google-tools}")"
-[ -f "$GT/gmail.js" ] && grep -q -- '--cc' "$GT/gmail.js" && ok "gmail-tools CLI with draft --cc at $GT" || warn "gmail-tools CLI with --cc not at $GT (print hand-off drafts need it; see README)"
+[ -f "$GT/gmail.js" ] && grep -q -- '--cc' "$GT/gmail.js" && grep -q 'drafts send' "$GT/gmail.js" && ok "gmail-tools CLI with draft --cc and drafts send at $GT" || warn "gmail-tools CLI with --cc and drafts send not at $GT (the print hand-off email needs the 2026-10-14 build; see README)"
 [ -f "$GO/auth.js" ] && ok "google-tools auth.js at $GO" || warn "google-tools auth.js not at $GO (print hand-off Drive upload needs it; see README)"
 if [ -n "${BOOSTLY_CHROME_PROFILE:-}" ]; then
   CK="$HOME/Library/Application Support/Google/Chrome/$BOOSTLY_CHROME_PROFILE/Cookies"

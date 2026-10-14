@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One command for the whole hand-off: export (vector PDFs), logos + Drive upload + summary row, Gmail draft.
-// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--force]
+// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force]
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseArgs, requireRunDir, readHandoff } from "./lib/common.mjs";
@@ -15,7 +15,7 @@ const step = (script, extra) => {
 };
 if (!args["skip-export"]) step("export-sheets.mjs", pass(["section", "file-key", "force"]));
 step("drive-upload.mjs", pass(["offline", "skip-summary"]));
-if (!args["skip-draft"]) step("draft-email.mjs", pass(["redraft"]));
+if (!args["skip-draft"]) step("draft-email.mjs", pass(["redraft", "no-send"]));
 const h = readHandoff(runDir);
 console.log("\n== hand-off ==");
 console.log(JSON.stringify({
@@ -25,4 +25,6 @@ console.log(JSON.stringify({
   summary: h.drive?.summary?.link,
   pages: Object.fromEntries(Object.entries(h.sheets || {}).map(([k, v]) => [k, `${v.pages}/${v.expected_pages}${v.vector ? " vector" : " NOT VECTOR"}`])),
   draft_id: h.draft?.id || null,
+  email_sent: !!h.draft?.sent,
+  message_id: h.draft?.message_id || null,
 }, null, 2));

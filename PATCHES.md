@@ -236,3 +236,11 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - `setup/setup.sh`: `NOTION_API_TOKEN` moved from the required list to the optional list; the Notion wrapper shim
   check is a WARN, not MISSING. Karissa's doctor reported it MISSING although nothing in the review workflow reads
   Notion since 2026-10-13 (`closeout-finish` step 7 writes `review/status.json` through `review-status.mjs`).
+
+## 2026-10-14: print hand-off sends the vendor email
+
+- `skills/boostly-print-handoff/scripts/draft-email.mjs`: after creating the Gmail draft it runs `gmail.js drafts send`
+  and records `draft.sent`, `sent_at`, `message_id`; an unsent recorded draft is sent on rerun, never twice; `--no-send`
+  keeps the old draft-only behaviour. `print-handoff.mjs` forwards `--no-send` and reports `email_sent`.
+- gmail-tools (shared out of band, not in this repo) gained `drafts send <account> <draftId>`; the doctor checks for it.
+- `agents/closeout-finish.md` step 5b and `skills/boostly-box-fulfillment/SKILL.md` wording updated.
