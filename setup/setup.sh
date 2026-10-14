@@ -151,7 +151,8 @@ fi
 
 # ---------------------------------------------------------------- 6. wrappers
 step "wrapper commands"
-if [ -e "$NOTION_WRAPPER_DST" ]; then ok "Notion wrapper present at $NOTION_WRAPPER_DST (kept)"; elif [ "$CHECK" = 1 ]; then miss "Notion wrapper $NOTION_WRAPPER_DST (setup.sh installs setup/bin/notion-ai-ntn.sh)"; else
+# 2026-10-13: Notion is retired for the review workflow (statuses live on the review site); the wrapper is optional.
+if [ -e "$NOTION_WRAPPER_DST" ]; then ok "Notion wrapper present at $NOTION_WRAPPER_DST (kept, optional)"; elif [ "$CHECK" = 1 ]; then warn "Notion wrapper not installed (optional since 2026-10-13)"; else
   mkdir -p "$(dirname "$NOTION_WRAPPER_DST")" && cp "$REPO/setup/bin/notion-ai-ntn.sh" "$NOTION_WRAPPER_DST" && chmod 755 "$NOTION_WRAPPER_DST" && ok "Notion wrapper shim installed"
 fi
 if [ "$CHECK" = 0 ]; then mkdir -p "$CONF/bin" && cp "$REPO/setup/bin/boostly-review-server.sh" "$CONF/bin/" && chmod 755 "$CONF/bin/boostly-review-server.sh" && ok "review server command: $CONF/bin/boostly-review-server.sh"; else [ -x "$CONF/bin/boostly-review-server.sh" ] && ok "review server command installed" || miss "review server command (setup.sh installs it)"; fi
@@ -163,10 +164,10 @@ if grep -qs 'boostly-branding-workflow' "$HOME/.zshrc"; then ok "~/.zshrc export
 
 # ---------------------------------------------------------------- 8. doctor
 step "doctor"
-for k in BOOSTLY_RUN_ROOT BOOSTLY_CHROME_PROFILE BOOSTLY_ADMIN_MCP_KEY SLACK_USER_OAUTH_TOKEN NOTION_API_TOKEN SEARCHAPI_API_KEY GOOGLE_PLACES_API_KEY DATAFORSEO_LOGIN DATAFORSEO_PASSWORD BOOSTLY_V2_API_KEY BOOSTLY_REPO_DIR; do
+for k in BOOSTLY_RUN_ROOT BOOSTLY_CHROME_PROFILE BOOSTLY_ADMIN_MCP_KEY SLACK_USER_OAUTH_TOKEN SEARCHAPI_API_KEY GOOGLE_PLACES_API_KEY DATAFORSEO_LOGIN DATAFORSEO_PASSWORD BOOSTLY_V2_API_KEY BOOSTLY_REPO_DIR; do
   v="${!k:-}"; [ -n "$v" ] && ok "env $k set" || miss "env $k empty"
 done
-for k in ASKELEPHANT_API_KEY TINYPNG_API_KEY REPLICATE_API_TOKEN OPENAI_API_KEY; do v="${!k:-}"; [ -n "$v" ] && ok "env $k set (optional)" || warn "env $k empty (optional)"; done
+for k in NOTION_API_TOKEN ASKELEPHANT_API_KEY TINYPNG_API_KEY REPLICATE_API_TOKEN OPENAI_API_KEY; do v="${!k:-}"; [ -n "$v" ] && ok "env $k set (optional)" || warn "env $k empty (optional)"; done
 [ -n "${FIGMA_TOKEN:-}" ] && ok "env FIGMA_TOKEN set (print hand-off)" || warn "env FIGMA_TOKEN empty (print hand-off PDF export will not run)"
 GT="$(eval echo "${GMAIL_TOOLS_DIR:-$HOME/.config/gmail-tools}")"; GO="$(eval echo "${GOOGLE_TOOLS_DIR:-$HOME/.config/google-tools}")"
 [ -f "$GT/gmail.js" ] && grep -q -- '--cc' "$GT/gmail.js" && ok "gmail-tools CLI with draft --cc at $GT" || warn "gmail-tools CLI with --cc not at $GT (print hand-off drafts need it; see README)"

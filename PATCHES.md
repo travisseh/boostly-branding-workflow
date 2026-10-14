@@ -230,3 +230,9 @@ Overlay diff against the Figma 2x REST renders of Slice of the 80's: sticker 1.5
 ## 2026-10-13: status board on the review site (resync)
 
 Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion or an Apple Note. Resynced from the live copies: `agents/closeout-finish.md` (step 7 writes `review/status.json` with `review-status.mjs`, no Notion), `agents/closeout-location.md` (interim `waiting` status, board publish, page publish after the Figma build), `agents/fulfill-location.md` (board publish instead of the Apple Note), `skills/boostly-box-fulfillment/SKILL.md` ("Status board on the review site"; "Review checklist" marked retired), `skills/boostly-box-fulfillment/scripts/review-checklist.py` (`--publish-status` uploads the public-safe board to Blob; `--note` opt-in), new `skills/boostly-brand-design/scripts/review-status.mjs`, `setup/launchd/launchd-refresh.sh` (publishes the board, keeps the portable HOME line), `docs/BOOTSTRAP.md` section 10, `setup/env.example` (`BOOSTLY_REVIEWS_REPO_DIR`; Notion optional). No code patch beyond the live copies.
+
+## 2026-10-14: doctor no longer requires Notion
+
+- `setup/setup.sh`: `NOTION_API_TOKEN` moved from the required list to the optional list; the Notion wrapper shim
+  check is a WARN, not MISSING. Karissa's doctor reported it MISSING although nothing in the review workflow reads
+  Notion since 2026-10-13 (`closeout-finish` step 7 writes `review/status.json` through `review-status.mjs`).
