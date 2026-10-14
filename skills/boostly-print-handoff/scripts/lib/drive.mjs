@@ -110,40 +110,70 @@ export async function shareAnyoneReader(fileId) {
   return { action: "created" };
 }
 
-// Google Sheet maintained from CSV text: export the current sheet as CSV, merge, re-upload with conversion.
-export async function exportSheetCsv(fileId) {
-  const res = await api("GET", `${API}/files/${fileId}/export?mimeType=text/csv`, { raw: true });
-  return res.text();
-}
-
-export async function uploadCsvAsSheet(parentId, name, csvText, existingId) {
-  const meta = { name, mimeType: SHEET_MIME };
-  if (!existingId) meta.parents = [parentId];
-  const boundary = "boostly_" + Date.now();
-  const body = Buffer.concat([
-    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: text/csv\r\n\r\n`),
-    Buffer.from(csvText, "utf8"), Buffer.from(`\r\n--${boundary}--`),
-  ]);
-  const url = existingId ? `${UPLOAD}/files/${existingId}?uploadType=multipart&fields=id,name,webViewLink` : `${UPLOAD}/files?uploadType=multipart&fields=id,name,webViewLink`;
-  return api(existingId ? "PATCH" : "POST", url, { headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body });
-}
-
-// Minimal RFC 4180 CSV.
-export function parseCsv(text) {
-  const rows = []; let row = []; let cell = ""; let q = false;
-  const s = text.replace(/^﻿/, "");
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (q) { if (c === '"') { if (s[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
-    else if (c === '"') q = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
-    else if (c === "\n" || c === "\r") { if (c === "\r" && s[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
-    else cell += c;
+// Drive's existing OAuth scope also authorizes the Sheets API. Write typed values
+// directly: CSV conversion infers numeric ZIPs and used to turn "07940" into 7940.
+// `request` is injectable so regression tests never authenticate or call Google.
+export async function upsertSummarySheet(parentId, name, header, row, existingId, request = api) {
+  if (header.length !== 13 || header[12] !== "Zip" || row.length !== header.length) {
+    throw new Error("Unexpected print order summary columns; refusing to overwrite the sheet");
   }
-  if (cell.length || row.length) { row.push(cell); rows.push(row); }
-  return rows.filter((r) => r.some((x) => x !== ""));
-}
-export function toCsv(rows) {
-  const enc = (v) => { const s = v == null ? "" : String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  return rows.map((r) => r.map(enc).join(",")).join("\r\n") + "\r\n";
+  if (!row[1] || typeof row[12] !== "string") {
+    throw new Error("A Drive folder key and a text postal code are required; do not guess missing leading zeroes");
+  }
+
+  let id = existingId;
+  if (!id) {
+    const created = await request("POST", `${API}/files?fields=id`, {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, mimeType: SHEET_MIME, parents: [parentId] }),
+    });
+    id = created.id;
+  }
+  if (!id) throw new Error("No spreadsheet id returned");
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}`;
+  const meta = await request("GET", `${url}?fields=sheets.properties`);
+  const sheet = meta.sheets?.find((s) => s.properties.title === name)?.properties
+    || meta.sheets?.find((s) => s.properties.index === 0)?.properties;
+  if (!sheet || sheet.sheetType !== "GRID") throw new Error("Print order summary has no grid sheet");
+  const tab = `'${sheet.title.replace(/'/g, "''")}'`;
+  const current = await request("GET", `${url}/values/${encodeURIComponent(`${tab}!A:M`)}?valueRenderOption=UNFORMATTED_VALUE`);
+  const rows = current.values || [];
+  if (rows.length && header.some((value, i) => rows[0]?.[i] !== value)) {
+    throw new Error("Print order summary header changed; refusing to overwrite existing cells");
+  }
+  const matches = rows.flatMap((r, i) => i > 0 && r[1] === row[1] ? [i] : []);
+  if (matches.length > 1) throw new Error(`Duplicate print order summary rows for ${row[1]}`);
+  const index = matches[0] ?? Math.max(rows.length, 1);
+  const rowNumber = index + 1;
+  if (sheet.gridProperties.columnCount < header.length) {
+    throw new Error("Print order summary grid has too few columns");
+  }
+  if (rowNumber > sheet.gridProperties.rowCount) {
+    await request("POST", `${url}:batchUpdate`, {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requests: [{ appendDimension: {
+        sheetId: sheet.sheetId, dimension: "ROWS", length: rowNumber - sheet.gridProperties.rowCount,
+      } }] }),
+    });
+  }
+
+  const values = rows.length ? [row] : [header, row];
+  const firstRow = rows.length ? rowNumber : 1;
+  const range = `${tab}!A${firstRow}:M${rowNumber}`;
+  const saved = await request("PUT", `${url}/values/${encodeURIComponent(range)}?valueInputOption=RAW&includeValuesInResponse=true&responseValueRenderOption=UNFORMATTED_VALUE`, {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ range, majorDimension: "ROWS", values }),
+  });
+  // Verify stored values and their types, not display formatting. An unknown or
+  // coerced write stops the handoff before its vendor-email step can run.
+  const actual = saved.updatedData?.values || [];
+  if (actual.length !== values.length || values.some((r, i) => r.some((value, j) => (actual[i]?.[j] ?? "") !== value))) {
+    throw new Error("Print order summary readback differs from the submitted values or types");
+  }
+  return {
+    id, webViewLink: `https://docs.google.com/spreadsheets/d/${id}/edit#gid=${sheet.sheetId}`,
+    row_action: matches.length ? "updated" : "appended",
+    rows: Math.max(rows.length - 1, 0) + (matches.length ? 0 : 1),
+  };
 }

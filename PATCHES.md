@@ -244,3 +244,17 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   keeps the old draft-only behaviour. `print-handoff.mjs` forwards `--no-send` and reports `email_sent`.
 - gmail-tools (shared out of band, not in this repo) gained `drafts send <account> <draftId>`; the doctor checks for it.
 - `agents/closeout-finish.md` step 5b and `skills/boostly-box-fulfillment/SKILL.md` wording updated.
+
+## 2026-10-14: preserve postal codes in the print summary
+
+- `skills/boostly-print-handoff/scripts/drive-upload.mjs` and `scripts/lib/drive.mjs`: replace whole-sheet
+  CSV conversion with a single-row Sheets API update using `valueInputOption=RAW`. Postal codes stay literal
+  strings (including leading zeroes); quantities stay numeric. New sheets use the same typed write.
+- Verify returned values and types before continuing the handoff; refuse ambiguous headers, duplicate
+  row keys, or numeric postal input. Existing rows, extra columns, other tabs and formatting are preserved.
+- Keep the package's `GOOGLE_TOOLS_DIR` configuration. No extra OAuth scope is needed beyond Drive.
+- `scripts/lib/drive.test.mjs`: 19 offline regression tests for create, update, append/retry, leading-zero
+  ZIPs, ZIP+4, alphanumeric postal codes, numeric counts, preserved cells and failed readback.
+  Run `node --test skills/boostly-print-handoff/scripts/lib/drive.test.mjs` from the repo root.
+- This prevents future export corruption. Historical postal-code corrections still require checking
+  the authoritative source; never guess or pad an already-numeric value.

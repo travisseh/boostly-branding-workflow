@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs, requireRunDir, readRun, handoffDir, readHandoff, writeHandoff, requestFacts, folderNameFor, shipLines, KINDS, MASTER_REF, REFERENCES, sha256File, log } from "./lib/common.mjs";
-import { ensureFolder, findChild, getFile, listChildren, uploadDir, copyFile, shareAnyoneReader, folderLink, exportSheetCsv, uploadCsvAsSheet, parseCsv, toCsv, SHEET_MIME, FOLDER_MIME } from "./lib/drive.mjs";
+import { ensureFolder, findChild, getFile, listChildren, uploadDir, copyFile, shareAnyoneReader, folderLink, upsertSummarySheet, SHEET_MIME, FOLDER_MIME } from "./lib/drive.mjs";
 
 export const MASTER_NAME = "Boostly print orders (customstickers.com)";
 export const LOGOS_NAME = "Boostly logos (roll binding stickers)";
@@ -84,19 +84,15 @@ if (logos.length) {
 const strays = (await listChildren(folder.id)).filter((f) => !(f.name in files) && f.name !== "logos").map((f) => f.name);
 if (strays.length) log("WARNING stray files in location folder:", strays.join(", "));
 
-// 5. Summary sheet row (CSV round-trip through Drive export + conversion upload; no Sheets API scope needed).
+// 5. Update only this summary row. RAW preserves postal strings and numeric counts.
 let summary = { status: "skipped" };
 if (!args["skip-summary"]) {
   const existing = await findChild(master.master_folder_id, SUMMARY_NAME, SHEET_MIME);
-  let rows = existing ? parseCsv(await exportSheetCsv(existing.id)) : [SUMMARY_HEADER];
-  if (!rows.length || rows[0][0] !== "Location") rows.unshift(SUMMARY_HEADER);
   const s = facts.shipping || {};
   const q = facts.quantities || {};
   const row = [facts.location_name, folderName, facts.offer_text || "", q.tables ?? "", q.bathroom_stalls ?? "", q.to_go_rolls ?? "", q.signage ?? "", s.recipient_name || "", s.address_line1 || "", s.address_line2 || "", s.city || "", s.state || "", s.zip || ""];
-  const i = rows.findIndex((r, idx) => idx > 0 && r[1] === folderName);
-  if (i > 0) rows[i] = row; else rows.push(row);
-  const up = await uploadCsvAsSheet(master.master_folder_id, SUMMARY_NAME, toCsv(rows), existing?.id);
-  summary = { id: up.id, link: up.webViewLink, row_action: i > 0 ? "updated" : "appended", rows: rows.length - 1 };
+  const up = await upsertSummarySheet(master.master_folder_id, SUMMARY_NAME, SUMMARY_HEADER, row, existing?.id);
+  summary = { id: up.id, link: up.webViewLink, row_action: up.row_action, rows: up.rows };
   master.summary_sheet_id = up.id; master.summary_link = up.webViewLink;
   fs.writeFileSync(MASTER_REF, JSON.stringify(master, null, 2) + "\n");
   log("summary sheet", summary.row_action, up.webViewLink);

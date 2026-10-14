@@ -66,10 +66,14 @@ Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH),
    section actually has are required (a zero-table location ships four PDFs, and the absent
    kinds are recorded as `drive.not_included_kinds` and read "not included" in the draft), reports stray files
    in the vendor folder but never deletes, then upserts the location's row in the
-   "Print order summary" Google Sheet (keyed on the Drive folder name) by exporting it as CSV,
-   merging, and re-uploading with spreadsheet conversion. The boostly token has the Drive
-   scope only, no Sheets API scope, so the CSV round-trip is the mechanism; it rewrites the
-   first sheet, so nobody should add extra tabs or formulas to that file.
+   "Print order summary" Google Sheet (keyed on the Drive folder name) through the Sheets
+   API with `valueInputOption=RAW`. The existing Boostly Drive OAuth scope authorizes this
+   API too; no separate Sheets scope or CSV conversion is needed. Only the matching row
+   in columns A:M is written (or appended); other rows, extra columns, tabs, and formatting
+   remain untouched. New sheets receive the header and first row through the same typed
+   writer. Quantities stay numeric; ZIP/postal codes stay literal strings, including leading
+   zeroes, ZIP+4, and international codes. The writer validates headers and unique row keys,
+   then verifies unformatted stored values and types in the response before continuing.
    Facts are LIVE: ship-to from `locations.shipping_*`, quantities from `fulfillment_items`
    (tables = max(table subscribe, table review), stalls likewise, to-go rolls = sum of to_go
    rows, POP sets = signage quantity), offer from `fulfillment_requests.offer_text`.
@@ -119,6 +123,18 @@ are unchanged (so Drive md5 skip works), update the summary row in place, and ne
 second draft. A changed Figma section after approval: rerun with `--force`, the PDFs are
 updated in place on Drive (same file ids), and the draft stays valid because it links
 folders, not files.
+
+## Postal-code regression checks
+
+Run `node --test ~/.claude/skills/boostly-print-handoff/scripts/lib/drive.test.mjs`.
+These tests mock every API call and forbid network access. They cover initial creation,
+updates, append/retry, `07940`, `00501`, `84043`, ZIP+4, international postal codes, numeric
+quantities, and preservation of unrelated cells.
+
+Never restore CSV-to-Sheet conversion or use display-only ZIP formatting. Store the postal
+code as text with RAW writes. Numeric postal input or a mismatched readback must stop the
+handoff, not silently guess or pad missing digits. This prevents future loss; existing
+incorrect postal values require comparison with the source address and a separate correction.
 
 ## Hard rules
 
