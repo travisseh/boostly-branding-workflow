@@ -323,3 +323,11 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - `agents/discovery-transport.md`, `agents/fulfill-location.md`: step 1 profile check with both paths; the
   `$BOOSTLY_RUN_ROOT`, reviews-repo, and `$BOOSTLY_HEARTBEAT_ROOT` package lines kept.
 - `docs/BOOTSTRAP.md` section 0: the fallback requirement (single profile named Boostly.com, env directory set).
+
+## 2026-10-14: Figma target rotated to In-Store-Fulfillment-9
+
+- `skills/boostly-signage-sheets/references/figma-target.json` (mirrored): new signage sections go to
+  In-Store-Fulfillment-9 (key `5LsXaingsVCdMuJhWzR0g3`, page `0:1`, template section `1:2` at row 0 col 0, grid
+  unchanged). File 8 (`N5uzBBdCz7ySxxaNTxfKGm`) moved to `previous_files`, read-only from 2026-10-14; run.json
+  figma blocks built in File 8 still point there. The File 9 template was rebuilt from the File 8 REST dump and
+  proved identical by structural hash (12355 nodes counting the section) with the stroke gate passing.

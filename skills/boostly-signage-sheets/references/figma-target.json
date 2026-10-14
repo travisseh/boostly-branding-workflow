@@ -1,13 +1,16 @@
 {
   "$comment": "Current In-Store Fulfillment Figma target for NEW signage sections. Scripts (plan.mjs, lib/figma-target.mjs) and the closeout agent read this; nothing else hardcodes a file key. Existing runs keep their own run.json figma block and are never repointed. When a file fills (grid rows exhausted, Figma bogs down), create the next file, rebuild the template section in it, move this entry into previous_files, and update the fields below.",
-  "file_key": "N5uzBBdCz7ySxxaNTxfKGm",
-  "file_name": "In-Store-Fulfillment-8",
-  "file_url": "https://www.figma.com/design/N5uzBBdCz7ySxxaNTxfKGm/In-Store-Fulfillment-8",
+  "file_key": "5LsXaingsVCdMuJhWzR0g3",
+  "file_name": "In-Store-Fulfillment-9",
+  "file_url": "https://www.figma.com/design/5LsXaingsVCdMuJhWzR0g3/In-Store-Fulfillment-9",
   "page_id": "0:1",
   "page_name": "Page 1",
-  "template_section_id": "2:2670",
+  "template_section_id": "1:2",
   "template_section_name": "Midnight Munchie Company (Poughkeepsie) — generated production sheets 2026-09-02",
-  "template_slot": { "row": 0, "col": 0 },
+  "template_slot": {
+    "row": 0,
+    "col": 0
+  },
   "grid": {
     "origin_x": -34214,
     "origin_y": -17774,
@@ -16,10 +19,18 @@
     "cols_per_row": 10,
     "section_width": 14515,
     "section_height": 24470,
-    "$comment": "x = origin_x + col*col_step, y = origin_y + row*row_step, row-major. Row 0 col 0 is the template. Measured from In-Store-Fulfillment-7 rows 2-5 (x -34214..111973, y 37742/53985/70228/86471); File 7 rows 0-1 were laid out by hand at y=-17774 and 9984 before the 16243 rhythm settled. The vertical step is smaller than the section height on purpose: sheets occupy only the top ~12.5k px of each section, so consecutive rows overlap the empty lower part. ALWAYS confirm the slot is free with a live scan before placing (other agents close out concurrently)."
+    "$comment": "x = origin_x + col*col_step, y = origin_y + row*row_step, row-major. Row 0 col 0 is the template. Unchanged for File 9 (2026-10-14; File 8 rows 0-6 followed it). Measured from In-Store-Fulfillment-7 rows 2-5 (x -34214..111973, y 37742/53985/70228/86471); File 7 rows 0-1 were laid out by hand at y=-17774 and 9984 before the 16243 rhythm settled. The vertical step is smaller than the section height on purpose: sheets occupy only the top ~12.5k px of each section, so consecutive rows overlap the empty lower part. ALWAYS confirm the slot is free with a live scan before placing (other agents close out concurrently)."
   },
-  "created_at": "2026-09-22",
+  "created_at": "2026-10-14",
   "previous_files": [
+    {
+      "key": "N5uzBBdCz7ySxxaNTxfKGm",
+      "name": "In-Store-Fulfillment-8",
+      "url": "https://www.figma.com/design/N5uzBBdCz7ySxxaNTxfKGm/In-Store-Fulfillment-8",
+      "template_section_id": "2:2670",
+      "retired_at": "2026-10-14",
+      "note": "Full: rows 0-6 used; read-only from 2026-10-14; existing run.json figma blocks still point here."
+    },
     {
       "key": "mvSzxcTjVVba0adI4ge06a",
       "name": "In-Store-Fulfillment-7",
