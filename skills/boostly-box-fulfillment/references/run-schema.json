@@ -396,6 +396,22 @@
       }
     },
 
+    "taste": {
+      "type": "object",
+      "description": "Owner: taste-pass.mjs (2026-10-15). The variant taste pass: which model ran it, the brief and proposals hashes, the proposals the validator accepted or refused, the cells it added (letter per proposal), the proposals it could not build, and the gate verdict per added cell. The cells themselves live in the variants block.",
+      "additionalProperties": true,
+      "properties": {
+        "model": { "type": ["string", "null"] },
+        "generated_at": { "type": ["string", "null"] },
+        "brief_sha256": { "type": ["string", "null"] },
+        "proposals_sha256": { "type": ["string", "null"] },
+        "added": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "skipped": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "needs_build": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "notes_line": { "type": ["string", "null"] }
+      }
+    },
+
     "legacy": {
       "type": "object",
       "description": "Written only by `run-file migrate`: everything from manifest.json, STATE, ledger.json, and hand-written plan files that has no typed home, kept verbatim so nothing is lost.",

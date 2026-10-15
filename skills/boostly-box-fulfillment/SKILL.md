@@ -32,7 +32,7 @@ depend on Slack for intake.
 | Optional Slack thread reply | `~/.config/slack-tools/slack.js` | channel `C09MSM8MA9Y` (`boosted-box-requests`) in workspace `boostly`, only when the request has `slack_thread_ts` |
 | Discover + verify links | `/boostly-link-discovery` + shared verifier | static fetch first; the live Chrome session (Claude in Chrome, Boostly.com profile) only when required |
 | Write links / branding | `/boostly-instore-link-settings` | dry-run → apply → readback, always |
-| Generate branding | `/boostly-brand-design` | Fable in-session subagent, medium effort |
+| Generate branding | `/boostly-brand-design` | Fable in-session subagent, medium effort (the decision and the variant taste pass); the orchestrating agents run on Opus 5.5 |
 
 ## Canonical deterministic pipeline
 
@@ -273,7 +273,9 @@ real request was processed.
    A notification failure is a run blocker. Do not silently omit the requested text.
 7. **Write the safe links** (write gate below) via `boostly-instore-link-settings`.
 8. **Branding** (see "Branding"): build the evidence packet, launch the Fable in-session
-   subagent, validate, build the variant sheet and the review canvas, then STOP for Travisse's
+   subagent, validate, build the variant sheet, run the Fable taste pass (brand SKILL.md rule
+   2b-taste: `taste-pass.mjs brief`, one nested Fable Agent, `taste-pass.mjs apply`; its
+   `notes_line` goes in the checklist note), build the review canvas, then STOP for Travisse's
    letter (the `fulfill-location` agent ends here; `closeout-location` starts at the letter).
    As soon as the review canvas exists, refresh and publish the status board (see "Status board
    on the review site") and publish the page, so the location shows up with "pick a letter";
@@ -519,6 +521,11 @@ does around them.
   `validate-fable-decision.ts --run <dir>`. Never `claude -p`, never an API call, never GPT, and
   never "produce the decision yourself" in the orchestrator's own context: the packet stays out
   of the orchestrator. A missing or invalid decision is a run error, not a reviewer hold.
+  Models (2026-10-15): the `fulfill-location` and `closeout-location` agents run on Opus 5.5;
+  Fable is launched only for the judgment and for the variant taste pass (the same Agent-tool
+  contract, `references/taste-pass-prompt-template.md`). When a Fable launch fails on a rate
+  limit, relaunch the same prompt once with `model: "opus"` and record it
+  (`--judgment-model opus`, `taste-pass.mjs apply --model opus`); the run says who judged.
 - Unattended auto-write is retired: since 2026-09-17 every branding write waits for Travisse's
   letter (step 11). The write stage (`execute-fulfillment-plan.ts`, or `branding set` with
   `--expect-from-readback`) still runs `gates.ts check` on the exact upload and refuses HOLD.

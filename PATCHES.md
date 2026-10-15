@@ -452,3 +452,24 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - `skills/boostly-print-handoff/scripts/print-handoff.test.mjs` (new, mirrored): 4 tests incl. an end-to-end run under
   an empty HOME proving the dry flags make zero Drive calls. `node --test skills/boostly-print-handoff/scripts/print-handoff.test.mjs`.
 - `skills/boostly-print-handoff/SKILL.md` (mirrored): the flag text above.
+
+## 2026-10-15: Opus 5.5 pipeline, Fable only for judgment, plus the variant taste pass
+- `agents/fulfill-location.md`, `agents/closeout-location.md` (mirrored, package lines kept): `model: opus`. Fable is
+  launched only as the nested judgment subagent and for the new taste pass. Step 3 gains the model fallback (a Fable
+  rate limit: relaunch the same prompt once on Opus, `validate-fable-decision.ts --judgment-model opus`); new step 4b
+  runs the taste pass between the variant sheet and the review canvas and puts its `notes_line` in the checklist note.
+- `skills/boostly-brand-design/scripts/taste-pass.mjs` (new, mirrored): `brief` (every real color with its source,
+  every existing asset, the sheet, the evidence images, the filled prompt), `validate` (real colors or a darker step
+  only, 1.3:1 primary floor, existing pixels or crop/stack/cut_words derivations, dedupe against the live sheet,
+  web/print text split, LIGHT GROUND escalation), `apply` (derivations into `taste/assets/`, `gates.ts check` with
+  the registry's override rules, `variant-sheet.mjs add-cell`, the `taste` run.json block, the notes line).
+  `scripts/taste-pass.test.mjs` (new, mirrored; 11 tests, needs the harness node_modules for sharp):
+  `node --test --experimental-strip-types skills/boostly-brand-design/scripts/taste-pass.test.mjs`.
+- `skills/boostly-brand-design/references/taste-pass-prompt-template.md` (new, mirrored): the Fable prompt with the
+  worked examples (Scoops K-S, Pig & Parrot K/M, Surfin' Betty's E-F) and the output JSON shape.
+- `skills/boostly-brand-design/scripts/validate-fable-decision.ts` (mirrored): `--judgment-model fable|opus` recorded
+  as `decision.judgment_model` beside the six keys.
+- `skills/boostly-box-fulfillment/scripts/run-file.ts` and `references/run-schema.json` (mirrored): the `taste` block.
+- Both SKILL.md files (mirrored): rule 2b-taste, the model note, step 8. Scratch proof on copies of three runs: the
+  pass proposed Pig & Parrot's black-disc knockout and words-only (his K and M), Scoops' two-tone pinks (his K and L)
+  and the stacked lockup (held on ink-retention like his M), and a gold-card swap for Shawarma Inn.

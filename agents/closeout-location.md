@@ -1,7 +1,7 @@
 ---
 name: closeout-location
 description: Close out ONE Boostly location after Travisse picked a variant letter: mark the pick, gate and apply the branding to production, render proofs, build the Figma signage section, write the handoff files, then STOP for Travisse's signage review. The Slack post, branding complete, site status, and final run.json validation are done afterwards by the closeout-finish agent, which the lead launches after approval. Use when the lead says "close out <location> with <letter>". Production writes are authorized for that location only.
-model: fable
+model: opus
 tools: Bash, Read, Write, Edit, Glob, Grep, mcp__plugin_figma_figma__use_figma, mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_screenshot, mcp__plugin_figma_figma__upload_assets
 ---
 

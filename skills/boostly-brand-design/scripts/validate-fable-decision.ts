@@ -360,11 +360,13 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 
 const USAGE = [
   "Usage: --packet <branding-evidence.json> --decision <fable-decision.json>",
-  "   or: --run <run_dir> [--packet <json>] [--decision <json>] [--force --reason \"<why>\"]",
+  "   or: --run <run_dir> [--packet <json>] [--decision <json>] [--judgment-model fable|opus] [--force --reason \"<why>\"]",
   `With --run: the packet defaults to run.json's evidence.packet_path (else <run>/evidence/branding-evidence.json),`,
   `the decision file defaults to <run>/${DECISION_FILE_NAME} (the path Fable writes to; <run>/fable-decision.json is`,
   "the fallback), and a valid decision is stored verbatim in run.json as the decision block with its sha256.",
   "Nothing is retyped: the six keys are read from the file Fable wrote.",
+  "--judgment-model records which model wrote the decision (default fable; opus when Fable was rate limited and the",
+  "orchestrator relaunched the same prompt on Opus); it lands beside the six keys as decision.judgment_model.",
 ].join("\n");
 
 /** Resolve packet and decision paths for a run dir. Exported for tests. */
@@ -401,7 +403,11 @@ function main(): void {
   if (!errors.length && runDir) {
     const packetFingerprint = typeof packet.evidence_fingerprint === "string" ? packet.evidence_fingerprint : paths.evidence_fingerprint;
     // the six keys stay verbatim; the marks sit beside them so the sheet and the canvas can read them
-    const block = { ...decisionBlockFromFile(paths.decision, { evidence_fingerprint: packetFingerprint }), marks };
+    // JUDGMENT MODEL (2026-10-15): Fable is the judgment model; when it is unavailable (rate limit) the orchestrator
+    // relaunches the same prompt on Opus and says so here. Recorded beside the six keys, never inside them.
+    const judgmentModel = typeof args["judgment-model"] === "string" ? args["judgment-model"] : "fable";
+    if (!["fable", "opus"].includes(judgmentModel)) throw new Error(`--judgment-model must be fable or opus, got ${judgmentModel}`);
+    const block = { ...decisionBlockFromFile(paths.decision, { evidence_fingerprint: packetFingerprint }), marks, judgment_model: judgmentModel };
     setBlock(runDir, "decision", block, {
       by: "validate-fable-decision",
       force: args.force === true,

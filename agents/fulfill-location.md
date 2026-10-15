@@ -1,7 +1,7 @@
 ---
 name: fulfill-location
 description: Run the Boostly in-store fulfillment pipeline for ONE location up to, but not including, Travisse's branding pick: production state read-only, evidence packet, Fable judgment, variant sheet, review canvas, static link discovery, run.json blocks. Use when the lead says "fulfill <location>" with a run dir and the request facts. Stops at the review stage; never writes production.
-model: fable
+model: opus
 tools: Bash, Read, Write, Edit, Glob, Grep, Agent, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__get_page_text, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__list_connected_browsers
 ---
 
@@ -55,8 +55,12 @@ Do, in order:
 3. Fable judgment: launch ONE nested Agent (`model: "fable"`, medium effort) with the body of
    `~/.claude/skills/boostly-brand-design/references/subagent-prompt-template.md` and the
    placeholders filled; it writes `RUN_DIR/decision.json` and replies `decision written`. Do not
-   write the decision yourself and do not paste the packet into your own context. Then run
-   `validate-fable-decision.ts --run RUN_DIR`; a rejection (`primary_too_light`,
+   write the decision yourself and do not paste the packet into your own context. MODEL
+   FALLBACK (2026-10-15): Fable is the judgment model; if the launch fails on a Fable rate limit
+   (a 429 / session-limit error), relaunch the same prompt once with `model: "opus"` and pass
+   `--judgment-model opus` to the validator so run.json records who judged (`decision.judgment_model`);
+   never silently judge in your own context. Then run
+   `validate-fable-decision.ts --run RUN_DIR [--judgment-model opus]`; a rejection (`primary_too_light`,
    `source_ladder_incomplete`, a missing flag) means fix the evidence or relaunch Fable, never
    edit the decision file.
    Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "Fable judgment" --next "variant sheet" --by fulfill-location`.
@@ -68,7 +72,23 @@ Do, in order:
    The sticker logo is gated the same way: an opaque-ground sticker asset renders as "sticker: needs
    panel or strip" on the sheet; fix it with `sticker-panel.mjs --mode circle|strip`, gate the output
    with `gates.ts check --surface sticker --color #FFFFFF`, and `add-row --sticker-logo <png>`.
-   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "variant sheet" --next "review canvas and link discovery" --by fulfill-location`.
+   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "variant sheet" --next "taste pass" --by fulfill-location`.
+4b. Taste pass (Travisse 2026-10-15, brand SKILL.md rule 2b-taste): Fable looks at the sheet the way
+   Travisse does and proposes the good cells it lacks (alternate real brand grounds, two-tone swaps,
+   words-only / badge / stacked lockups from existing pixels, a dropped descriptor).
+   `node ~/.claude/skills/boostly-brand-design/scripts/taste-pass.mjs brief --run RUN_DIR` (writes
+   `taste/brief.json` and `taste/taste-prompt.md`), then launch ONE nested Agent (`model: "fable"`,
+   medium effort; on a Fable rate limit relaunch once with `model: "opus"`) whose prompt is the body
+   of `taste/taste-prompt.md`; it writes `taste/proposals.json` and replies `proposals written`.
+   Then `taste-pass.mjs apply --run RUN_DIR --model fable|opus` (whichever ran): it validates the
+   proposals (real colors only, no lighter tints, no near-white card, existing pixels only), builds
+   any crop/stack/cut-words derivation, gates each card, adds the accepted cells with `add-cell`
+   (hard gate holds stay off the sheet; light grounds are labeled LIGHT GROUND and need escalation
+   before a pick), records the `taste` block, and prints `notes_line`. Zero proposals is a valid
+   result. A proposal under `needs_build` (a derivation the script could not do) is yours to build by
+   hand from existing pixels and `add-cell`, or to leave with its reason in the report. Put the
+   `notes_line` ("Taste pass added X, Y, Z ...") in your `checklist/notes.json` line.
+   Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "taste pass" --next "review canvas and link discovery" --by fulfill-location`.
    Then the review canvas:
    `node ~/.claude/skills/boostly-brand-design/scripts/review-canvas.mjs --run RUN_DIR --open`
    (`--skip-google` when headless search is blocked; the live Chrome tab is the workaround, do not
@@ -161,7 +181,7 @@ No white or near-white primary. No solid-silhouette knockout that fills authored
 negative space. The logo must be crisp: rebuild at higher quality when the source is pixelated.
 
 Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (or
-HOLD and why), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
+HOLD and why), the taste pass line (which letters it added, which model ran it), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
 "not published" with the error) and the local review page path, variant sheet path, logo source rung and native px, links ready
 to write versus links that need a decision (and the ordering_url match or mismatch), quantities
 and ship-to gaps, blockers.

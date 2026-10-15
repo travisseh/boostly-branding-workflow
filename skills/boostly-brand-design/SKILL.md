@@ -37,6 +37,12 @@ harness encode every failure a human flagged.
   provenance/dimensions/measured colors, package desktop/mobile website screenshots plus
   computed semantic surface styles, extract authored website tokens, build GBP evidence, run
   mechanical QA, and emit the strict evidence/reuse fingerprint plus Fable contract.
+- `scripts/taste-pass.mjs`: the variant taste pass (rule 2b-taste): `brief` collects every real color
+  with its source and every existing asset into `<run>/taste/brief.json` plus the filled prompt
+  (`references/taste-pass-prompt-template.md`); `validate` checks Fable's `taste/proposals.json`
+  (real colors or a darker step, no near-white card, existing pixels or a crop/stack/cut-words
+  derivation, no duplicate cell, web/print text split, light-ground escalation); `apply` builds,
+  gates, `add-cell`s the accepted proposals, records the `taste` block and prints the notes line.
 - `scripts/validate-fable-decision.ts`: require Fable's exact six-key judgment and recognized
   production palette roles; reject unknown keys, unknown assets, incomplete web colors, a white or
   near-white primary (`primary_too_light`), a lighter synthetic tint of a brand ink as the band
@@ -226,7 +232,11 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
 1. **Fable makes only the bounded visual judgment.** Build `branding-evidence.json` first,
    then give one fresh Fable context only that packet plus the brief's judgment rules. Pass
    `model: "fable"` in the Agent call so the subagent doesn't inherit a different model (the
-   brief is tuned and evaluated on Fable; see Eval mode). Use medium effort where the launcher
+   brief is tuned and evaluated on Fable; see Eval mode); the orchestrating agents themselves run
+   on Opus 5.5 since 2026-10-15. If the Fable launch fails on a rate limit, relaunch the same
+   prompt once with `model: "opus"` and pass `--judgment-model opus` to the validator so
+   `decision.judgment_model` records it (the Surfin' Betty's and Shawarma Inn runs of 2026-10-15
+   were judged by Opus that way). Use medium effort where the launcher
    exposes an effort control. Its output is exactly `logo_choice`, `palette`, `composition`,
    `confidence`, `flags`, and `rationale`. The deterministic runner owns asset transfer,
    preservation or background-removal commands, resizing, color extraction, contrast, edge QA,
@@ -379,6 +389,48 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    `scripts/sticker-panel.mjs --logo <png> --out <png> --mode circle|strip`, gate the output with
    `gates.ts check --asset <out> --color #FFFFFF --surface sticker`, then `add-row --sticker-logo`.
    LIGHT PRIMARY: when the card primary fails 3:1 against white (cream, yellow, pastel), the script recolors the knockout and words-only rows to the card text ink (black when the text ink is light too), labels the rows with that ink, records `light_primary` and `knockout_ink` in the sheet json, and renders the POP tile on the sticker band instead of the primary. A white knockout on a light card is invisible and the sheet is not reviewable (206 Burger 2026-09-09). The knockout applied from such a row is the tinted file, not the white one.
+2b-taste. **Taste pass: Fable adds the good cells the sheet lacks (Travisse 2026-10-15).** The
+   pipeline runs on Opus 5.5 by default (the `fulfill-location` and `closeout-location` agents);
+   Fable does the two judgment steps, the decision (rule 1) and this pass, because it has the
+   better taste. After `build` (and any lead-requested rows) and BEFORE the review canvas:
+   `node scripts/taste-pass.mjs brief --run <run_dir>` writes `taste/brief.json` (every real color
+   with its source: the inks of every candidate at 1%+, the quantized palette of each candidate,
+   theme-authored tokens, computed site surfaces, first-party CSS variables, the in-store dominant,
+   Instagram recurring colors, the decision palette and the sheet's own columns; every existing
+   asset with its sha; the sheet as built; the evidence image paths) and `taste/taste-prompt.md`
+   (`references/taste-pass-prompt-template.md` filled). Launch ONE nested Agent with that prompt
+   body (`model: "fable"`, medium effort; on a Fable rate limit relaunch once with `model: "opus"`
+   and pass `--model opus` below so `taste.model` says who proposed). It writes
+   `taste/proposals.json`: zero to six proposals (the cap), each with a rationale, a logo that is an
+   existing asset path or a derivation recipe (`crop`, `stack`, `cut_words`) of one, a primary,
+   secondary, optional text / print digit / sticker band, and the source of each color in the
+   brief's words. The patterns it is told to anticipate are what Travisse asks for by hand: an
+   alternate REAL ground (a site header or badge disc, a logo ink of any first-party candidate, the
+   in-store dominant: Pig & Parrot K), two-tone primary/secondary swaps of two brand colors
+   (Scoops K-S), words-only versus badge versus stacked lockups from existing pixels (Scoops M),
+   dropping a descriptor (Surfin' Betty's E-F). Then
+   `node scripts/taste-pass.mjs apply --run <run_dir> --model fable|opus`: the validator refuses a
+   color that is not in the brief (within 24 RGB) or a darker step of one (a lighter tint is never a
+   pick), a near-white card (the 1.3:1 floor), an unknown asset or derive op, a duplicate of an
+   existing cell; it resolves the text by the web/print split rule (black text when white vanishes
+   on a pink band: Scoops K; print digit when the web text fails on the band) and labels a card
+   under 3:1 against white `LIGHT GROUND` with `escalation: light_ground` (component-contrast and the
+   sticker on white have no override; escalate before a pick). Accepted proposals are built
+   (derivations land in `taste/assets/`, pixels copied verbatim), gated with `gates.ts check` on the
+   card (an asset already on the sheet skips this, the sheet gates decide; a HOLD on a gate the
+   registry cannot override keeps the cell OFF the sheet with its reason; an overridable hold such
+   as upload-size or a stack's ink-retention is added with a "needs override at closeout" note), and
+   added with `add-cell` (row key `taste_<id>_<label>`, the note carries the rationale and the color
+   sources), so the sheet-viability and cell-on-card gates still decide. `apply` writes the
+   `taste` block of run.json (model, hashes, accepted/refused, added letters, skipped with reasons,
+   `needs_build` for a derivation it could not do: the orchestrator builds that by hand or leaves
+   it with its reason) and prints `notes_line` ("Taste pass (fable) added K, L (...). 2 kept off
+   the sheet (...)") for `checklist/notes.json`. Never synthesizes a mark, never retypes a wordmark,
+   never upscales. Rerunning the pass dedupes against the live sheet. Proof run 2026-10-15 on
+   scratch copies: it proposed Pig & Parrot's black-disc knockout and words-only (his K and M),
+   Scoops' raspberry/scoop-pink two-tone and the pink card (his K and L) plus the stacked lockup
+   (held on ink-retention, as his M was until the piecewise proof), and a gold-card swap for
+   Shawarma Inn.
 2c. **Review canvas: the sheet stage ends by generating and opening it.** After the variant
    sheet is built (or patched) and Fable has marked its default letter, run
    `node scripts/review-canvas.mjs --run <run_dir> --open` (`--open` is for the operator's own
