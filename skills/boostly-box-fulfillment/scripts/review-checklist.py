@@ -281,16 +281,29 @@ def live_requests():
             return json.load(open(out))["requests"], "STALE (live query failed; showing last good list)"
     return json.load(open(out))["requests"], None
 
+def run_progress(d, j):
+    """How far a run dir got: recorded stages, then pipeline blocks, then a review canvas. Used to pick one dir
+    when two share a request id (a re-seeded stub next to the real run, e.g. Surfin' Betty's Downtown 2026-10-15)."""
+    stages = len(((j.get("state") or {}).get("stages") or {}))
+    blocks = sum(1 for k in ("variants", "write", "links", "figma", "slack") if j.get(k))
+    canvas = os.path.exists(os.path.join(RUNS, d, "review", "review-canvas.html"))
+    return (stages + blocks, canvas, d)
+
 def load_runs():
     runs = {}
-    for f in glob.glob(os.path.join(RUNS, "*", "run.json")):
+    for f in sorted(glob.glob(os.path.join(RUNS, "*", "run.json"))):
         try:
             j = json.load(open(f))
         except Exception:
             continue
         rid = (j.get("request") or {}).get("request_id")
-        if rid:
-            runs[rid] = (os.path.basename(os.path.dirname(f)), j)
+        if not rid:
+            continue
+        d = os.path.basename(os.path.dirname(f))
+        # two dirs for one request: the one with more progress wins, never whichever glob listed last
+        if rid in runs and run_progress(*runs[rid]) >= run_progress(d, j):
+            continue
+        runs[rid] = (d, j)
     return runs
 
 def by_dir(runs, name):
@@ -350,7 +363,9 @@ def derive(req, runs):
     if picked in (None, "None"):
         picked = None
     sheet = bool(bv.get("sheet_png"))
-    applied = bw.get("status") == "applied"
+    # applied means THIS location's own write landed (applied, or applied+inherited for a sibling). A sibling
+    # whose source run is applied but whose own write is held/pending is not applied in prod yet.
+    applied = w.get("status") in ("applied", "applied+inherited")
     links = j.get("links") or {}
     lc = [c for c in (links.get("candidates") or []) if isinstance(c, dict)]
     links_applied = links.get("applied") in (True, "True")

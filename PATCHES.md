@@ -395,3 +395,14 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   (the merge is idempotent, so the next 5 minute run heals it). `docs/BOOTSTRAP.md` section 10: both machines may run
   the job once Karissa pulls and reruns `bash setup/setup.sh --force`. `setup/env.example`: `BOOSTLY_PUBLISH_STATUS=`.
 - `setup/launchd/build-checklist.py`: unchanged (thin wrapper).
+
+## 2026-10-15: one run dir per request, and "Branding applied" means this location's own write
+- `skills/boostly-box-fulfillment/scripts/review-checklist.py` (mirrored from the live copy): `load_runs` no longer
+  lets whichever run.json glob listed last win when two run dirs share a request id. New `run_progress` ranks them by
+  recorded stages plus pipeline blocks, then a review canvas; the most progressed dir wins. A one-file re-seeded stub
+  (surfin-betty-s-burger-bar-downtown-15th-st) had shadowed the real Downtown run on the board.
+- Same file: the "Branding applied in prod" step reads this run's own `write.status` (`applied` or
+  `applied+inherited`), not the source run's, so a links-only sibling with a held write is not shown as applied.
+- The review site repo (fulfillment-reviews, `scripts/build.mjs`) got the matching rule: the page chip says
+  "Branding applied" only for those write statuses; a sibling with `write.branding_source_run` otherwise reads
+  "Branding: inherits <source> (pending pick)".
