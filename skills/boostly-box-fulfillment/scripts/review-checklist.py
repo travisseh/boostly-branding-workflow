@@ -17,7 +17,7 @@ Usage:
 accepted and ignored. Files (all under <run-root>/checklist/): notes.json (optional
 one-line note per run dir name), open-requests.json, checklist.json, checklist.txt.
 """
-import json, os, subprocess, sys, glob, datetime, re, urllib.request
+import json, os, subprocess, sys, glob, datetime, re, time, urllib.request, urllib.parse, urllib.error
 
 def _arg(name, default=None):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv and sys.argv.index(name) + 1 < len(sys.argv) else default
@@ -58,7 +58,7 @@ def blob_token():
             return m.group(1)
     return None
 
-PUBLIC_FIELDS = ["name", "status", "created", "run_dir", "steps", "needs_you", "gaps", "hold", "done",
+PUBLIC_FIELDS = ["request_id", "name", "status", "created", "run_dir", "steps", "needs_you", "gaps", "hold", "done",
                  "figma_url", "note", "review_status", "progress", "site_url"]
 
 def load_progress(run_dir):
@@ -76,16 +76,157 @@ def load_progress(run_dir):
     except Exception:
         return None
 
-def publish_status(items, stale):
-    """Upload the public-safe status board to Vercel Blob (fixed key, 60 s edge cache). Never prints the token."""
-    token = blob_token()
-    if not token:
-        return "no BLOB_READ_WRITE_TOKEN (env or " + os.path.join(REVIEWS_REPO, ".env.local") + ")"
-    payload = {"generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-               "stale": bool(stale), "site": SITE,
-               "items": [{k: i.get(k) for k in PUBLIC_FIELDS} for i in items]}
-    body = json.dumps(payload, separators=(",", ":")).encode()
-    assert b"ship_to" not in body and b"street" not in body.lower()
+def publish_host():
+    """Short machine name stamped on each published item and in the top-level publishers map."""
+    import socket
+    return (os.environ.get("BOOSTLY_PUBLISH_HOST") or socket.gethostname() or "unknown").split(".")[0]
+
+def publish_disabled():
+    """BOOSTLY_PUBLISH_STATUS=0 (environment, or the shared env file that launchd does not source) turns the
+    Blob PUT off on this machine: a dry-run or test machine never touches the shared board."""
+    v = os.environ.get("BOOSTLY_PUBLISH_STATUS")
+    if v is None:
+        envf = os.environ.get("BOOSTLY_BRANDING_ENV_FILE") or os.path.expanduser("~/.config/boostly-branding/.env")
+        try:
+            with open(envf) as f:
+                m = re.search(r'^(?:export\s+)?BOOSTLY_PUBLISH_STATUS="?([^"\n]*)"?', f.read(), re.M)
+            v = m.group(1) if m else None
+        except Exception:
+            v = None
+    return str(v).strip().lower() in ("0", "false", "no", "off")
+
+def is_dry_run_note(note):
+    return isinstance(note, str) and note.strip().lower().startswith("dry run")
+
+def is_dry_run(run_dir, notes):
+    """A run dir with a DRY_RUN marker file, or whose notes.json line starts with "Dry run", is never published."""
+    if not run_dir:
+        return False
+    return os.path.exists(os.path.join(RUNS, run_dir, "DRY_RUN")) or is_dry_run_note((notes or {}).get(run_dir))
+
+def item_mtime(run_dir):
+    """Per-item updated_at: newest mtime of the files that move an item (run.json, review status/progress, HOLD.md)."""
+    if not run_dir:
+        return None
+    best = 0.0
+    for rel in ("run.json", "HOLD.md", os.path.join("review", "status.json"), os.path.join("review", "progress.json")):
+        try:
+            best = max(best, os.path.getmtime(os.path.join(RUNS, run_dir, rel)))
+        except OSError:
+            pass
+    if not best:
+        return None
+    return datetime.datetime.fromtimestamp(best, datetime.timezone.utc).isoformat(timespec="seconds")
+
+def _ts(v):
+    if not isinstance(v, str) or not v:
+        return None
+    try:
+        d = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.astimezone()
+    return d.timestamp()
+
+def best_ts(item):
+    """progress.updated_at, then review_status.updated_at, then the item's own updated_at."""
+    for v in ((item.get("progress") or {}).get("updated_at"), (item.get("review_status") or {}).get("updated_at"),
+              item.get("updated_at")):
+        t = _ts(v)
+        if t is not None:
+            return t
+    return None
+
+def _done_steps(item):
+    return sum(1 for s in (item.get("steps") or []) if isinstance(s, (list, tuple)) and len(s) > 1 and s[1])
+
+def _newer(a, b):
+    ta, tb = best_ts(a), best_ts(b)
+    if ta is None:
+        return False
+    return tb is None or ta > tb
+
+def merge_pair(local, remote):
+    """One location seen by both machines. done never downgrades; fewer completed steps never wins unless strictly
+    newer and not a dry run; otherwise newer wins (ties go to this machine). Nulls never replace values."""
+    ld, rd = bool(local.get("done")), bool(remote.get("done"))
+    if ld != rd:
+        win = local if ld else remote
+    else:
+        nl, nr = _done_steps(local), _done_steps(remote)
+        if nl < nr:
+            win = local if (_newer(local, remote) and not is_dry_run_note(local.get("note"))) else remote
+        elif nr < nl:
+            win = remote if (_newer(remote, local) and not is_dry_run_note(remote.get("note"))) else local
+        else:
+            win = remote if _newer(remote, local) else local
+    other = remote if win is local else local
+    out = dict(win)
+    for k in ("progress", "review_status", "figma_url"):
+        if out.get(k) is None and other.get(k) is not None:
+            out[k] = other[k]
+    return out
+
+def _key(item):
+    return item.get("run_dir") or ("req:" + item["request_id"] if item.get("request_id") else "name:" + str(item.get("name")))
+
+def merge_board(local_items, remote_items, stale):
+    """Merge this machine's items into the board already on Blob, per location (request_id, then run_dir, then name).
+    Remote-only items stay unless this machine's live list is fresh and does not contain them; remote dry runs drop."""
+    by_req = {i["request_id"]: i for i in local_items if i.get("request_id")}
+    by_dir = {i["run_dir"]: i for i in local_items if i.get("run_dir")}
+    by_name = {i.get("name"): i for i in local_items}
+    merged = {_key(i): i for i in local_items}
+    order = [_key(i) for i in local_items]
+    for r in remote_items or []:
+        if not isinstance(r, dict) or is_dry_run_note(r.get("note")):
+            continue
+        l = (by_req.get(r.get("request_id")) if r.get("request_id") else None) or \
+            (by_dir.get(r.get("run_dir")) if r.get("run_dir") else None) or \
+            (by_name.get(r.get("name")) if not r.get("request_id") and not r.get("run_dir") else None)
+        if l is not None:
+            merged[_key(l)] = merge_pair(merged[_key(l)], r)
+        elif stale:
+            k = _key(r)
+            if k not in merged:
+                merged[k] = r
+                order.append(k)
+        # fresh live list without this location: it closed or moved past pre-physical, so it drops
+    items = [merged[k] for k in order]
+    items.sort(key=lambda i: (i.get("created") or "", i.get("name") or ""))
+    return items
+
+def fetch_remote_board(token):
+    """Current status/checklist.json from Blob (list for the URL, then a cache-busted GET). Returns (payload, error);
+    a missing or empty board is ({}, None), anything else unreadable is (None, error) and the PUT is skipped."""
+    q = urllib.parse.urlencode({"prefix": STATUS_KEY, "limit": "10"})
+    req = urllib.request.Request("https://blob.vercel-storage.com/?" + q, headers={
+        "authorization": "Bearer " + token, "x-api-version": "7"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            blobs = json.loads(r.read().decode()).get("blobs") or []
+    except Exception as e:
+        return None, f"list failed {type(e).__name__}"
+    url = next((b.get("url") for b in blobs if b.get("pathname") == STATUS_KEY), None)
+    if not url:
+        return {}, None
+    try:
+        with urllib.request.urlopen(url + "?t=" + str(int(time.time() * 1000)), timeout=60) as r:
+            raw = r.read().decode().strip()
+    except urllib.error.HTTPError as e:
+        return ({}, None) if e.code == 404 else (None, f"GET HTTP {e.code}")
+    except Exception as e:
+        return None, f"GET failed {type(e).__name__}"
+    if not raw:
+        return {}, None
+    try:
+        j = json.loads(raw)
+    except ValueError:
+        return None, "GET returned non-JSON"
+    return (j if isinstance(j, dict) else {}), None
+
+def put_board(token, body):
     req = urllib.request.Request("https://blob.vercel-storage.com/" + STATUS_KEY, data=body, method="PUT", headers={
         "authorization": "Bearer " + token, "x-api-version": "7", "x-content-type": "application/json",
         "x-add-random-suffix": "0", "x-allow-overwrite": "1", "x-cache-control-max-age": "60",
@@ -97,6 +238,37 @@ def publish_status(items, stale):
         return f"HTTP {e.code} {e.read()[:200].decode(errors='replace')}"
     except Exception as e:
         return f"failed {type(e).__name__}: {e}"
+
+def publish_status(items, stale, notes=None):
+    """Merge this machine's public-safe items into the board on Vercel Blob (fixed key, 60 s edge cache) and PUT
+    the result. Two machines publish (Travisse's and Karissa's launchd jobs), so a whole-file overwrite would
+    erase the other side; the merge is idempotent, so a same-minute race heals on the next run. Never prints the
+    token. Dry runs never publish: BOOSTLY_PUBLISH_STATUS=0 skips the PUT, DRY_RUN / "Dry run" items are left out."""
+    if publish_disabled():
+        return "skipped (BOOSTLY_PUBLISH_STATUS=0: dry-run machine, the shared board is left alone)"
+    token = blob_token()
+    if not token:
+        return "no BLOB_READ_WRITE_TOKEN (env or " + os.path.join(REVIEWS_REPO, ".env.local") + ")"
+    host = publish_host()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    local = []
+    for i in items:
+        if is_dry_run(i.get("run_dir"), notes) or is_dry_run_note(i.get("note")):
+            continue
+        p = {k: i.get(k) for k in PUBLIC_FIELDS}
+        p["updated_at"] = i.get("updated_at") or item_mtime(i.get("run_dir"))
+        p["host"] = host
+        local.append(p)
+    remote, err = fetch_remote_board(token)
+    if remote is None:
+        return f"skipped (could not read the current board: {err}; not overwriting it)"
+    publishers = dict(remote.get("publishers") or {}) if isinstance(remote.get("publishers"), dict) else {}
+    publishers[host] = now
+    payload = {"generated_at": now, "stale": bool(stale), "site": SITE, "publishers": publishers,
+               "items": merge_board(local, remote.get("items") or [], stale)}
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    assert b"ship_to" not in body and b"street" not in body.lower()
+    return put_board(token, body)
 
 def live_requests():
     out = os.path.join(HERE, "open-requests.json")
@@ -356,7 +528,7 @@ def main():
               open(os.path.join(HERE, "checklist.json"), "w"), indent=1)
     open(os.path.join(HERE, "checklist.txt"), "w").write(text)
     if "--publish-status" in sys.argv:
-        print("status published:", publish_status(items, stale))
+        print("status published:", publish_status(items, stale, notes))
     print(f"items={len(items)} needs_you={sum(1 for i in items if i['needs_you'] and not i.get('done'))} stale={bool(stale)}")
     if "--note" not in sys.argv:
         return
@@ -367,4 +539,5 @@ def main():
         p = subprocess.run(["python3", WRITER, "--input", md, "--folder", "Notes", "--create"], capture_output=True, text=True, timeout=90)
     print("writer exit", p.returncode, "|", (p.stdout.strip() or p.stderr.strip())[:400])
 
-main()
+if __name__ == "__main__":
+    main()

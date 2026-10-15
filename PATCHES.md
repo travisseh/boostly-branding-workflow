@@ -371,3 +371,27 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   the send). 23 tests pass on both copies.
 - `skills/boostly-print-handoff/SKILL.md` (mirrored): column list, step 3 stamp behaviour, receipts, test coverage,
   report line. The 15 live rows that predate the column were backfilled from boostly sent mail on 2026-10-14.
+
+## 2026-10-15: Status board publish merges across machines instead of overwriting
+
+- Why: on 2026-10-14 Karissa's launchd job published its local view of `status/checklist.json` and clobbered the
+  board (Slice of the 80's, closed out on Travisse's machine with AK, showed "pick a letter" with a dry-run note).
+- `skills/boostly-box-fulfillment/scripts/review-checklist.py` (patched identically on both copies; the package copy
+  carries no package-only patch): `publish_status` lists the blob, reads it cache-busted (404 or empty is an empty
+  board; any other read failure skips the PUT), merges per location (request_id, then run dir, then name) and PUTs.
+  Newer wins by progress.updated_at, then review_status.updated_at, then a new per-item `updated_at` (newest mtime of
+  run.json, HOLD.md, review/status.json, review/progress.json); a null progress, review_status or figma_url never
+  replaces a value; `done` never downgrades; fewer completed steps win only when strictly newer and not a dry run.
+  Remote-only items stay while this side's live query is stale and drop when a fresh live query does not list them.
+  Each item carries `host` and `request_id`; the payload has a top-level `publishers` map {host: generated_at}. The
+  ship-to assertion runs on the merged payload. Dry runs never publish: `BOOSTLY_PUBLISH_STATUS=0` (environment or
+  the shared env file, `BOOSTLY_BRANDING_ENV_FILE`) skips the PUT; a run dir with a `DRY_RUN` file or a notes.json
+  line starting "Dry run" is left out, and remote "Dry run" items are dropped. `main()` now runs only as a script.
+- `skills/boostly-box-fulfillment/scripts/test_review_checklist_publish.py` (new, mirrored): 14 unittest cases, no
+  network. `python3 -m unittest discover -s skills/boostly-box-fulfillment/scripts -p 'test_review_checklist_publish.py'`.
+- `setup/launchd/launchd-refresh.sh` (patched in place, keeps the portable HOME line): a
+  `status published: skipped (BOOSTLY_PUBLISH_STATUS=0` line counts as a good run.
+- `skills/boostly-box-fulfillment/SKILL.md` (mirrored): merge rule, dry-run switches, the residual same-minute race
+  (the merge is idempotent, so the next 5 minute run heals it). `docs/BOOTSTRAP.md` section 10: both machines may run
+  the job once Karissa pulls and reruns `bash setup/setup.sh --force`. `setup/env.example`: `BOOSTLY_PUBLISH_STATUS=`.
+- `setup/launchd/build-checklist.py`: unchanged (thin wrapper).

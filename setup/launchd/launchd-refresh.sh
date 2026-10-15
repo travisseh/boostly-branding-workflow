@@ -42,7 +42,8 @@ printf '%s\n' "$OUTPUT"
 
 RESULT="ok"
 [ "$CODE" -ne 0 ] && RESULT="FAIL: script exit $CODE"
-if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -q '^status published: ok '; then RESULT="FAIL: status board publish did not return ok"; fi
+# BOOSTLY_PUBLISH_STATUS=0 (a dry-run machine) skips the PUT on purpose; that is still a good run.
+if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -qE '^status published: (ok |skipped \(BOOSTLY_PUBLISH_STATUS=0)'; then RESULT="FAIL: status board publish did not return ok"; fi
 if [ "$RESULT" = "ok" ] && ! printf '%s\n' "$OUTPUT" | grep -q 'stale=False'; then RESULT="FAIL: stale data (live request query failed)"; fi
 echo "[$(stamp)] end result=$RESULT"
 [ "$RESULT" = "ok" ] || exit 1

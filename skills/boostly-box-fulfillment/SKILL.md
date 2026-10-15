@@ -581,6 +581,21 @@ Vercel Blob store (`status/checklist.json`, 60 s cache) that the pages overlay o
 board is current between site builds. The launchd job `com.boostly.fulfillment-checklist`
 publishes it every 5 minutes with no model.
 
+Two machines publish the board (Travisse's and Karissa's launchd jobs), so the publish merges
+instead of overwriting (2026-10-15, after Karissa's dry run clobbered Slice of the 80's on
+10-14): it reads the current `status/checklist.json` (cache-busted), merges per location
+(request_id, then run dir), and PUTs the result with `host` on each item and a top-level
+`publishers` map. Newer wins by progress, then review status, then the item's own file-mtime
+`updated_at`; a null progress, review status, or Figma URL never replaces a value; `done` never
+downgrades; fewer completed steps win only when strictly newer and not a dry run. Items only the
+other machine has stay while this side's live query is stale and drop once a fresh live query no
+longer lists them (closed or past pre-physical). An unreadable board skips the PUT rather than
+overwrite it. Dry runs never publish: `BOOSTLY_PUBLISH_STATUS=0` (environment or the shared env
+file) skips the PUT and the launchd wrapper counts that as a good run; a run dir with a `DRY_RUN`
+marker file or a notes.json line starting "Dry run" is left out. Residual race: two publishes
+in the same few seconds can still lose one side's write, but the merge is idempotent, so the
+next 5 minute run heals it. Tests: `python3 -m unittest discover -s ~/.claude/skills/boostly-box-fulfillment/scripts -p 'test_review_checklist_publish.py'`.
+
 - Status per run: `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run <dir> --status waiting|done [--waiting-on "<one phrase>"] [--ease 1-5] [--by <agent>]`
   (`get` reads it back). closeout-location writes `waiting` on "Figma signage approval";
   closeout-finish writes the final status, waiting_on and ease from the handoff's status line.

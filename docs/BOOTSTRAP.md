@@ -273,7 +273,12 @@ site's Blob store (`status/checklist.json`; the token comes from the fulfillment
 `.env.local`, section 9, or `BOOSTLY_REVIEWS_REPO_DIR` when the clone is elsewhere). The site index and
 every location page overlay it on load. The 5-minute refresh job keeps it current without a model:
 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.boostly.fulfillment-checklist.plist`.
-Only one machine should run that job at a time (it overwrites the same board); Travisse's runs it today.
+Both machines can run that job: since 2026-10-15 the publish merges per location instead of overwriting
+(newer wins, nulls never replace values, `done` never downgrades, the other machine's items stay unless a
+fresh live query shows them closed, each item carries `host`), so Karissa's job is safe once she pulls this
+repo and reruns `bash setup/setup.sh --force`. Dry runs stay off the board: put `BOOSTLY_PUBLISH_STATUS=0` in
+`~/.config/boostly-branding/.env` to stop this machine publishing at all (the launchd run still ends `result=ok`),
+or drop a `DRY_RUN` file in a run dir, or start its notes.json line with "Dry run", to keep one location off.
 CHECKPOINT 10: Slack auth check shows "Boostly Fulfillment Notifications" (or the operator, with a user token), the publish prints `status published: ok`, the
 review server answers on 127.0.0.1:3917.
 
