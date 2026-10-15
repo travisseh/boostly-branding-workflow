@@ -193,6 +193,12 @@ the rest) load. CHECKPOINT 6: `claude mcp list` shows boostly-admin as connected
 
 ## 7. Figma MCP plugin
 
+OPTIONAL since 2026-10-15: the signage print sheets are rendered straight to PDF by
+`skills/boostly-signage-sheets/scripts/direct-pdf` (no Figma). Set this up only for the Figma fallback
+(`print-handoff.mjs --figma`, the agent's "Figma fallback" section). `FIGMA_TOKEN` is still read by
+that fallback and by parity.mjs.
+
+
 ```bash
 claude plugin install figma@claude-plugins-official
 ```

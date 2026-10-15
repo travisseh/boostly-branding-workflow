@@ -473,3 +473,20 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - Both SKILL.md files (mirrored): rule 2b-taste, the model note, step 8. Scratch proof on copies of three runs: the
   pass proposed Pig & Parrot's black-disc knockout and words-only (his K and M), Scoops' two-tone pinks (his K and L)
   and the stacked lockup (held on ink-retention like his M), and a gold-card swap for Shawarma Inn.
+
+## 2026-10-15: direct PDF render is the default ("flip it")
+- `skills/boostly-print-handoff/scripts/print-handoff.mjs` (mirrored): export-direct.mjs is the default export,
+  `--figma` selects the Figma-section export; Drive and email need `--live`; dry flags still stop after the export.
+  `export-direct.mjs`: reuses the `direct.inputs` recorded by the closeout render. `print-handoff.test.mjs`: 5 tests.
+- `skills/boostly-signage-sheets/scripts/direct-pdf/direct-pdf.mjs` (mirrored): `--preview` (default on) writes
+  `review-sheets.png`, a labelled contact sheet of every page, the artifact Travisse approves at the closeout stop.
+- `agents/closeout-location.md` (patched in place, package lines kept): step 4 is the direct render into
+  `RUN_DIR/print-handoff/` plus the run.json `signage` block; the Figma build moved to a "Figma fallback" section.
+  `agents/closeout-finish.md`: precondition accepts `signage.direct.preview_png` or `figma.section_url`; step 5b runs
+  `print-handoff.mjs --live`, with `--figma` for runs approved in Figma (Shawarma Inn 14:2, Surfin Downtown 12:3/12:2).
+- `skills/boostly-box-fulfillment/scripts/run-file.ts` + `references/run-schema.json` (mirrored): new `signage` block
+  (`signage.direct`). `review-checklist.py` (mirrored): "Signage built/approved" steps read `signage.direct` or `figma`.
+  `skills/boostly-brand-design/scripts/review-canvas.mjs` and `run-progress.mjs` (patched in place): signage preview
+  link and `signage_direct` field. The public site build (fulfillment-reviews `scripts/build.mjs`, commit 03c6057)
+  treats `signage.direct` as the signage stage.
+- Both SKILL.md files, README, BOOTSTRAP section 7 (Figma MCP optional).

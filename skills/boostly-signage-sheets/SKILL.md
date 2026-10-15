@@ -1,6 +1,6 @@
 ---
 name: boostly-signage-sheets
-description: Generate a Boostly location's full in-store signage set as batched print sheets in Figma (Cam's production format), replacing the manual brand-extractor plugin flow. Use at fulfillment time, after branding exists.
+description: Generate a Boostly location's full in-store signage set as batched print sheets (Cam's production format) straight to vector PDF with scripts/direct-pdf (the default since 2026-10-15; the Figma section build stays as a fallback). Use at fulfillment time, after branding exists.
 ---
 
 # Boostly Signage Sheets
@@ -311,15 +311,19 @@ surname, and possessive guards).
    Report `fixed` (should be empty on a correct build); a non-empty list
    means the build step is dropping the stroke and needs fixing at source.
 
-## DIRECT PDF RENDER (no Figma; parity-proven 2026-10-15, NOT yet the default)
+## DIRECT PDF RENDER (no Figma; THE DEFAULT since 2026-10-15, parity-proven)
 
 `scripts/direct-pdf/` builds the same section as the clone-and-retarget above as a node tree
 from `references/template-spec.json` (the File 9 Munchie template recipe, struct-hash identical
 to File 8 2:2670) and renders every "Print Sheet - " frame straight to vector PDF with pdf-lib:
 no Figma file, no MCP, no network. Output drops into print-handoff unchanged (same six kind
 files, `_vector-pages/`, `sheets.json`). Travisse asked for it 2026-10-15 ("removes figma from
-the default pipeline and just generates the signage pdfs directly"); the default flow still
-builds the Figma section and the hand-off still exports it until he flips it.
+the default pipeline and just generates the signage pdfs directly") and flipped the default the
+same day after reviewing the Scoops, Pig & Parrot and Slice parity sheets: the `closeout-location`
+agent renders into `RUN_DIR/print-handoff/` and Travisse approves `review-sheets.png` (one
+contact sheet of every page, `--preview`, on by default) instead of a Figma screenshot; the
+hand-off re-renders from the recorded inputs. The Figma clone-and-retarget above stays as the
+named fallback (`print-handoff.mjs --figma`, agent "Figma fallback" section).
 
 ```bash
 D=~/.claude/skills/boostly-signage-sheets/scripts/direct-pdf
@@ -358,11 +362,10 @@ modules), text identical, every QR decodes to the plan link (22/22, 36/36), rast
 0.14 pt on the 105-glyph POP legal line). Known differences, all intentional: real embedded
 TrueType text instead of outlines, PNG logos instead of JPEG, no invisible text layer.
 
-Making it the default (Travisse's call, after review): in `boostly-print-handoff`
-print-handoff.mjs pass `--direct` (or flip the `args.direct` test on line 18 to default on),
-and in the `closeout-location` agent replace step 4's Figma build with
-`direct-pdf.mjs --out RUN_DIR/print-handoff` plus a `signage/shots/` raster of the PDFs for
-the review; the Figma clone stays available for a manual build.
+run.json records it in the `signage` block (`signage.direct`: status, out_dir, preview_png,
+pages, kinds, inputs, approved); the checklist, the review canvas, the status board and the
+public site read that block next to `figma`. Runs approved in Figma before the flip (Shawarma
+Inn 14:2, Surfin Betty's Downtown 12:3/12:2) finish with `print-handoff.mjs --figma`.
 
 ## RECOPY / TRIM existing sections
 

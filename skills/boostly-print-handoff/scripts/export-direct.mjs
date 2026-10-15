@@ -24,7 +24,17 @@ const existing = readHandoff(runDir);
 if (existing.sheets && existing.source !== "direct" && !args.force) {
   throw new Error(`${runDir}/print-handoff already holds a Figma export (exported ${existing.exported_at}); refusing to overwrite it. Pass --force only if that hand-off is to be replaced.`);
 }
-const summary = await renderRun(runDir, { ...args, out });
+// A direct build recorded earlier (the closeout renders into print-handoff/ for Travisse's review) fixes the
+// inputs: the finish rerun reuses its logos, counts, offer, band and date unless the caller overrides them,
+// so the vendor gets exactly the sheets that were approved.
+const recorded = existing.source === "direct" && existing.direct?.inputs ? existing.direct.inputs : null;
+const merged = { ...args };
+if (recorded) {
+  const map = { logo: recorded.logos?.sticker, "pop-primary-logo": recorded.logos?.popPrimary, "header-logo": recorded.logos?.header, tables: recorded.tables, stalls: recorded.stalls, offer: recorded.offer, band: recorded.band, date: recorded.date, name: recorded.name, status: recorded.status, mode: recorded.mode };
+  for (const [k, v] of Object.entries(map)) if (merged[k] === undefined && v !== undefined && v !== null) merged[k] = v;
+  log("reusing the recorded direct-build inputs from handoff.json (" + (existing.exported_at || "earlier") + ")");
+}
+const summary = await renderRun(runDir, { ...merged, out });
 const h = readHandoff(runDir);
 h.request_id = run.request?.request_id; h.location_name = run.request?.location_name;
 h.source = "direct";

@@ -1,11 +1,11 @@
 ---
 name: closeout-finish
-description: Finish ONE Boostly location closeout after Travisse approved the Figma signage. Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), sets the location status on the hosted review site (review/status.json, no Notion), validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
+description: Finish ONE Boostly location closeout after Travisse approved the signage (the direct PDF preview, or a Figma section on the fallback). Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), sets the location status on the hosted review site (review/status.json, no Notion), validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
-You finish ONE location closeout. Travisse has already approved the Figma signage; the lead
+You finish ONE location closeout. Travisse has already approved the signage; the lead
 tells you so in the launching prompt. If the prompt does not say the signage was approved,
 stop and ask the lead. You do steps 4b and 5 to 8 only. You make no judgments about branding,
 logos, links, or Figma, and you change none of them. The one logo write you make (step 4b, the
@@ -41,7 +41,7 @@ review site's Blob store; the board shows the stage, the next step, and what Tra
 2. `RUN_DIR/closeout-handoff.md` and `RUN_DIR/slack-note.txt` (written by the closeout agent).
    If either is missing, stop and report it to the lead. Do not write them yourself.
 3. `run.json` through `run-file.ts get RUN_DIR <block>` for `request`, `write`, `links`,
-   `figma`, `slack`. Never read `preflight/ae-dump.json` (it is about 25 MB).
+   `figma`, `signage`, `slack`. Never read `preflight/ae-dump.json` (it is about 25 MB).
 4. The command sections you need, not the whole skill files:
    `~/.claude/skills/boostly-signage-sheets/SKILL.md` section "POST REVIEW",
    `~/.claude/skills/boostly-instore-link-settings/SKILL.md` sections "fulfillment" and
@@ -49,7 +49,7 @@ review site's Blob store; the board shows the stage, the next step, and what Tra
    `~/.claude/skills/boostly-review-queue/SKILL.md` (upsert and status).
 
 ## Preconditions (stop and report if any fails; write nothing)
-- `run.json` `figma.section_url` exists and `write.status` is `applied`.
+- `run.json` `signage.direct.preview_png` exists (the default since 2026-10-15) or `figma.section_url` exists (the Figma fallback, and every run closed out before 2026-10-15 such as Shawarma Inn and Surfin Downtown), and `write.status` is `applied`.
 - `run-file validate RUN_DIR` exits 0 before you start.
 - Auth and scope. Mint your own cookie; never reuse a path from a prompt and never print,
   echo, cat, log, or paste a cookie or token, anywhere, in any form:
@@ -75,12 +75,12 @@ review site's Blob store; the board shows the stage, the next step, and what Tra
 
 ## Steps
 Start stamp, once the preconditions pass:
-`run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "Figma approved" --next "secondary logo, Slack, branding complete" --clear-blocked --by closeout-finish`.
+`run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "signage approved" --next "secondary logo, Slack, branding complete" --clear-blocked --by closeout-finish`.
 4b. Secondary logo (light backgrounds). V2 keeps a second logo on the branding row
    (`secondary_logo_attachment_id`, next to `logo_attachment_id`) for light surfaces. It is the
    on-white sticker asset the closeout already built: authored inks on a transparent or white
    background, never the white knockout card asset. Travisse 2026-10-02: save it in V2 once the
-   Figma signage is approved, so it is written here, after approval and before branding complete,
+   signage is approved, so it is written here, after approval and before branding complete,
    never at fulfill.
    - Source file, first match wins, path relative to RUN_DIR: `write.sticker_logo_file` in
      run.json (with `write.sticker_logo_sha256`); else the sticker file named in
@@ -123,9 +123,16 @@ Start stamp, once the preconditions pass:
    block in run.json with `run-file.ts set` and report the permalink.
 5b. Print hand-off to customstickers.com (skill `~/.claude/skills/boostly-print-handoff`, read its
    SKILL.md "Commands" and "Hard rules"). Right after the Slack post, run
-   `node ~/.claude/skills/boostly-print-handoff/scripts/print-handoff.mjs --run-dir RUN_DIR`
-   (tee to `RUN_DIR/finish/print-handoff.log`). It exports the section's Print Sheet frames as
-   vector PDFs, uploads them to the location's Drive folder under the vendor master folder,
+   `node ~/.claude/skills/boostly-print-handoff/scripts/print-handoff.mjs --run-dir RUN_DIR --live`
+   (tee to `RUN_DIR/finish/print-handoff.log`; `--live` is what makes it upload and email, without
+   it the script stops after the export). Default since 2026-10-15: it re-renders the six vector
+   PDFs with the direct renderer from the inputs the closeout recorded in
+   `print-handoff/handoff.json` (the sheets Travisse approved on `review-sheets.png`). When the
+   approved signage is a FIGMA SECTION instead (run.json has `figma.section_node_id` and no
+   `signage.direct` block: Shawarma Inn 14:2, Surfin Betty's Downtown 12:3/12:2, and every run
+   closed out before 2026-10-15), add `--figma` so the section's Print Sheet frames are exported
+   through the REST API; never render a direct set for a run approved in Figma. Either way it
+   uploads the PDFs to the location's Drive folder under the vendor master folder,
    upserts the summary row, and emails ckbrandsmktg@gmail.com with Colin Dunn
    (colin@printiverse.com) and Maren Dunn (maren@customstickers.com) on cc (a Gmail draft that
    the script sends itself; Travisse 2026-10-14: no draft waiting on him). Read
@@ -191,7 +198,7 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
 ## Hard rules
 - No branding apply, no primary logo or color change, no link writes, no offer or promotion
   change, no ship-to change (confirming an existing complete ship-to in step 6b is allowed;
-  editing it is not), no Figma edit, no change to any other location. The only branding write
+  editing it is not), no Figma edit, no signage re-decision (the hand-off reuses the approved inputs), no change to any other location. The only branding write
   is the secondary logo upload in step 4b, with the primary logo pinned by
   `--expect-from-readback`.
 - Exactly one Slack message, in the request's thread. No top-level post, no second post, no

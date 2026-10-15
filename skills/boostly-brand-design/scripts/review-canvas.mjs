@@ -1581,6 +1581,7 @@ async function main() {
     req.request_id && req.source === 'v2-db' ? { label: 'Fulfillment request', url: `https://new.boostly.com/admin/fulfillment/${req.request_id}` } : null,
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
+    run.signage?.direct?.preview_png ? { label: 'Signage preview (direct PDF)', url: '../' + String(run.signage.direct.preview_png).replace(/^\.?\//, '') } : null,
   ].filter(Boolean);
   // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
   // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never

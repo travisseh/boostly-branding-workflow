@@ -1,6 +1,6 @@
 ---
 name: boostly-print-handoff
-description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Exports every "Print Sheet - " frame in the location's Figma section as VECTOR PDF through the Figma REST API, uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14), and stamps the row's "Order placed (email sent)" date. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
+description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Renders the six print units as VECTOR PDF with the direct renderer (boostly-signage-sheets/scripts/direct-pdf, the default since 2026-10-15; `--figma` exports the location's Figma section through the REST API instead), uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14), and stamps the row's "Order placed (email sent)" date. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
 ---
 
 # Boostly Print Hand-off (customstickers.com)
@@ -26,8 +26,10 @@ Working directory: `/Users/travisse/Programming`. Scripts read `FIGMA_TOKEN` fro
 
 ```bash
 S=~/.claude/skills/boostly-print-handoff/scripts
-# Whole hand-off (export, logos, Drive, summary row, draft), idempotent:
-node $S/print-handoff.mjs --run-dir <RUN_DIR>
+# Whole hand-off (export, logos, Drive, summary row, email), idempotent. --live is required for
+# Drive and email; without it (or with --offline/--dry-run/--scratch) it stops after the export:
+node $S/print-handoff.mjs --run-dir <RUN_DIR> --live
+node $S/print-handoff.mjs --run-dir <RUN_DIR> --live --figma   # a run approved as a Figma section
 # Steps on their own:
 node $S/export-sheets.mjs --run-dir <RUN_DIR> [--section <id[,id]>] [--file-key <key>] [--force] [--kinds <kind[,kind]>]
 node $S/drive-upload.mjs  --run-dir <RUN_DIR> [--offline] [--skip-summary]
@@ -44,22 +46,24 @@ upload, no summary row, no email (2026-10-15 safety rule; when v2-db is down run
 by hand, which only swaps live facts for run.json ones); `--redraft` makes a new
 draft even though one is recorded; `--print-only` prints the email body without drafting; `--no-send` creates the draft but leaves it unsent (the pre-2026-10-14 behaviour, only when Travisse asks for a draft).
 
-`--direct` (2026-10-15, parity-proven, NOT the default): replaces export-sheets.mjs with
-`export-direct.mjs`, which renders the six PDFs from `signage/plan.json` through
-`boostly-signage-sheets/scripts/direct-pdf` (no Figma, no network) into the same
-`print-handoff/` files and handoff.json blocks (`source: "direct"`), then drive-upload and the
-email run unchanged. It REFUSES a run dir whose print-handoff already holds a Figma export
-(drive-upload updates the vendor's files in place; `--force` only when that hand-off is to be
-replaced). Build overrides pass through: `--tables --stalls --offer --band --logo
---pop-primary-logo --date`. Drive and email run only with an explicit `--live`; without it `--direct`
-stops after the export. `node --test scripts/print-handoff.test.mjs` proves the dry flags make zero Drive calls. Travisse flips the default after reviewing the parity proof.
+Default export since 2026-10-15 ("flip it", Travisse): `export-direct.mjs` renders the six
+PDFs from `signage/plan.json` through `boostly-signage-sheets/scripts/direct-pdf` (no Figma, no
+network) into `print-handoff/` with the same files and handoff.json blocks (`source: "direct"`,
+`direct.inputs`), then drive-upload and the email run unchanged. The closeout already rendered
+there for Travisse's review, so the finish rerun REUSES the recorded `direct.inputs` (logos,
+counts, offer, band, date) unless a flag overrides them. It REFUSES a run dir whose
+print-handoff holds a Figma export (drive-upload updates the vendor's files in place; `--force`
+only when that hand-off is to be replaced). `--figma` selects export-sheets.mjs instead, for a
+run whose approved signage is a Figma section. Build overrides pass through: `--tables --stalls
+--offer --band --logo --pop-primary-logo --date`. Drive and email run only with an explicit
+`--live`. `node --test scripts/print-handoff.test.mjs` proves the dry flags make zero Drive calls. Travisse flips the default after reviewing the parity proof.
 
 Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH), the
 `v2-db` CLI, `~/.config/gmail-tools/gmail.js` with the `boostly` account.
 
 ## What each step does
 
-1. **export-sheets.mjs**: reads the section(s) through `GET /v1/files/<key>/nodes?ids=<section>&depth=2`,
+1. **export-direct.mjs** (default) renders the sheets, see the flag text above. **export-sheets.mjs** (`--figma`): reads the section(s) through `GET /v1/files/<key>/nodes?ids=<section>&depth=2`,
    collects every frame named `Print Sheet - ...`, classifies it into one of six kinds
    (`table-stickers`, `review-stickers`, `bathroom-stickers`, `bathroom-review-stickers`,
    `pop-sign` with Primary then Light, `togo-label` with promo then review) and a page number,

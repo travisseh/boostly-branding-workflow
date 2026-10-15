@@ -54,6 +54,7 @@ export const DEPENDENTS: Record<string, string[]> = {
   write: ["proofs"],
   proofs: [],
   figma: [],
+  signage: [],
   notion: [],
   slack: [],
   state: [],
@@ -62,7 +63,7 @@ export const DEPENDENTS: Record<string, string[]> = {
 };
 export const BLOCKS = [
   "request", "plan", "links", "evidence", "decision", "variants", "gates", "overrides",
-  "write", "proofs", "figma", "notion", "slack", "state", "legacy", "taste",
+  "write", "proofs", "figma", "signage", "notion", "slack", "state", "legacy", "taste",
 ] as const;
 export type BlockName = typeof BLOCKS[number];
 

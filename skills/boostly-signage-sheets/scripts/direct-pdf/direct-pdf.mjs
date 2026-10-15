@@ -5,14 +5,18 @@
 // export-sheets.mjs output (table-stickers.pdf, review-stickers.pdf, bathroom-stickers.pdf,
 // bathroom-review-stickers.pdf, pop-sign.pdf, togo-label.pdf + _vector-pages/ + sheets.json).
 //
-// Status 2026-10-15: parity-proven against Figma's REST export on approved runs (see
-// parity.mjs); NOT yet the default. The closeout still builds the Figma section and the
-// hand-off still exports it. Call this by hand or through print-handoff.mjs --direct.
+// Status: parity-proven against Figma's REST export (parity.mjs, Scoops 3:2, Pig & Parrot 5:2,
+// Slice of the 80's 614:2) and THE DEFAULT since 2026-10-15 ("flip it", Travisse): the closeout
+// renders the sheets here and print-handoff.mjs exports through export-direct.mjs; the Figma
+// build stays an optional fallback (print-handoff.mjs --figma).
+// --preview (default on) also writes review-sheets.png, one contact sheet of every page with its
+// name, which is what Travisse approves at the closeout stop (replaces the Figma screenshot).
 //
 // Usage: node direct-pdf.mjs --run-dir <dir> [--out <dir>] [--tables N] [--stalls N]
 //   [--offer "<offer_text>"] [--mode auto|discount|phrase|generic] [--band #RRGGBB]
 //   [--logo <png>] [--pop-primary-logo <png>] [--header-logo <png>] [--name "<Location (City)>"]
 //   [--date YYYY-MM-DD] [--status "<header label>"] [--kinds <kind[,kind]>] [--no-icc] [--allow-zero]
+//   [--no-preview] [--preview-dpi 24]
 // Defaults come from run.json (figma.header_title, figma.quantities, request.offer_text) and
 // signage/plan.json (band, copy, qr files, logo). Never prints secrets; needs no network.
 import fs from 'node:fs';
@@ -79,6 +83,46 @@ export function resolveInputs(runDir, args) {
   };
 }
 
+// One PNG with every page rasterized small, in kind order, each labelled with its sheet name:
+// the review artifact for the closeout stop. Needs poppler (pdftoppm); returns null without it.
+export async function contactSheet(pages, file, { dpi = 24, cols = 5, title = '' } = {}) {
+  const { createRequire } = await import('node:module');
+  const sharp = createRequire(import.meta.url)('sharp');
+  const tmp = fs.mkdtempSync(path.join(path.dirname(file), '.preview-'));
+  const tiles = [];
+  try {
+    for (const [i, p] of pages.entries()) {
+      const prefix = path.join(tmp, `p${i}`);
+      if (tryExec('pdftoppm', ['-r', String(dpi), '-png', '-singlefile', p.file, prefix]) === null) { fs.rmSync(tmp, { recursive: true, force: true }); return null; }
+      tiles.push({ ...p, png: `${prefix}.png` });
+    }
+    const metas = await Promise.all(tiles.map((t) => sharp(t.png).metadata()));
+    const tileW = Math.max(...metas.map((m) => m.width));
+    const tileH = Math.max(...metas.map((m) => m.height));
+    const labelH = 34, pad = 16, headH = title ? 44 : 0;
+    const rows = Math.ceil(tiles.length / cols);
+    const width = cols * (tileW + pad) + pad;
+    const height = headH + rows * (tileH + labelH + pad) + pad;
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const comps = [];
+    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+    if (title) svg += `<text x="${pad}" y="30" font-family="Helvetica, Arial" font-size="22" fill="#111">${esc(title)}</text>`;
+    tiles.forEach((t, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      const x = pad + c * (tileW + pad), y = headH + pad + r * (tileH + labelH + pad);
+      const m = metas[i];
+      comps.push({ input: t.png, left: x + Math.round((tileW - m.width) / 2), top: y });
+      svg += `<rect x="${x + Math.round((tileW - m.width) / 2) - 1}" y="${y - 1}" width="${m.width + 2}" height="${m.height + 2}" fill="none" stroke="#999"/>`;
+      svg += `<text x="${x}" y="${y + tileH + 22}" font-family="Helvetica, Arial" font-size="14" fill="#222">${esc(t.name.replace(/^Print Sheet\s*-\s*/, ''))} (${t.w}x${t.h})</text>`;
+    });
+    svg += '</svg>';
+    await sharp({ create: { width, height, channels: 3, background: '#f2f2f2' } }).composite([...comps, { input: Buffer.from(svg), left: 0, top: 0 }]).png().toFile(file);
+    return { file, width, height, pages: tiles.length, dpi };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 export async function renderRun(runDir, args = {}) {
   const inputs = resolveInputs(runDir, args);
   const out = path.resolve(args.out || path.join(runDir, 'signage', 'pdf-direct'));
@@ -135,13 +179,15 @@ export async function renderRun(runDir, args = {}) {
     sheets[kind] = { file: `${kind}.pdf`, pages, expected_pages: fk.length, node_ids: fk.map((f) => f.node_id), names: fk.map((f) => f.name), page_size_pt: size, fonts: fonts ? fonts.length : null, font_list: fonts, images: imgs ? imgs.length : null, full_page_images: fullPage.length, vector, ok, parts_md5: parts.map(md5).join(','), md5: md5(dst), bytes: fs.statSync(dst).size };
     console.log(ok ? 'OK ' : 'BAD', kind, `${pages}/${fk.length} pages`, `fonts ${fonts ? fonts.length : '?'}`, `images ${imgs ? imgs.length : '?'}`, vector === null ? '(poppler missing)' : vector ? 'vector' : 'NOT VECTOR');
   }
+  const preview = args['no-preview'] ? null : await contactSheet(frames.map((f) => ({ name: f.name, file: path.join(pagesDir, f.file), w: f.w, h: f.h })), path.join(out, 'review-sheets.png'), { dpi: Number(args['preview-dpi'] || 24), title: `${inputs.name}: ${frames.length} print sheets, direct render ${inputs.date}` });
+  if (preview) console.log('preview', preview.file, `${preview.width}x${preview.height}`);
   const stripSheets = (n) => { const o = { ...n }; delete o.sheet; return o; };
   const summary = {
     generator: 'boostly-signage-sheets/scripts/direct-pdf/direct-pdf.mjs',
-    status: 'parity-proven, not yet default',
+    status: 'default since 2026-10-15 (parity-proven)',
     run_dir: runDir, out, generated_at: new Date().toISOString(),
     inputs: { name: inputs.name, status: inputs.status, date: inputs.date, band: inputs.band, offer: inputs.offer, mode: inputs.mode, tables: inputs.tables, stalls: inputs.stalls, logos: inputs.logos, qr_files: inputs.qrFiles },
-    build: log, copy_check: copyCheck, frames: frames.map(stripSheets), sheets, pages: pageStats, all_ok: allOk,
+    build: log, copy_check: copyCheck, frames: frames.map(stripSheets), sheets, pages: pageStats, preview, all_ok: allOk,
   };
   fs.writeFileSync(path.join(out, 'section.json'), JSON.stringify(section));
   fs.writeFileSync(path.join(out, 'sheets.json'), JSON.stringify({ source: 'direct', frames: frames.map(stripSheets), sheets, exported_at: summary.generated_at }, null, 2));
@@ -155,7 +201,7 @@ if (isMain) {
   const runDir = path.resolve(args['run-dir'] || args._[0] || '');
   if (!runDir || !fs.existsSync(path.join(runDir, 'run.json'))) { console.error('usage: node direct-pdf.mjs --run-dir <run dir with run.json and signage/plan.json> [--out <dir>]'); process.exit(1); }
   renderRun(runDir, args).then((s) => {
-    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length }, togo: s.build.togo }));
+    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, preview: s.preview && s.preview.file, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length }, togo: s.build.togo }));
     if (!s.all_ok) process.exit(2);
   }).catch((e) => { console.error(e.stack || e.message); process.exit(1); });
 }

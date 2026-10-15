@@ -12,17 +12,28 @@ import { planSteps, DRY_FLAGS } from "./print-handoff.mjs";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const names = (p) => p.steps.map((s) => s.script);
 
-test("default plan: export, drive, email", () => {
+test("default plan: direct export, then drive and email only with --live", () => {
   const p = planSteps({});
+  assert.deepEqual(names(p), ["export-direct.mjs"]);
+  assert.match(p.stopReason, /--live/);
+  assert.equal(p.direct, true);
+  const live = planSteps({ live: true });
+  assert.deepEqual(names(live), ["export-direct.mjs", "drive-upload.mjs", "draft-email.mjs"]);
+  assert.equal(live.stopReason, null);
+});
+
+test("--figma exports the Figma section instead (fallback, and in-flight runs approved in Figma)", () => {
+  const p = planSteps({ figma: true, live: true, section: "14:2" });
   assert.deepEqual(names(p), ["export-sheets.mjs", "drive-upload.mjs", "draft-email.mjs"]);
-  assert.equal(p.stopReason, null);
+  assert.deepEqual(p.steps[0].extra, ["--section", "14:2"]);
+  assert.equal(p.direct, false);
 });
 
 test("every dry flag stops after the export (no drive, no summary, no email)", () => {
   assert.deepEqual(DRY_FLAGS, ["offline", "dry-run", "scratch"]);
   for (const flag of DRY_FLAGS) {
     const p = planSteps({ [flag]: true });
-    assert.deepEqual(names(p), ["export-sheets.mjs"], flag);
+    assert.deepEqual(names(p), ["export-direct.mjs"], flag);
     assert.deepEqual(p.skipped.map((s) => s.script), ["drive-upload.mjs", "draft-email.mjs"], flag);
     assert.ok(p.dry && /no Drive upload, no summary row, no email/.test(p.stopReason), flag);
     // --offline is never forwarded to drive-upload.mjs (its own --offline only swaps data sources)
@@ -32,17 +43,13 @@ test("every dry flag stops after the export (no drive, no summary, no email)", (
   assert.deepEqual(names(skipExport), []);
 });
 
-test("--direct touches the vendor folder only with --live; --force passes through to the export", () => {
-  const p = planSteps({ direct: true, force: true });
-  assert.deepEqual(names(p), ["export-direct.mjs"]);
+test("--force passes through to the export; dry wins over live; --skip-draft", () => {
+  const p = planSteps({ force: true });
   assert.ok(p.steps[0].extra.includes("--force"));
-  assert.match(p.stopReason, /--live/);
-  const live = planSteps({ direct: true, live: true });
-  assert.deepEqual(names(live), ["export-direct.mjs", "drive-upload.mjs", "draft-email.mjs"]);
-  const liveDry = planSteps({ direct: true, live: true, "dry-run": true });
+  const liveDry = planSteps({ live: true, "dry-run": true });
   assert.deepEqual(names(liveDry), ["export-direct.mjs"], "dry wins over live");
-  const skipDraft = planSteps({ "skip-draft": true });
-  assert.deepEqual(names(skipDraft), ["export-sheets.mjs", "drive-upload.mjs"]);
+  const skipDraft = planSteps({ live: true, "skip-draft": true });
+  assert.deepEqual(names(skipDraft), ["export-direct.mjs", "drive-upload.mjs"]);
 });
 
 test("end to end: --offline under an empty HOME makes zero Drive calls and exits 0", () => {

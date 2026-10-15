@@ -41,6 +41,14 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
   the close-out proof render; BOOTSTRAP step 8 is optional until the first close-out and `setup.sh
   --check` reports it as WARN. Gate verdicts are unchanged (no gate ever read an app screenshot).
 
+- **Signage PDFs without Figma (2026-10-15, default).** `closeout-location` renders the six vendor print
+  files straight to vector PDF (`skills/boostly-signage-sheets/scripts/direct-pdf`, parity-proven against
+  Figma's export on three runs) into `RUN_DIR/print-handoff/` and Travisse approves `review-sheets.png`;
+  `closeout-finish` runs `print-handoff.mjs --run-dir RUN_DIR --live`, which re-renders from the recorded
+  inputs and uploads. `--figma` keeps the old Figma-section export for runs approved in Figma. The Figma
+  MCP plugin (BOOTSTRAP step 7) is now optional. Dry flags (`--offline`, `--dry-run`, `--scratch`) never
+  touch Drive or email.
+
 - **Print hand-off (2026-10-06).** customstickers.com prints all signage and stickers. `closeout-finish`
   runs `skills/boostly-print-handoff` right after the Slack post: vector PDF export of the Figma print
   sheets through the REST API, upload to the location's folder under the vendor master Drive folder, a

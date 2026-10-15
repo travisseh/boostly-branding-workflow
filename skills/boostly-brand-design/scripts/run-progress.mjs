@@ -185,6 +185,7 @@ function statusPayload(rp) {
     picked_letter: vars.selection?.letter ?? vars.selection ?? null,
     branding_write: run.write?.status ?? null,
     figma_url: run.figma?.section_url ?? null,
+    signage_direct: run.signage?.direct?.status ?? null,
     slack_posted: Boolean(run.slack?.message_ts || run.slack?.posted_at),
     hold: exists(path.join(rp.dir, "HOLD.md")) ? holdFirstLine(path.join(rp.dir, "HOLD.md")) : null,
     site_url: `${SITE}/${rp.slug}/`,

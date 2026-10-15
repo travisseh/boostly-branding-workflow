@@ -373,8 +373,12 @@ def derive(req, runs):
     ready = [c for c in lc if c.get("action") == "ready"]
     fig = j.get("figma") or {}
     fstat = str(fig.get("status") or "")
-    built = fstat.startswith("built") or bool(fig.get("section_node_id"))
-    approved = fstat == "built_approved" or bool(fig.get("approved"))
+    # signage is built either as a Figma section (until 2026-10-15) or as the direct PDF render (the default
+    # since then, run.json signage.direct with its review-sheets.png preview); Travisse approves whichever exists
+    direct = (j.get("signage") or {}).get("direct") or {}
+    dstat = str(direct.get("status") or "")
+    built = fstat.startswith("built") or bool(fig.get("section_node_id")) or dstat.startswith("built") or bool(direct.get("preview_png"))
+    approved = fstat == "built_approved" or bool(fig.get("approved")) or dstat == "built_approved" or bool(direct.get("approved"))
     slack0 = bool((j.get("slack") or {}).get("message_ts") or (j.get("slack") or {}).get("posted_at"))
     # a Slack result is only ever posted after Travisse approved the signage (protocol since 2026-09-29),
     # so a posted run counts as approved even when branding complete was skipped (HOLD.md example sets).
@@ -395,8 +399,8 @@ def derive(req, runs):
         [lbl, bool(picked)],
         ["Branding applied in prod", applied],
         [f"Links written ({len(ready)} ready, {len(holds)} need a call)" if not links_applied else f"Links written ({len(holds)} still held)", links_applied],
-        ["Figma signage built", built],
-        ["Figma approved by you" + (" (closed out before the approval step existed)" if legacy else ""), approved],
+        ["Signage built" + (" (direct PDF)" if dstat else " (Figma)" if fstat else ""), built],
+        ["Signage approved by you" + (" (closed out before the approval step existed)" if legacy else ""), approved],
         ["Slack result posted", slack],
         ["Status posted to the review site", site_posted],
         ["Store details confirmed", confirmed],
@@ -406,7 +410,7 @@ def derive(req, runs):
     elif not picked:
         item["needs_you"].append("pick a letter")
     elif built and not approved:
-        item["needs_you"].append("approve the Figma signage")
+        item["needs_you"].append("approve the signage" + (" (direct PDF preview)" if dstat and not fstat else " (Figma)" if fstat else ""))
     if holds and not links_applied:
         item["needs_you"].append(f"{len(holds)} link decision(s)")
     elif ready and not links_applied and built and approved and slack:
@@ -474,7 +478,7 @@ def render(items, stale, notes):
         if i.get("figma_url"): parts.append(f"[Figma]({i['figma_url']})")
         return (" " + " · ".join(parts)) if parts else ""
     picks = [i for i in items if has(i, "pick a letter")]
-    figs = [i for i in items if has(i, "approve the Figma")]
+    figs = [i for i in items if has(i, "approve the signage")]
     links = [i for i in items if has(i, "link decision")]
     store = [i for i in items if has(i, "store details")]
     notstarted = [i for i in items if has(i, "not started")]
@@ -493,7 +497,7 @@ def render(items, stale, notes):
         for i in group:
             L.append("- " + fmt(i))
     section("Pick a letter", picks, lambda i: f"**{i['name']}**:{note(i) or ' review sheet is ready.'}{lk(i)}")
-    section("Approve Figma signage", figs, lambda i: f"**{i['name']}**:{note(i)}{fig(i)}")
+    section("Approve signage", figs, lambda i: f"**{i['name']}**:{note(i)}{fig(i)}")
     def linkfmt(i):
         n = next(x for x in i["needs_you"] if "link decision" in x)
         return f"**{i['name']}**: {n.replace('(s)', 's')}{lk(i)}"
