@@ -109,18 +109,23 @@ Do, in order:
       `subagent_type: "discovery-transport"` (Sonnet, fresh context) and give it RUN_DIR and
       the location id. It runs the Claude Chrome chunk loop, reruns discovery, runs the
       validator, and reports the exit code and errors. Do not run the chunk loop yourself.
-      Its Boostly.com profile check has two paths: the profile name the extension reports
-      (first), or, when the extension reports no profile name at all, exactly one connected
+      Its Boostly.com profile check has three paths: the profile name the extension reports
+      (first); or, when the extension reports no profile name at all, exactly one connected
       browser on this computer plus exactly one Chrome profile in Local State named Boostly.com
-      (any casing, at the `BOOSTLY_CHROME_PROFILE` directory when set). Either path records
-      `chrome_profile_resolved: Boostly.com` plus a `chrome_profile_resolution` object; a report
-      with neither is a stop, not something to work around.
+      (any casing, at the `BOOSTLY_CHROME_PROFILE` directory when set); or, when the
+      machine-local confirmation file `~/.config/boostly-branding/chrome-confirmed-device.json`
+      exists and its `device_id` is among the `list_connected_browsers` rows, `select_browser`
+      that device id and `results init ... --profile-source user-confirmed --browsers <list
+      json>` (method `user-confirmed-device`, valid only for that exact device id). Every path
+      records `chrome_profile_resolved: Boostly.com` plus a `chrome_profile_resolution` object;
+      a report with none is a stop, not something to work around.
       If the lead prefers, Travisse can start (a) himself from a terminal with the same
       command; you then pick up from the report file.
    c. The gate, run by you whichever transport produced the report:
       `validate-discovery-report.mjs --report RUN_DIR/link-discovery-report.json --location-id <id> --require-browser-provider fulfillment --require-chrome-profile Boostly.com`
       (accepts codex-extension or claude-chrome, always Boostly.com and preflighted; a
-      Local State resolution must carry its device id and directory; Playwright
+      Local State resolution must carry its device id and directory, a user-confirmed one its
+      device id, label, confirmed_by and confirmed_at; Playwright
       and static reports fail). Never edit a report, a results file, a provider field, or a
       profile field.
    d. Pages neither transport could read (a blocked read, a refused extractor, a login wall)

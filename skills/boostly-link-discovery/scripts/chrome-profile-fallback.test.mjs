@@ -14,7 +14,9 @@ import {
   FixtureStore,
   PROFILE_RESOLUTION_EXTENSION,
   PROFILE_RESOLUTION_LOCAL_STATE,
+  PROFILE_RESOLUTION_USER_CONFIRMED,
   chromeProfileResolutionErrors,
+  connectedBrowserRows,
   loadBrowserResults,
   resolveChromeProfileViaLocalState,
   resolveLocalStateProfile,
@@ -204,4 +206,100 @@ test("validator and results loader refuse a local-state resolution without devic
   assert.throws(() => loadBrowserResults(file), /chrome_profile_resolution: chrome_profile_resolution_missing:device_id/);
   const store = new FixtureStore("", "loc-1", { browserProvider: CLAUDE_CHROME_PROVIDER, chromeProfile: "boostly", browserResultsFile: file });
   await assert.rejects(() => store.preflightBrowserProvider(), /chrome_profile_resolution_missing:device_id/);
+});
+
+// Third path (2026-10-15): Travisse's Mac has 16 Chrome profiles, so the Local State fallback can
+// never pass there. He confirmed in chat which connected device is the Boostly.com profile.
+const liveBrowsers = [
+  { deviceId: "82f89fc7-1beb-407a-836a-66b4c38cc2ec", name: "boostly browser", osPlatform: "macOS", connectedAt: 1792081190994, isLocal: true },
+  { deviceId: "adb3f31a-2ecd-4bc7-a020-ab3a2b80f3a9", name: "Browser 2", osPlatform: "macOS", connectedAt: 1792080625028, isLocal: true, inUse: true },
+];
+
+function writeConfirmation(dir, overrides = {}) {
+  const file = path.join(dir, "chrome-confirmed-device.json");
+  fs.writeFileSync(file, JSON.stringify({
+    device_id: "82f89fc7-1beb-407a-836a-66b4c38cc2ec",
+    browser_label: "boostly browser",
+    profile: "Boostly.com",
+    confirmed_by: "travisse",
+    confirmed_note: "the claude browser extension in the boostly profile should be connected to this same account",
+    confirmed_at: "2026-10-15T16:00:00.000Z",
+    ...overrides,
+  }), { mode: 0o600 });
+  return file;
+}
+
+test("connectedBrowserRows reads the current list_connected_browsers shape (isLocal, name)", () => {
+  const rows = connectedBrowserRows(liveBrowsers);
+  assert.deepEqual(rows.map((row) => [row.deviceId, row.label, row.onThisComputer]), [
+    ["82f89fc7-1beb-407a-836a-66b4c38cc2ec", "boostly browser", true],
+    ["adb3f31a-2ecd-4bc7-a020-ab3a2b80f3a9", "Browser 2", true],
+  ]);
+  assert.equal(connectedBrowserRows([{ deviceId: "x", name: "remote", isLocal: false }])[0].onThisComputer, false);
+  // Two local browsers: the Local State fallback still refuses.
+  assert.throws(() => selectSingleLocalBrowser(liveBrowsers), /found 2 of 2/);
+});
+
+test("user-confirmed passes with the confirmed device id, from flags or from the confirmation file", () => {
+  const dir = tmp();
+  const confirmationFile = writeConfirmation(dir);
+  const env = { BOOSTLY_CHROME_CONFIRMED_DEVICE: confirmationFile };
+  const fromFile = initResults(path.join(dir, "a.json"), { profileSource: "user-confirmed", browsers: liveBrowsers, env });
+  assert.equal(fromFile.chrome_profile_resolved, "Boostly.com");
+  assert.equal(fromFile.chrome_profile_resolution.method, PROFILE_RESOLUTION_USER_CONFIRMED);
+  assert.equal(fromFile.chrome_profile_resolution.device_id, "82f89fc7-1beb-407a-836a-66b4c38cc2ec");
+  assert.equal(fromFile.chrome_profile_resolution.browser_label, "boostly browser");
+  assert.equal(fromFile.chrome_profile_resolution.confirmed_by, "travisse");
+  assert.equal(fromFile.chrome_profile_resolution.confirmed_at, "2026-10-15T16:00:00.000Z");
+  assert.deepEqual(chromeProfileResolutionErrors(fromFile.chrome_profile_resolution), []);
+  assert.deepEqual(validateBrowserRuntime(validRuntime(fromFile.chrome_profile_resolution), validatorOptions), []);
+  assert.equal(loadBrowserResults(path.join(dir, "a.json")).chrome_profile_resolved, "Boostly.com");
+
+  const fromFlags = initResults(path.join(dir, "b.json"), {
+    profile: "Boostly.com", profileSource: "user-confirmed", deviceId: "82f89fc7-1beb-407a-836a-66b4c38cc2ec",
+    browserLabel: "boostly browser", confirmedBy: "travisse", confirmedNote: "connected to this same account",
+    env: { BOOSTLY_CHROME_CONFIRMED_DEVICE: path.join(dir, "absent.json") },
+  });
+  assert.equal(fromFlags.chrome_profile_resolution.device_id, "82f89fc7-1beb-407a-836a-66b4c38cc2ec");
+  assert.ok(fromFlags.chrome_profile_resolution.confirmed_at);
+});
+
+test("user-confirmed refuses a device id other than the confirmed one, and a device not connected locally", () => {
+  const dir = tmp();
+  const confirmationFile = writeConfirmation(dir);
+  const env = { BOOSTLY_CHROME_CONFIRMED_DEVICE: confirmationFile };
+  assert.throws(
+    () => initResults(path.join(dir, "r.json"), { profileSource: "user-confirmed", deviceId: "adb3f31a-2ecd-4bc7-a020-ab3a2b80f3a9", browserLabel: "Browser 2", confirmedBy: "travisse", env }),
+    /is not the confirmed device/,
+  );
+  assert.equal(fs.existsSync(path.join(dir, "r.json")), false);
+  assert.throws(
+    () => initResults(path.join(dir, "r.json"), { profileSource: "user-confirmed", browsers: [liveBrowsers[1]], env }),
+    /is not among the connected browsers/,
+  );
+  assert.throws(
+    () => initResults(path.join(dir, "r.json"), { profileSource: "user-confirmed", browsers: [{ ...liveBrowsers[0], isLocal: false }], env }),
+    /not on this computer/,
+  );
+  assert.throws(
+    () => initResults(path.join(dir, "r.json"), { profileSource: "user-confirmed", env: { BOOSTLY_CHROME_CONFIRMED_DEVICE: writeConfirmation(dir, { profile: "Travisse" }) } }),
+    /confirms profile 'Travisse'/,
+  );
+  assert.throws(
+    () => initResults(path.join(dir, "r.json"), { profileSource: "user-confirmed", env: { BOOSTLY_CHROME_CONFIRMED_DEVICE: path.join(dir, "absent.json") } }),
+    /no --device-id and no confirmation file/,
+  );
+});
+
+test("validator rejects a user-confirmed resolution missing device_id, browser_label, confirmed_by or confirmed_at", () => {
+  const full = { method: PROFILE_RESOLUTION_USER_CONFIRMED, device_id: "dev-1", browser_label: "boostly browser", confirmed_by: "travisse", confirmed_at: "2026-10-15T16:00:00.000Z" };
+  assert.deepEqual(validateBrowserRuntime(validRuntime(full), validatorOptions), []);
+  for (const key of ["device_id", "browser_label", "confirmed_by", "confirmed_at"]) {
+    const { [key]: _omit, ...partial } = full;
+    assert.deepEqual(validateBrowserRuntime(validRuntime(partial), validatorOptions), [`chrome_profile_resolution_missing:${key}`]);
+  }
+  assert.deepEqual(
+    validateBrowserRuntime(validRuntime({ method: PROFILE_RESOLUTION_USER_CONFIRMED }), validatorOptions),
+    ["device_id", "browser_label", "confirmed_by", "confirmed_at"].map((key) => `chrome_profile_resolution_missing:${key}`),
+  );
 });

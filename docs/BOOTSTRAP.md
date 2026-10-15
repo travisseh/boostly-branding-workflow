@@ -31,6 +31,17 @@ Ask Travisse to confirm each item; do not proceed with an unconfirmed one.
       rename the extra profile. `node ~/.claude/skills/boostly-link-discovery/scripts/claude-chrome-browser.mjs profile probe`
       prints the profiles (directory and name only). The fix is on this machine, nothing on
       Travisse's side.
+      Third path (since 2026-10-15), for a Mac with several Chrome profiles where neither check above
+      can pass: a machine-local confirmation file `~/.config/boostly-branding/chrome-confirmed-device.json`
+      (mode 0600) naming the one connected browser the operator confirms is their Boostly.com profile.
+      The operator creates their own: open Chrome in the Boostly.com profile, have Claude call
+      `list_connected_browsers`, take the `deviceId` of that browser (the row with `isLocal: true`
+      whose `name` you gave that profile's extension), then write
+      `{"device_id": "<that id>", "browser_label": "<its name>", "profile": "Boostly.com",
+      "confirmed_by": "<your name>", "confirmed_note": "<one line saying why>", "confirmed_at": "<ISO time>"}`
+      with `mkdir -p ~/.config/boostly-branding` first and `chmod 600` after. Agents then select that
+      device and run `results init ... --profile-source user-confirmed --browsers <list json>`; any
+      other device id is refused. Travisse's device id does not work on Karissa's Mac.
 - [ ] Figma desktop app installed and signed in with an account that has edit access to the
       In-Store-Fulfillment file named in `skills/boostly-signage-sheets/references/figma-target.json`.
 - [ ] A GitHub account that is a member of the Boostly GitHub org (github.com/Boostly/boostly for the

@@ -406,3 +406,19 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - The review site repo (fulfillment-reviews, `scripts/build.mjs`) got the matching rule: the page chip says
   "Branding applied" only for those write statuses; a sibling with `write.branding_source_run` otherwise reads
   "Branding: inherits <source> (pending pick)".
+
+## 2026-10-15: third Chrome profile path, a user-confirmed device id
+
+- `skills/boostly-link-discovery/scripts/discover-links.mjs` (patched in place, keeps the package env-path line 40 and
+  Playwright-module line 2265), `claude-chrome-browser.mjs` and `chrome-profile-fallback.test.mjs` (mirrored): the
+  extension stopped reporting `profileName`, and `list_connected_browsers` now returns `isLocal` and `name`.
+  `connectedBrowserRows` and the Codex fallback accept `isLocal: true` as on this computer. New method
+  `user-confirmed-device`: `results init --profile-source user-confirmed` reads
+  `~/.config/boostly-branding/chrome-confirmed-device.json` (or takes `--device-id --browser-label --confirmed-by
+  --confirmed-note`), refuses any device id other than the confirmed one, and with `--browsers` checks the id is
+  connected and local. The validator requires `device_id`, `browser_label`, `confirmed_by`, `confirmed_at` for it.
+  Four new tests (10 in the file).
+- `agents/discovery-transport.md` (adds `select_browser` to its tools), `agents/fulfill-location.md`: step 1 profile
+  check gains path c; the `$BOOSTLY_RUN_ROOT`, reviews-repo, and `$BOOSTLY_HEARTBEAT_ROOT` package lines kept.
+- `docs/BOOTSTRAP.md` section 0: how an operator writes their own confirmation file with their own device id.
+

@@ -9,6 +9,10 @@
 //      this computer AND Chrome's Local State has exactly one profile named Boostly.com (any casing),
 //      at the directory BOOSTLY_CHROME_PROFILE names when that is set. `profile probe` prints the
 //      Local State profiles as JSON so the agent can show what it checked.
+//      On a Mac with many Chrome profiles (Travisse's, 2026-10-15) use the third path instead:
+//      `--profile-source user-confirmed [--device-id <id> --browser-label <label> --confirmed-by <who>
+//      --confirmed-note <quote>] [--browsers <list_connected_browsers.json>]`. With no --device-id it reads
+//      ~/.config/boostly-branding/chrome-confirmed-device.json; a device id other than the confirmed one refuses.
 //   2. discovery with `--browser-provider claude-chrome --browser-results <results.json>` writes browser-needed.json
 //   3. for each manifest url: navigate in the live tab, run the manifest's extractor_js with
 //      javascript_tool (it parks compact JSON on window.__boostlyPage and returns the chunk
@@ -25,11 +29,13 @@ import {
   CLAUDE_CHROME_PROVIDER,
   PROFILE_RESOLUTION_EXTENSION,
   PROFILE_RESOLUTION_LOCAL_STATE,
+  PROFILE_RESOLUTION_USER_CONFIRMED,
   browserResultKey,
   defaultChromeLocalStatePath,
   parseArgs,
   readChromeLocalStateProfiles,
   resolveChromeProfileViaLocalState,
+  resolveChromeProfileViaUserConfirmation,
 } from "./discover-links.mjs";
 import { claudeChromeChecksum, claudeChromeChunkReadSource, claudeChromeExtractorSource } from "../../boostly-link-verifier/lib/verify-core.mjs";
 
@@ -79,12 +85,17 @@ function initResults(file, {
   browserLabel,
   profileDir,
   localStateFile,
+  confirmedBy,
+  confirmedNote,
+  confirmationFile,
   env = process.env,
 } = {}) {
+  if (!profile && (profileSource === "user-confirmed" || profileSource === PROFILE_RESOLUTION_USER_CONFIRMED)) profile = "Boostly.com";
   if (!profile) throw new Error("--profile is required (the connected Chrome profile name, e.g. Boostly.com)");
   if (fs.existsSync(file)) throw new Error(`${file} already exists; add results to it instead of re-initializing`);
   const source = profileSource === "extension" ? PROFILE_RESOLUTION_EXTENSION
     : profileSource === "local-state" ? PROFILE_RESOLUTION_LOCAL_STATE
+    : profileSource === "user-confirmed" ? PROFILE_RESOLUTION_USER_CONFIRMED
     : profileSource;
   let resolution;
   if (source === PROFILE_RESOLUTION_EXTENSION) {
@@ -93,8 +104,10 @@ function initResults(file, {
     if (browserLabel) resolution.browser_label = browserLabel;
   } else if (source === PROFILE_RESOLUTION_LOCAL_STATE) {
     resolution = resolveChromeProfileViaLocalState({ expected: profile, browsers, deviceId, browserLabel, profileDir, localStateFile, env });
+  } else if (source === PROFILE_RESOLUTION_USER_CONFIRMED) {
+    resolution = resolveChromeProfileViaUserConfirmation({ expected: profile, browsers, deviceId, browserLabel, confirmedBy, confirmedNote, confirmationFile, env });
   } else {
-    throw new Error(`--profile-source must be extension or local-state, got '${profileSource}'`);
+    throw new Error(`--profile-source must be extension, local-state or user-confirmed, got '${profileSource}'`);
   }
   const results = {
     format: BROWSER_RESULTS_FORMAT,
@@ -188,6 +201,9 @@ function main(argv) {
       browserLabel: args["browser-label"],
       profileDir: args["profile-dir"],
       localStateFile: args["local-state"],
+      confirmedBy: args["confirmed-by"],
+      confirmedNote: args["confirmed-note"],
+      confirmationFile: args["confirmation-file"],
     });
     console.log(JSON.stringify({
       ok: true,
@@ -220,6 +236,7 @@ function main(argv) {
     "  claude-chrome-browser.mjs profile probe [--local-state <Local State file>]   # Chrome profiles (directory, name) as JSON",
     "  claude-chrome-browser.mjs results init --out <results.json> --profile <Chrome profile name>",
     "      [--profile-source local-state (--browsers <list_connected_browsers.json> | --device-id <id> [--browser-label <label>]) [--profile-dir <directory>] [--local-state <file>]]",
+    "      [--profile-source user-confirmed [--device-id <id> --browser-label <label> --confirmed-by <who> --confirmed-note <quote>] [--browsers <list_connected_browsers.json>] [--confirmation-file <file>]]",
     "  claude-chrome-browser.mjs results add --file <results.json> --url <url> [--final-url <url>] [--status <n>] (--page <page.json> | --page-json '<json>' | --page-parts <dir of 01.txt,02.txt,...> [--expect-chars <n> --expect-sum <n>])",
   ].join("\n"));
 }

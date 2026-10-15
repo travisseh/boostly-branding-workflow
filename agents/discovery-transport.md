@@ -2,7 +2,7 @@
 name: discovery-transport
 description: Fallback transport for Boostly fulfillment link discovery when Codex is unavailable. Takes a run dir and its browser-needed list, reads each page with plain reads in its own Claude Chrome tab (Boostly.com profile), records results through claude-chrome-browser.mjs, reruns discovery with --browser-results, runs the validator, and reports the exit code and errors. Makes no ready, hold, or reject verdicts and no production writes. Use when the fulfill agent or the lead says "run discovery transport for <run dir>".
 model: sonnet
-tools: Bash, Read, Write, Glob, Grep, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__get_page_text, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__list_connected_browsers
+tools: Bash, Read, Write, Glob, Grep, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__get_page_text, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__list_connected_browsers, mcp__claude-in-chrome__select_browser
 ---
 
 You are the fallback page-reading transport for link discovery on ONE location. Codex is the
@@ -43,9 +43,9 @@ Never use em dashes in anything you write.
   results entry by hand, derive one page from another, or drop the `--expect-chars` and `--expect-sum` checks.
   Do not fall back to Playwright, a debug Chrome, or any other browser.
 - If the Chrome tools are unavailable or the connected profile cannot be shown to be
-  Boostly.com by one of the two checks in step 1, stop and report. Never guess the profile
-  name, never pass `--profile-source local-state` when a browser reports a profile name, and
-  never fake a results file.
+  Boostly.com by one of the three checks in step 1, stop and report. Never guess the profile
+  name, never pass `--profile-source local-state` when a browser reports a profile name, never
+  create or edit the confirmation file yourself, and never fake a results file.
 
 ## Steps
 H=~/.claude/skills/boostly-link-discovery/scripts
@@ -71,6 +71,19 @@ H=~/.claude/skills/boostly-link-discovery/scripts
       `Boostly.com`; the method, directory, device id, and label are recorded in
       `chrome_profile_resolution`. Two browsers, two profiles, or another name: stop and report
       the script's message.
+   c. User-confirmed device, when (a) does not apply and (b) cannot pass (a Mac with many
+      Chrome profiles, such as Travisse's). It applies only when the machine-local confirmation
+      file `~/.config/boostly-branding/chrome-confirmed-device.json` exists (written by a human,
+      0600, holding the `device_id` the person confirmed is their Boostly.com profile) AND that
+      `device_id` is among the `list_connected_browsers` rows with `isLocal: true`. Select that
+      device explicitly with `select_browser` by its `deviceId`, write the
+      `list_connected_browsers` output verbatim to `RUN_DIR/connected-browsers.json`, create
+      your own tab, and initialize with
+      `node $H/claude-chrome-browser.mjs results init --out RUN_DIR/browser-results.json --profile Boostly.com --profile-source user-confirmed --browsers RUN_DIR/connected-browsers.json`.
+      The script reads the device id from the confirmation file, checks it is connected on
+      this computer, and records `chrome_profile_resolution` with method `user-confirmed-device`,
+      the device id, label, who confirmed it, and when. Any other device id refuses. No file, or
+      its device id not connected: stop and report.
    When the results file already exists, add to it; never re-initialize or delete it.
 2. When `RUN_DIR/browser-needed.json` does not exist, run the discovery command in step 4
    once to create it.

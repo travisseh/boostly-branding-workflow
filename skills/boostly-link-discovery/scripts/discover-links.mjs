@@ -2334,7 +2334,7 @@ class FixtureStore {
   selectLocalStateExtensionBrowser(extensionBrowsers, requestedProfile) {
     const named = extensionBrowsers.some((browser) => browser.profileName ?? browser.metadata?.profileName);
     if (named) return null;
-    const local = extensionBrowsers.filter((browser) => browser.onThisComputer === true);
+    const local = extensionBrowsers.filter((browser) => browser.onThisComputer === true || browser.isLocal === true);
     if (local.length !== 1) {
       throw new Error(`No Codex Chrome extension session reports a profile name and ${local.length} of ${extensionBrowsers.length} are on this computer (the Local State fallback needs exactly one). Refusing to bind a random profile.`);
     }
@@ -2495,9 +2495,86 @@ function profileNameForKey(profile) {
 //   local-state-single-profile: the extension reported no profile name (Karissa's Mac, 2026-10-14);
 //     exactly one connected browser is on this computer and this Mac's Chrome Local State has exactly
 //     one profile whose name matches the required one. Both halves must hold or the run stops.
+//   user-confirmed-device: the extension reports no profile name and this Mac has many Chrome
+//     profiles (Travisse's Mac, 16), so Travisse confirmed in chat which connected device id is the
+//     Boostly.com profile (2026-10-15). Valid only for that exact device id; the confirmation lives in
+//     ~/.config/boostly-branding/chrome-confirmed-device.json (0600), one per machine and person.
 const PROFILE_RESOLUTION_EXTENSION = "extension-profile-name";
 const PROFILE_RESOLUTION_LOCAL_STATE = "local-state-single-profile";
-const PROFILE_RESOLUTION_METHODS = [PROFILE_RESOLUTION_EXTENSION, PROFILE_RESOLUTION_LOCAL_STATE];
+const PROFILE_RESOLUTION_USER_CONFIRMED = "user-confirmed-device";
+const PROFILE_RESOLUTION_METHODS = [PROFILE_RESOLUTION_EXTENSION, PROFILE_RESOLUTION_LOCAL_STATE, PROFILE_RESOLUTION_USER_CONFIRMED];
+
+function defaultChromeConfirmedDevicePath(env = process.env) {
+  if (env.BOOSTLY_CHROME_CONFIRMED_DEVICE) return env.BOOSTLY_CHROME_CONFIRMED_DEVICE;
+  return path.join(os.homedir(), ".config", "boostly-branding", "chrome-confirmed-device.json");
+}
+
+function readChromeConfirmedDevice(file = defaultChromeConfirmedDevicePath()) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error(`chrome_profile_confirmation_refused: unable to read the confirmation file ${file}: ${error.message}`);
+  }
+  for (const key of ["device_id", "browser_label", "profile", "confirmed_by", "confirmed_at"]) {
+    if (typeof parsed?.[key] !== "string" || !parsed[key]) {
+      throw new Error(`chrome_profile_confirmation_refused: ${file} is missing ${key}`);
+    }
+  }
+  return parsed;
+}
+
+// The third path. The caller passes the device id it selected (or none, and the machine-local
+// confirmation file supplies it). When a confirmation file exists, the device id must equal the one
+// Travisse confirmed there; a different id refuses. With --browsers the id must also be a connected
+// browser on this computer.
+function resolveChromeProfileViaUserConfirmation({
+  expected,
+  browsers,
+  deviceId,
+  browserLabel,
+  confirmedBy,
+  confirmedNote,
+  confirmedAt,
+  confirmationFile,
+  env = process.env,
+  now = () => new Date().toISOString(),
+} = {}) {
+  if (!expected) throw new Error("expected profile name is required");
+  const file = confirmationFile || defaultChromeConfirmedDevicePath(env);
+  const confirmation = fs.existsSync(file) ? readChromeConfirmedDevice(file) : null;
+  if (!deviceId && !confirmation) {
+    throw new Error(`chrome_profile_confirmation_refused: no --device-id and no confirmation file at ${file}`);
+  }
+  if (confirmation) {
+    if (!sameProfileName(confirmation.profile, expected)) {
+      throw new Error(`chrome_profile_confirmation_refused: ${file} confirms profile '${confirmation.profile}', required '${expected}'`);
+    }
+    if (deviceId && deviceId !== confirmation.device_id) {
+      throw new Error(`chrome_profile_confirmation_refused: device id '${deviceId}' is not the confirmed device '${confirmation.device_id}' in ${file}`);
+    }
+  }
+  const resolvedDeviceId = deviceId || confirmation.device_id;
+  const label = browserLabel || confirmation?.browser_label || null;
+  const by = confirmedBy || confirmation?.confirmed_by || null;
+  if (!label) throw new Error("chrome_profile_confirmation_refused: --browser-label is required");
+  if (!by) throw new Error("chrome_profile_confirmation_refused: --confirmed-by is required");
+  if (browsers !== undefined && browsers !== null) {
+    const row = connectedBrowserRows(browsers).find((candidate) => candidate.deviceId === resolvedDeviceId);
+    if (!row) throw new Error(`chrome_profile_confirmation_refused: device '${resolvedDeviceId}' is not among the connected browsers`);
+    if (!row.onThisComputer) throw new Error(`chrome_profile_confirmation_refused: device '${resolvedDeviceId}' is connected but not on this computer`);
+  }
+  const resolution = {
+    method: PROFILE_RESOLUTION_USER_CONFIRMED,
+    device_id: resolvedDeviceId,
+    browser_label: label,
+    confirmed_by: by,
+    confirmed_note: confirmedNote || confirmation?.confirmed_note || null,
+    confirmed_at: confirmedAt || confirmation?.confirmed_at || now(),
+  };
+  if (confirmation) resolution.confirmation_file = file;
+  return resolution;
+}
 
 function defaultChromeLocalStatePath(env = process.env) {
   if (env.BOOSTLY_CHROME_LOCAL_STATE) return env.BOOSTLY_CHROME_LOCAL_STATE;
@@ -2533,7 +2610,7 @@ function connectedBrowserRows(browsers) {
     .map((browser) => ({
       deviceId: browser.deviceId ?? browser.device_id ?? browser.id ?? null,
       label: browser.label ?? browser.name ?? browser.browserName ?? browser.browser_name ?? null,
-      onThisComputer: browser.onThisComputer === true || browser.on_this_computer === true,
+      onThisComputer: browser.onThisComputer === true || browser.on_this_computer === true || browser.isLocal === true || browser.is_local === true,
       profileName: browser.profileName ?? browser.metadata?.profileName ?? null,
     }));
 }
@@ -2605,6 +2682,11 @@ function chromeProfileResolutionErrors(resolution) {
   if (resolution.method === PROFILE_RESOLUTION_LOCAL_STATE) {
     if (typeof resolution.device_id !== "string" || !resolution.device_id) errors.push("chrome_profile_resolution_missing:device_id");
     if (typeof resolution.directory !== "string" || !resolution.directory) errors.push("chrome_profile_resolution_missing:directory");
+  }
+  if (resolution.method === PROFILE_RESOLUTION_USER_CONFIRMED) {
+    for (const key of ["device_id", "browser_label", "confirmed_by", "confirmed_at"]) {
+      if (typeof resolution[key] !== "string" || !resolution[key]) errors.push(`chrome_profile_resolution_missing:${key}`);
+    }
   }
   return errors;
 }
@@ -4037,10 +4119,14 @@ export {
   MissingFixtureError,
   PROFILE_RESOLUTION_EXTENSION,
   PROFILE_RESOLUTION_LOCAL_STATE,
+  PROFILE_RESOLUTION_USER_CONFIRMED,
   browserResultKey,
   chromeProfileResolutionErrors,
   connectedBrowserRows,
+  defaultChromeConfirmedDevicePath,
   defaultChromeLocalStatePath,
+  readChromeConfirmedDevice,
+  resolveChromeProfileViaUserConfirmation,
   loadBrowserResults,
   profileNameForKey,
   readChromeLocalStateProfiles,
