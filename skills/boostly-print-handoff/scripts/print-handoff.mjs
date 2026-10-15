@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // One command for the whole hand-off: export (vector PDFs), logos + Drive upload + summary row, Gmail draft.
-// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force] [--kinds <kind[,kind]>]
+// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force] [--kinds <kind[,kind]>] [--direct]
+// --direct (2026-10-15, parity-proven, not the default): render the PDFs with export-direct.mjs (no Figma) instead of export-sheets.mjs.
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseArgs, requireRunDir, readHandoff } from "./lib/common.mjs";
@@ -13,13 +14,17 @@ const step = (script, extra) => {
   console.log(`\n== ${script} ==`);
   execFileSync("node", [path.join(here, script), "--run-dir", runDir, ...extra], { stdio: "inherit" });
 };
-if (!args["skip-export"]) step("export-sheets.mjs", pass(["section", "file-key", "force", "kinds"]));
+if (!args["skip-export"]) {
+  if (args.direct) step("export-direct.mjs", pass(["kinds", "tables", "stalls", "offer", "band", "logo", "pop-primary-logo", "date", "force"]));
+  else step("export-sheets.mjs", pass(["section", "file-key", "force", "kinds"]));
+}
 step("drive-upload.mjs", pass(["offline", "skip-summary"]));
 if (!args["skip-draft"]) step("draft-email.mjs", pass(["redraft", "no-send"]));
 const h = readHandoff(runDir);
 console.log("\n== hand-off ==");
 console.log(JSON.stringify({
   location: h.location_name,
+  source: h.source || "figma",
   folder: h.drive?.folder_link,
   master: h.drive?.master_link,
   summary: h.drive?.summary?.link,

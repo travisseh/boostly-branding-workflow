@@ -43,6 +43,15 @@ read "not included". `--section` / `--file-key` override run.json `figma.section
 of live v2-db reads (only when v2-db is down; say so in the report); `--redraft` makes a new
 draft even though one is recorded; `--print-only` prints the email body without drafting; `--no-send` creates the draft but leaves it unsent (the pre-2026-10-14 behaviour, only when Travisse asks for a draft).
 
+`--direct` (2026-10-15, parity-proven, NOT the default): replaces export-sheets.mjs with
+`export-direct.mjs`, which renders the six PDFs from `signage/plan.json` through
+`boostly-signage-sheets/scripts/direct-pdf` (no Figma, no network) into the same
+`print-handoff/` files and handoff.json blocks (`source: "direct"`), then drive-upload and the
+email run unchanged. It REFUSES a run dir whose print-handoff already holds a Figma export
+(drive-upload updates the vendor's files in place; `--force` only when that hand-off is to be
+replaced). Build overrides pass through: `--tables --stalls --offer --band --logo
+--pop-primary-logo --date`. Travisse flips the default after reviewing the parity proof.
+
 Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH), the
 `v2-db` CLI, `~/.config/gmail-tools/gmail.js` with the `boostly` account.
 

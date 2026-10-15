@@ -311,6 +311,59 @@ surname, and possessive guards).
    Report `fixed` (should be empty on a correct build); a non-empty list
    means the build step is dropping the stroke and needs fixing at source.
 
+## DIRECT PDF RENDER (no Figma; parity-proven 2026-10-15, NOT yet the default)
+
+`scripts/direct-pdf/` builds the same section as the clone-and-retarget above as a node tree
+from `references/template-spec.json` (the File 9 Munchie template recipe, struct-hash identical
+to File 8 2:2670) and renders every "Print Sheet - " frame straight to vector PDF with pdf-lib:
+no Figma file, no MCP, no network. Output drops into print-handoff unchanged (same six kind
+files, `_vector-pages/`, `sheets.json`). Travisse asked for it 2026-10-15 ("removes figma from
+the default pipeline and just generates the signage pdfs directly"); the default flow still
+builds the Figma section and the hand-off still exports it until he flips it.
+
+```bash
+D=~/.claude/skills/boostly-signage-sheets/scripts/direct-pdf
+node $D/direct-pdf.mjs --run-dir <RUN_DIR> [--out <dir>] [--tables N] [--stalls N] [--offer "<text>"] \
+  [--band #RRGGBB] [--logo <png>] [--pop-primary-logo <png>] [--name "<Location (City)>"] [--date YYYY-MM-DD]
+# proof against a Figma export of the same section (read-only on Figma):
+node $D/parity.mjs --run-dir <RUN_DIR> --figma-pages <dir of per-page Figma PDFs> \
+  [--live-tree <REST nodes.json> --section <id>] [--dpi 300] [--threshold 32]
+node --test $D/direct-pdf.test.mjs
+```
+
+Defaults: name from run.json `figma.header_title`, tables/stalls from `figma.quantities`, offer
+from `request.offer_text`, band/copy/QR svgs/logo from `signage/plan.json`. The POP primary
+logo defaults to plan.mjs's white knockout; pass `--pop-primary-logo` when the closeout chose
+the card asset instead (Scoops). Writes `<out>/section.json` (the tree), `build-log.json`,
+`sheets.json`, the kind PDFs and `_vector-pages/`. Default `--out` is `<RUN_DIR>/signage/pdf-direct`.
+
+What it reproduces (lib/): `retarget.mjs` = clone-head + figma-trim + figma-recopy + fills +
+stroke gate as pure JSON transforms; `text-layout.mjs` = Figma's text engine for the production
+styles (hhea metrics, baseline = round(half-leading + ascent), space wrapping, centered lines,
+letter spacing, GPOS kerning via fontkit, auto-width boxes rounded up, Apple Color Emoji bitmap
+for the bathroom arrow); `qr-nodes.mjs` = Figma's SVG import of the styled QR (GROUP of
+module VECTORs + three evenodd finder pairs, quadratics to cubics, scaled to the holder);
+`pdf-render.mjs` = one page per sheet at frame size in pt, ICCBased sRGB fills like Figma's
+export, INSIDE strokes as even-odd rings, the dashed cut-guide as a dashed stroke, real text in
+embedded Figtree subsets (Figma exports glyph outlines plus an invisible Type 3 layer), logo
+PNGs embedded lossless at full source resolution (Figma re-encodes them as JPEG).
+Fonts ship in `references/fonts/` (Figtree Medium/SemiBold/Bold, OFL); the emoji needs
+macOS Apple Color Emoji.
+
+Parity proof 2026-10-15 (`<RUN_DIR>/signage/pdf-direct/parity/parity.md`): Scoops Ice Cream
+(3:2, 10 pages) and The Pig & Parrot Hoboken (5:2, 14 pages): same page set and sizes, 0
+geometry mismatches against the live REST tree (max 0.004 pt over every node incl. QR
+modules), text identical, every QR decodes to the plan link (22/22, 36/36), raster diff at
+300 dpi 0.06 to 0.28% of pixels (antialiased edges only; max 1 to 2 px ink-box drift on text,
+0.14 pt on the 105-glyph POP legal line). Known differences, all intentional: real embedded
+TrueType text instead of outlines, PNG logos instead of JPEG, no invisible text layer.
+
+Making it the default (Travisse's call, after review): in `boostly-print-handoff`
+print-handoff.mjs pass `--direct` (or flip the `args.direct` test on line 18 to default on),
+and in the `closeout-location` agent replace step 4's Figma build with
+`direct-pdf.mjs --out RUN_DIR/print-handoff` plus a `signage/shots/` raster of the PDFs for
+the review; the Figma clone stays available for a manual build.
+
 ## RECOPY / TRIM existing sections
 
 Two use_figma templates retrofit an ALREADY BUILT section without re-deriving

@@ -10,7 +10,7 @@
 #
 # What it does (all under $HOME; nothing touches production):
 #   1. checks Homebrew, node (>=22), npm, python3, potrace, gh, jq, sqlite3, poppler, nc
-#   2. installs npm deps for the brand-design harness (sharp, playwright, qrcode, tsx) and image-generator,
+#   2. installs npm deps for the brand-design harness (sharp, playwright, qrcode, pdf-lib, fontkit, jsqr, tsx) and image-generator,
 #      Playwright's chromium, Pillow (pip --user), and an OpenCV venv at ~/.config/boostly-branding/cvenv
 #   3. copies skills/ -> ~/.claude/skills/, agents/ -> ~/.claude/agents/, tools/ -> ~/.claude/tools/
 #   4. creates ~/.config/boostly-branding/.env from setup/env.example (0600) and lists the empty keys
@@ -84,7 +84,7 @@ HARNESS="$REPO/skills/boostly-brand-design/harness"
 if [ "$CHECK" = 1 ] || [ "$SKIP_NPM" = 1 ]; then
   [ -d "$HARNESS/node_modules/sharp" ] && [ -d "$HARNESS/node_modules/playwright" ] && ok "harness node_modules (repo copy)" || warn "harness node_modules not installed in the repo copy (run without --check/--skip-npm)"
 else
-  (cd "$HARNESS" && npm install --no-audit --no-fund && npm install --no-audit --no-fund --save-dev tsx) && ok "harness npm deps (sharp, playwright, qrcode, tsx)" || miss "harness npm install failed"
+  (cd "$HARNESS" && npm install --no-audit --no-fund && npm install --no-audit --no-fund --save-dev tsx) && ok "harness npm deps (sharp, playwright, qrcode, pdf-lib, fontkit, jsqr, tsx)" || miss "harness npm install failed"
   (cd "$HARNESS" && npx playwright install chromium) && ok "playwright chromium" || warn "playwright chromium install failed (website captures will not work)"
   (cd "$REPO/skills/image-generator" && npm install --no-audit --no-fund) && ok "image-generator npm deps" || warn "image-generator npm install failed (optional)"
   python3 -m pip install --user --quiet -r "$REPO/setup/requirements.txt" && ok "Pillow (pip --user)" || warn "pip install Pillow failed"
@@ -107,6 +107,10 @@ for s in "$REPO"/skills/*/; do n="$(basename "$s")"; install_dir "$s" "$SKILLS_D
 # harness node_modules are installed in the repo copy; link the installed skill to them so sharp/playwright resolve
 if [ "$CHECK" = 0 ] && [ -d "$HARNESS/node_modules" ] && [ ! -e "$SKILLS_DST/boostly-brand-design/harness/node_modules" ]; then
   ln -s "$HARNESS/node_modules" "$SKILLS_DST/boostly-brand-design/harness/node_modules" && ok "harness node_modules linked into ~/.claude/skills"
+fi
+# boostly-signage-sheets (plan.mjs qrcode, scripts/direct-pdf pdf-lib/fontkit/jsqr) resolves from the same harness node_modules
+if [ "$CHECK" = 0 ] && [ -d "$HARNESS/node_modules" ] && [ ! -e "$SKILLS_DST/boostly-signage-sheets/node_modules" ]; then
+  ln -s "$HARNESS/node_modules" "$SKILLS_DST/boostly-signage-sheets/node_modules" && ok "harness node_modules linked into boostly-signage-sheets"
 fi
 if [ "$CHECK" = 0 ] && [ -d "$REPO/skills/image-generator/node_modules" ] && [ ! -e "$SKILLS_DST/image-generator/node_modules" ]; then
   ln -s "$REPO/skills/image-generator/node_modules" "$SKILLS_DST/image-generator/node_modules"

@@ -1,0 +1,321 @@
+// Build a location's signage section as a node tree WITHOUT Figma: the same clone-and-retarget
+// the closeout agent runs in-plugin (clone the Munchie template, rename, recolor the band,
+// rebuild the to-go labels, trim to the live counts, recopy the offer, place logos and QRs,
+// stroke gate), applied to references/template-spec.json. Text sizes are measured with the
+// same layout engine the renderer draws with (lib/text-layout.mjs), so the tree carries the
+// box heights Figma would have produced.
+import fs from 'node:fs';
+import path from 'node:path';
+import { layoutText } from './text-layout.mjs';
+import { qrSvgToNodes } from './qr-nodes.mjs';
+
+export const SKILL_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+export const TEMPLATE_SPEC = path.join(SKILL_DIR, 'references', 'template-spec.json');
+export const TEMPLATE_BAND = '#408bf1';
+export const PAGE_Y0 = 798.4;
+export const PAGE_STEP = 2929;
+export const PER_SHEET = 4;
+
+// Which QR master each unit's holder takes (plan.mjs qr file keys: <ctx>-<role>).
+export const UNIT_QR = {
+  'table-sticker-promo': 'qr-tablePromo-primary',
+  'table-sticker-review': 'qr-tableReview-primary',
+  'bathroom-strip-promo': 'qr-bathroomPromo-white',
+  'bathroom-strip-review': 'qr-bathroomReview-white',
+  'pop-sign-primary': 'qr-pop-white',
+  'pop-sign-light': 'qr-pop-primary',
+  'Print Sheet - To-Go Label - promo - Black': 'qr-togoPromo-black',
+  'Print Sheet - To-Go Label - review - Black': 'qr-togoReview-black',
+};
+
+export function loadTemplateSpec(file = TEMPLATE_SPEC) {
+  const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return j.spec || j;
+}
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+// Expand {ref unit} children into full copies of the unit definition.
+export function expandRefs(spec) {
+  const units = {};
+  function walk(n) {
+    if (n.unit) units[n.unit] = n;
+    if (!n.k) return n;
+    n.k = n.k.map((c) => {
+      if (c.ref) {
+        const u = units[c.ref];
+        if (!u) throw new Error(`ref ${c.ref} before its unit`);
+        const copy = clone(u); delete copy.unit; copy.x = c.x; copy.y = c.y; copy.ref = c.ref; return copy;
+      }
+      return walk(c);
+    });
+    return n;
+  }
+  const root = walk(clone(spec));
+  // mark unit copies by name so later passes can find them without the unit/ref flags
+  (function mark(n) { if (n.unit) { n.unitName = n.unit; delete n.unit; } if (n.ref) { n.unitName = n.ref; delete n.ref; } (n.k || []).forEach(mark); })(root);
+  return root;
+}
+
+export function findAll(node, pred, acc = []) {
+  if (pred(node)) acc.push(node);
+  for (const c of node.k || []) findAll(c, pred, acc);
+  return acc;
+}
+
+export function recolor(node, from, to, acc = { n: 0 }) {
+  if (node.t === 'FRAME' && node.n === 'qr') return acc;
+  for (const f of node.f || []) if (f.c && f.c.toLowerCase() === from.toLowerCase()) { f.c = to.toLowerCase(); acc.n += 1; }
+  for (const c of node.k || []) recolor(c, from, to, acc);
+  return acc;
+}
+
+function hex(c) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(c)) throw new Error(`bad hex ${c}`);
+  return c.toLowerCase();
+}
+
+// Re-measure a TEXT node with the layout engine (ar HEIGHT / WIDTH_AND_HEIGHT hug the text).
+// Fonts the skill does not ship (the Inter section header, never printed) keep their template size.
+export function measureText(t) {
+  let L;
+  try { L = layoutText(t.text.ch, { ...t.text, w: t.w, h: t.h }); } catch (e) { if (/not found/.test(e.message)) { t.unmeasured = e.message; return null; } throw e; }
+  if (t.text.ar === 'WIDTH_AND_HEIGHT') t.w = L.boxW;
+  if (t.text.ar === 'WIDTH_AND_HEIGHT' || t.text.ar === 'HEIGHT') t.h = L.boxH;
+  return L;
+}
+
+export function setText(t, { fam, sty, fs, lh, ch, x, y, w }) {
+  t.text = { ...t.text, fam, sty, fs, lh, ch };
+  t.text.ar = 'HEIGHT';
+  t.n = ch.replace(/\n/g, ' ');
+  t.w = w; t.x = x; t.y = y;
+  return measureText(t);
+}
+
+// ---- copy rules (plan.mjs specificOfferCopy / figma-recopy.js, kept in sync) ----
+export const DEFAULTS = {
+  stickerTitle: 'Join the club!',
+  stickerBody: 'Be the first to know.\nReceive exclusive deals.',
+  popTitle: 'Join the club!',
+  popBodyVip: 'Scan to join our VIP text club\nfor ongoing offers!',
+  popBodyDiscount: 'Scan to join our text club\nfor ongoing offers!',
+};
+const GENERIC_OFFER = /^join the club!?$/i;
+export function classifyOffer(offer, mode = 'auto') {
+  if (mode !== 'auto') return mode;
+  if (!offer || GENERIC_OFFER.test(offer.trim())) return 'generic';
+  const isDiscount = /^\$?\d+(\.\d+)?\s*%?\s*off\b/i.test(offer) || /^free\b/i.test(offer);
+  return isDiscount ? 'discount' : 'phrase';
+}
+export function offerCopy(offerText, mode = 'auto') {
+  let offer = (offerText || '').replace(/\s+/g, ' ').trim();
+  const typedGet = offer.match(/^get\s+(.+?)!?\s*$/i);
+  if (typedGet && /^\$?\d+(\.\d+)?\s*%?\s*off\b/i.test(typedGet[1])) offer = typedGet[1];
+  const kind = classifyOffer(offer, mode);
+  const reviewPhrase = kind === 'phrase' && /let us know|review|good time/i.test(offer);
+  const headline = kind === 'discount' ? 'Get ' + offer.replace(/\bOFF\b/g, 'Off') : kind === 'phrase' ? offer : DEFAULTS.popTitle;
+  return {
+    kind, reviewPhrase, headline,
+    stickerTitle: kind === 'phrase' && !reviewPhrase ? offer : kind === 'discount' ? headline : DEFAULTS.stickerTitle,
+    stickerBody: kind === 'phrase' && !reviewPhrase ? DEFAULTS.popBodyVip : DEFAULTS.stickerBody,
+    popBody: kind === 'discount' ? DEFAULTS.popBodyDiscount : DEFAULTS.popBodyVip,
+    togoPromo: kind === 'generic' ? DEFAULTS.stickerTitle : headline,
+  };
+}
+
+const pageOf = (n) => { const m = /- Page (\d+)\s*$/.exec(n.n); return m ? Number(m[1]) : 1; };
+
+export function trim(sec, tables, stalls, { allowZero = false } = {}) {
+  if (!Number.isInteger(tables) || !Number.isInteger(stalls) || tables < 0 || stalls < 0) throw new Error('tables and stalls must be non-negative integers');
+  if (tables === 0 && !allowZero) throw new Error('tables=0 would delete every table and review sheet; pass allowZero to confirm');
+  const FAMILIES = [
+    { key: 'table', re: /^Print Sheet - Table Stickers/, total: tables, sticker: [900, 900] },
+    { key: 'review', re: /^Print Sheet - Review Stickers/, total: tables, sticker: [900, 900] },
+    { key: 'bathroom', re: /^Print Sheet - Bathroom Stickers/, total: stalls, sticker: [1300, 612] },
+    { key: 'bathroomReview', re: /^Print Sheet - Bathroom Review Stickers/, total: stalls, sticker: [1300, 612] },
+  ];
+  const removedSheets = [], removedStickers = [], errors = [], remaining = {};
+  const stallPages = Math.ceil(stalls / PER_SHEET);
+  for (const fam of FAMILIES) {
+    const pagesNeeded = Math.ceil(fam.total / PER_SHEET);
+    const sheets = sec.k.filter((n) => fam.re.test(n.n)).sort((a, b) => pageOf(a) - pageOf(b));
+    if (sheets.length < pagesNeeded) errors.push(`${fam.key}: need ${pagesNeeded} sheets but only ${sheets.length} exist (trim cannot add pages)`);
+    const keep = [];
+    for (const s of sheets) {
+      if (pageOf(s) > pagesNeeded) { removedSheets.push(s.n); sec.k.splice(sec.k.indexOf(s), 1); } else keep.push(s);
+    }
+    if (keep.length && fam.total > 0) {
+      const last = keep[keep.length - 1];
+      const wanted = fam.total - (pageOf(last) - 1) * PER_SHEET;
+      const stickers = last.k.filter((c) => c.t === 'FRAME' && c.w === fam.sticker[0] && c.h === fam.sticker[1]).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      if (stickers.length < wanted) errors.push(`${fam.key}: ${last.n} holds ${stickers.length} stickers but ${wanted} are needed (trim cannot add stickers)`);
+      for (const st of stickers.slice(Math.max(0, wanted))) { removedStickers.push({ sheet: last.n, name: st.n }); last.k.splice(last.k.indexOf(st), 1); }
+    }
+    keep.forEach((s, i) => { const row = fam.key === 'bathroomReview' ? stallPages + i : i; s.y = PAGE_Y0 + row * PAGE_STEP; });
+    remaining[fam.key] = keep.map((s) => ({ name: s.n, y: Math.round(s.y * 10) / 10, stickers: s.k.filter((c) => c.t === 'FRAME' && c.w === fam.sticker[0] && c.h === fam.sticker[1]).length }));
+  }
+  if (errors.length) throw new Error(errors.join('; '));
+  return { removedSheets, removedStickers, remaining };
+}
+
+export function recopy(sec, offerText, mode = 'auto') {
+  const copy = offerCopy(offerText, mode);
+  const MEDIUM = { fam: 'Figtree', sty: 'Medium' }, SEMIBOLD = { fam: 'Figtree', sty: 'SemiBold' };
+  const sheets = sec.k.filter((n) => /^Print Sheet - /.test(n.n));
+  const summary = { kind: copy.kind, headline: copy.headline, stickerLayout: null, popTitleSize: null, popTitleLines: 1, stickers: 0, popSigns: 0 };
+  let stickerLayout = copy.kind === 'phrase' && !copy.reviewPhrase ? null : 'default';
+  for (const sheet of sheets.filter((s) => /^Print Sheet - Table Stickers/.test(s.n))) {
+    for (const f of sheet.k.filter((c) => c.t === 'FRAME' && c.w === 900 && c.h === 900)) {
+      const texts = f.k.filter((t) => t.t === 'TEXT');
+      const title = texts.find((t) => t.y < 150);
+      const body = texts.find((t) => t.y >= 150);
+      if (!title || !body) continue;
+      if (stickerLayout === null) {
+        setText(title, { ...MEDIUM, fs: 82, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        stickerLayout = title.h <= 100 ? 'phraseOneLine' : 'phraseTwoLine';
+      }
+      if (stickerLayout === 'default') {
+        setText(title, { ...MEDIUM, fs: 90, lh: 100, ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        setText(body, { ...SEMIBOLD, fs: 50, lh: 60, ch: copy.stickerBody, x: 56, y: 216, w: 788 });
+      } else if (stickerLayout === 'phraseOneLine') {
+        setText(title, { ...MEDIUM, fs: 82, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        setText(body, { ...SEMIBOLD, fs: 50, lh: 60, ch: copy.stickerBody, x: 56, y: 216, w: 788 });
+      } else {
+        setText(title, { ...MEDIUM, fs: 74, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        setText(body, { ...SEMIBOLD, fs: 42, lh: 60, ch: copy.stickerBody, x: 56, y: 274, w: 788 });
+      }
+      summary.stickers += 1;
+    }
+  }
+  summary.stickerLayout = stickerLayout;
+  for (const sheet of sheets.filter((s) => /^Print Sheet - POP Sign/.test(s.n))) {
+    for (const f of sheet.k.filter((c) => c.t === 'FRAME' && c.w === 1500 && c.h === 2100)) {
+      const texts = f.k.filter((t) => t.t === 'TEXT').sort((a, b) => a.y - b.y);
+      const [title, body] = texts;
+      if (!title || !body) continue;
+      let size = 140;
+      setText(title, { ...MEDIUM, fs: size, lh: 150, ch: copy.headline, x: 120, y: 180, w: 1260 });
+      while (title.h > 150 && size > 80) { size -= 10; title.text.fs = size; measureText(title); }
+      let bodyY = 420;
+      if (title.h > 150) {
+        for (size = 130; size >= 80; size -= 10) {
+          const lh = Math.round(size * 1.15);
+          title.text.fs = size; title.text.lh = lh; measureText(title);
+          if (title.h <= 2 * lh + 1) break;
+        }
+        bodyY = 180 + title.h + 40;
+        summary.popTitleLines = 2;
+      }
+      summary.popTitleSize = size;
+      setText(body, { ...MEDIUM, fs: 70, lh: 85, ch: copy.popBody, x: 120, y: bodyY, w: 1260 });
+      summary.popSigns += 1;
+    }
+  }
+  return { copy, summary };
+}
+
+// Style A framed QR to-go labels (Travisse 2026-10-05), as the closeout clone call builds them.
+export function rebuildTogo(sec, headlines) {
+  const out = {};
+  for (const [key, chars] of Object.entries(headlines)) {
+    const sheetName = key === 'togoPromo' ? 'Print Sheet - To-Go Label - promo - Black' : 'Print Sheet - To-Go Label - review - Black';
+    const sheet = sec.k.find((n) => n.n === sheetName);
+    if (!sheet) throw new Error(`missing ${sheetName}`);
+    const t = sheet.k.find((n) => n.t === 'TEXT');
+    t.text = { fam: 'Figtree', sty: 'Bold', fs: 150, lh: { pct: 96 }, ls: -2, ah: 'LEFT', av: 'CENTER', ar: 'HEIGHT', ch: chars };
+    t.n = chars; t.f = [{ c: '#000000' }];
+    const longest = chars.split(/\s+/).sort((a, b) => b.length - a.length)[0];
+    let size = 150;
+    for (;;) {
+      t.text.fs = size; t.w = 860;
+      const L = layoutText(chars, { ...t.text, w: 860, h: 10 });
+      const lines = Math.round(L.boxH / (size * 0.96));
+      const probe = layoutText(longest, { ...t.text, ar: 'WIDTH_AND_HEIGHT' });
+      if ((L.boxH <= 500 && lines <= 3 && probe.boxW <= 860) || size <= 56) { t.h = L.boxH; break; }
+      size -= 2;
+    }
+    t.text.ar = 'NONE'; t.w = 860; t.h = 500; t.x = 72; t.y = 56;
+    const tile = sheet.k.find((n) => n.t === 'RECTANGLE' && /qr-tile|qr-frame/.test(n.n));
+    tile.n = 'qr-frame'; tile.w = 500; tile.h = 500; tile.x = 982; tile.y = 56; tile.cr = 28; tile.f = [{ c: '#ffffff' }]; tile.s = [{ c: '#000000' }]; tile.sw = 3; tile.sa = 'INSIDE';
+    const qr = sheet.k.find((n) => n.t === 'FRAME' && n.n === 'qr');
+    qr.w = 468; qr.h = 468; qr.x = 998; qr.y = 72;
+    sheet.k = sheet.k.filter((n) => n.n !== 'logo');
+    out[key] = { size };
+  }
+  return out;
+}
+
+export function strokeGate(sec) {
+  const fixed = [];
+  for (const sheet of sec.k.filter((n) => /Print Sheet/i.test(n.n))) {
+    for (const f of (sheet.k || []).filter((n) => n.t === 'FRAME' && ((n.w === 900 && n.h === 900) || (n.w === 1500 && n.h === 2100)))) {
+      const s = (f.s || []).find((p) => p.c);
+      const ok = s && s.c.toLowerCase() === '#000000' && f.sw === 1 && f.sa === 'INSIDE';
+      if (!ok) { f.s = [{ c: '#000000' }]; f.sw = 1; f.sa = 'INSIDE'; fixed.push(`${sheet.n} / ${f.n}`); }
+    }
+  }
+  return fixed;
+}
+
+// Fill the empty qr holders from the per-location SVG masters (plan.json qr block).
+export function placeQrs(sec, qrFiles) {
+  const placed = {};
+  const holders = findAll(sec, (n) => n.t === 'FRAME' && n.n === 'qr');
+  for (const h of holders) {
+    const owner = findAll(sec, (n) => (n.k || []).includes(h))[0];
+    const key = UNIT_QR[owner.unitName || owner.n];
+    if (!key) throw new Error(`no QR key for holder under ${owner.n}`);
+    const file = qrFiles[key];
+    if (!file) throw new Error(`missing QR svg for ${key}`);
+    const { node, moduleCount, moduleSize } = qrSvgToNodes(file, key, h.w);
+    h.k = [node];
+    placed[key] = placed[key] || { count: 0, moduleCount, moduleSize, holder: h.w, file };
+    placed[key].count += 1;
+  }
+  return placed;
+}
+
+// Logo image fills: every "logo" rectangle takes the sticker logo except the POP primary sign.
+export function placeLogos(sec, { sticker, popPrimary, header }) {
+  const placed = { sticker: 0, popPrimary: 0, header: 0 };
+  for (const r of findAll(sec, (n) => n.t === 'RECTANGLE' && n.n === 'logo' && (n.f || []).some((f) => f.img !== undefined || f.imgFile))) {
+    const owner = findAll(sec, (n) => (n.k || []).includes(r))[0];
+    let file = sticker, which = 'sticker';
+    if (owner === sec) { file = header || sticker; which = 'header'; }
+    else if ((owner.unitName || owner.n) === 'pop-sign-primary') { file = popPrimary; which = 'popPrimary'; }
+    if (!file) throw new Error(`no logo file for ${which}`);
+    r.f = r.f.map((f) => (f.img !== undefined || f.imgFile ? { imgFile: path.resolve(file), sm: f.sm || 'FIT' } : f));
+    placed[which] += 1;
+  }
+  return placed;
+}
+
+// The whole retarget. opts: { name, status, date, band, offer, mode, tables, stalls, qrFiles,
+// logos: { sticker, popPrimary, header }, togo: { togoPromo, togoReview }, allowZero }
+export function buildSection(opts, spec = loadTemplateSpec()) {
+  const sec = expandRefs(spec);
+  const band = hex(opts.band);
+  const log = {};
+  sec.n = `${opts.name} - generated production sheets ${opts.date}`;
+  const title = sec.k.find((n) => n.t === 'TEXT' && n.text.fs === 132);
+  if (title) { title.text.ch = opts.name; title.n = opts.name; measureText(title); }
+  const status = sec.k.find((n) => n.t === 'TEXT' && n.text.fs === 150);
+  if (status) { status.text.ch = opts.status || 'GENERATED - REVIEW BEFORE PRINT'; status.n = status.text.ch; measureText(status); }
+  log.recolored = recolor(sec, TEMPLATE_BAND, band).n;
+  const copy = offerCopy(opts.offer, opts.mode || 'auto');
+  log.togo = rebuildTogo(sec, { togoPromo: opts.togo?.togoPromo ?? copy.togoPromo, togoReview: opts.togo?.togoReview ?? 'Let us know how we did' });
+  log.trim = trim(sec, opts.tables, opts.stalls, { allowZero: !!opts.allowZero });
+  log.recopy = recopy(sec, opts.offer, opts.mode || 'auto').summary;
+  log.strokeGateFixed = strokeGate(sec);
+  // re-measure every remaining text box the passes above did not touch (template heights are
+  // the template's; the engine's own measure keeps the tree self-consistent)
+  for (const t of findAll(sec, (n) => n.t === 'TEXT')) measureText(t);
+  log.qr = placeQrs(sec, opts.qrFiles);
+  log.logos = placeLogos(sec, opts.logos);
+  return { section: sec, log };
+}
+
+export function sheetsOf(sec) {
+  return sec.k.filter((n) => /^Print Sheet\s*-/i.test(n.n));
+}

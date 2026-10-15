@@ -422,3 +422,23 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   check gains path c; the `$BOOSTLY_RUN_ROOT`, reviews-repo, and `$BOOSTLY_HEARTBEAT_ROOT` package lines kept.
 - `docs/BOOTSTRAP.md` section 0: how an operator writes their own confirmation file with their own device id.
 
+## 2026-10-15: direct signage PDFs without Figma (parity-proven, not yet the default)
+
+- `skills/boostly-signage-sheets/scripts/direct-pdf/` (new, mirrored): `direct-pdf.mjs` builds the location section
+  from `references/template-spec.json` (new: the File 9 Munchie template recipe) and renders every Print Sheet frame
+  to vector PDF with pdf-lib, into the same six kind files + `_vector-pages/` + `sheets.json` the Figma export
+  produces. `lib/retarget.mjs` (clone-head + figma-trim + figma-recopy + fills + stroke gate as JSON transforms),
+  `lib/text-layout.mjs` (Figma text engine calibrated on Figma's own PDF text layer), `lib/qr-nodes.mjs` (styled QR SVG
+  to the Figma import tree), `lib/pdf-render.mjs` (ICC sRGB fills, even-odd stroke rings, embedded Figtree subsets,
+  lossless logos, Apple Color Emoji bitmap), `lib/kinds.mjs`, `lib/fonts.mjs`. `parity.mjs` proves a run against a
+  Figma export (page set, geometry vs REST tree, 300 dpi raster diff, text, fonts, QR decode, images, sizes).
+  `direct-pdf.test.mjs` (6 tests): `node --test skills/boostly-signage-sheets/scripts/direct-pdf/direct-pdf.test.mjs`.
+- `skills/boostly-signage-sheets/references/fonts/` (new): Figtree Medium/SemiBold/Bold (OFL).
+- `skills/boostly-print-handoff/scripts/export-direct.mjs` (new) and `print-handoff.mjs --direct` (mirrored): the
+  direct render in place of export-sheets.mjs, same handoff.json blocks (`source: "direct"`); refuses a run dir that
+  already holds a Figma export unless `--force` (drive-upload updates the vendor's files in place).
+- `skills/boostly-brand-design/harness/package.json`: pdf-lib, @pdf-lib/fontkit, fontkit, jsqr. `setup/setup.sh`:
+  links the harness node_modules into `~/.claude/skills/boostly-signage-sheets` (plan.mjs and direct-pdf resolve there).
+- Both SKILL.md files document the path and the parity numbers (Scoops 3:2 and Pig & Parrot Hoboken 5:2, 2026-10-15:
+  0 geometry mismatches, max 0.004 pt; raster 0.06 to 0.28% of pixels at 300 dpi; text identical; QR 22/22 and 36/36).
+  Default flow unchanged: closeout still builds the Figma section, the hand-off still exports it.
