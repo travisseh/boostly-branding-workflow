@@ -442,3 +442,13 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
 - Both SKILL.md files document the path and the parity numbers (Scoops 3:2 and Pig & Parrot Hoboken 5:2, 2026-10-15:
   0 geometry mismatches, max 0.004 pt; raster 0.06 to 0.28% of pixels at 300 dpi; text identical; QR 22/22 and 36/36).
   Default flow unchanged: closeout still builds the Figma section, the hand-off still exports it.
+
+## 2026-10-15: print-handoff.mjs never touches Drive or email in a dry mode; --direct needs --live
+- `skills/boostly-print-handoff/scripts/print-handoff.mjs` (mirrored): the step list is a pure `planSteps(args)`.
+  `--offline`, `--dry-run` or `--scratch` stop after the export (no drive-upload, no summary row, no draft-email;
+  `--offline` is no longer forwarded to drive-upload.mjs, run that by hand when v2-db is down). `--direct` runs
+  drive-upload and draft-email only with an explicit `--live`. Cause: a scratch `--direct --offline` test overwrote
+  the six Scoops PDFs in the vendor Drive folder for about 30 s (18:05:35Z to 18:06:03Z) before they were restored.
+- `skills/boostly-print-handoff/scripts/print-handoff.test.mjs` (new, mirrored): 4 tests incl. an end-to-end run under
+  an empty HOME proving the dry flags make zero Drive calls. `node --test skills/boostly-print-handoff/scripts/print-handoff.test.mjs`.
+- `skills/boostly-print-handoff/SKILL.md` (mirrored): the flag text above.

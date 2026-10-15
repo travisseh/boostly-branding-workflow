@@ -1,36 +1,67 @@
 #!/usr/bin/env node
 // One command for the whole hand-off: export (vector PDFs), logos + Drive upload + summary row, Gmail draft.
-// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force] [--kinds <kind[,kind]>] [--direct]
+// Usage: node print-handoff.mjs --run-dir <dir> [--section <id[,id]>] [--file-key <key>] [--offline] [--redraft] [--skip-export] [--skip-draft] [--no-send] [--force] [--kinds <kind[,kind]>] [--direct] [--live] [--dry-run]
 // --direct (2026-10-15, parity-proven, not the default): render the PDFs with export-direct.mjs (no Figma) instead of export-sheets.mjs.
+// SAFETY (2026-10-15, after a scratch --direct run overwrote the Scoops vendor PDFs in Drive for ~30 s):
+//   * --offline, --dry-run or --scratch means NO Drive upload, NO summary row, NO email: the run stops after the export.
+//     (drive-upload.mjs's own --offline only swaps live v2-db facts for run.json ones; it is never reached from here.)
+//   * --direct touches Drive and email only with an explicit --live; without it the direct render stops after the export.
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseArgs, requireRunDir, readHandoff } from "./lib/common.mjs";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
-const args = parseArgs(process.argv.slice(2));
-const runDir = requireRunDir(args);
-const pass = (keys) => keys.flatMap((k) => (args[k] === undefined ? [] : args[k] === true ? [`--${k}`] : [`--${k}`, String(args[k])]));
-const step = (script, extra) => {
-  console.log(`\n== ${script} ==`);
-  execFileSync("node", [path.join(here, script), "--run-dir", runDir, ...extra], { stdio: "inherit" });
-};
-if (!args["skip-export"]) {
-  if (args.direct) step("export-direct.mjs", pass(["kinds", "tables", "stalls", "offer", "band", "logo", "pop-primary-logo", "date", "force"]));
-  else step("export-sheets.mjs", pass(["section", "file-key", "force", "kinds"]));
+export const DRY_FLAGS = ["offline", "dry-run", "scratch"];
+
+// Pure: which scripts run, with their flags, and why the others are skipped.
+export function planSteps(args) {
+  const pass = (keys) => keys.flatMap((k) => (args[k] === undefined ? [] : args[k] === true ? [`--${k}`] : [`--${k}`, String(args[k])]));
+  const dry = DRY_FLAGS.filter((k) => args[k]);
+  const steps = [];
+  const skipped = [];
+  if (!args["skip-export"]) {
+    if (args.direct) steps.push({ script: "export-direct.mjs", extra: pass(["kinds", "tables", "stalls", "offer", "band", "logo", "pop-primary-logo", "date", "force"]) });
+    else steps.push({ script: "export-sheets.mjs", extra: pass(["section", "file-key", "force", "kinds"]) });
+  }
+  let stopReason = null;
+  if (dry.length) stopReason = `${dry.map((k) => `--${k}`).join(" ")}: no Drive upload, no summary row, no email (export only)`;
+  else if (args.direct && !args.live) stopReason = "--direct without --live: direct render stops after the export; pass --live to upload to the vendor folder and email";
+  if (stopReason) {
+    skipped.push({ script: "drive-upload.mjs", reason: stopReason });
+    skipped.push({ script: "draft-email.mjs", reason: stopReason });
+    return { steps, skipped, dry: dry.length > 0, stopReason };
+  }
+  steps.push({ script: "drive-upload.mjs", extra: pass(["skip-summary"]) });
+  if (!args["skip-draft"]) steps.push({ script: "draft-email.mjs", extra: pass(["redraft", "no-send"]) });
+  else skipped.push({ script: "draft-email.mjs", reason: "--skip-draft" });
+  return { steps, skipped, dry: false, stopReason: null };
 }
-step("drive-upload.mjs", pass(["offline", "skip-summary"]));
-if (!args["skip-draft"]) step("draft-email.mjs", pass(["redraft", "no-send"]));
-const h = readHandoff(runDir);
-console.log("\n== hand-off ==");
-console.log(JSON.stringify({
-  location: h.location_name,
-  source: h.source || "figma",
-  folder: h.drive?.folder_link,
-  master: h.drive?.master_link,
-  summary: h.drive?.summary?.link,
-  pages: Object.fromEntries(Object.entries(h.sheets || {}).map(([k, v]) => [k, `${v.pages}/${v.expected_pages}${v.vector ? " vector" : " NOT VECTOR"}`])),
-  draft_id: h.draft?.id || null,
-  email_sent: !!h.draft?.sent,
-  message_id: h.draft?.message_id || null,
-  order_placed: h.draft?.order_placed?.date || null,
-}, null, 2));
+
+export function main(argv = process.argv.slice(2)) {
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const args = parseArgs(argv);
+  const runDir = requireRunDir(args);
+  const plan = planSteps(args);
+  for (const s of plan.steps) {
+    console.log(`\n== ${s.script} ==`);
+    execFileSync("node", [path.join(here, s.script), "--run-dir", runDir, ...s.extra], { stdio: "inherit" });
+  }
+  for (const s of plan.skipped) console.log(`\n== ${s.script} skipped: ${s.reason} ==`);
+  const h = readHandoff(runDir);
+  console.log("\n== hand-off ==");
+  console.log(JSON.stringify({
+    location: h.location_name,
+    source: h.source || "figma",
+    stopped_after_export: plan.stopReason,
+    folder: h.drive?.folder_link,
+    master: h.drive?.master_link,
+    summary: h.drive?.summary?.link,
+    pages: Object.fromEntries(Object.entries(h.sheets || {}).map(([k, v]) => [k, `${v.pages}/${v.expected_pages}${v.vector ? " vector" : " NOT VECTOR"}`])),
+    draft_id: h.draft?.id || null,
+    email_sent: !!h.draft?.sent,
+    message_id: h.draft?.message_id || null,
+    order_placed: h.draft?.order_placed?.date || null,
+  }, null, 2));
+}
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+if (isMain) main();

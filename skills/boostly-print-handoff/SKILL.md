@@ -39,8 +39,9 @@ Flags: `--kinds <kind[,kind]>` (2026-10-14) exports only the listed kinds (`tabl
 ad hoc path passes the ordered kinds so a POP-only order ships the POP PDF alone and the others
 read "not included". `--section` / `--file-key` override run.json `figma.section_node_id` / `figma.file_key`
 (comma-separate several sections when a location spans more than one, in grid order);
-`--force` re-exports pages that already exist; `--offline` uses run.json request facts instead
-of live v2-db reads (only when v2-db is down; say so in the report); `--redraft` makes a new
+`--force` re-exports pages that already exist; `--offline`, `--dry-run` or `--scratch` on print-handoff.mjs STOP AFTER THE EXPORT: no Drive
+upload, no summary row, no email (2026-10-15 safety rule; when v2-db is down run `drive-upload.mjs --offline`
+by hand, which only swaps live facts for run.json ones); `--redraft` makes a new
 draft even though one is recorded; `--print-only` prints the email body without drafting; `--no-send` creates the draft but leaves it unsent (the pre-2026-10-14 behaviour, only when Travisse asks for a draft).
 
 `--direct` (2026-10-15, parity-proven, NOT the default): replaces export-sheets.mjs with
@@ -50,7 +51,8 @@ draft even though one is recorded; `--print-only` prints the email body without 
 email run unchanged. It REFUSES a run dir whose print-handoff already holds a Figma export
 (drive-upload updates the vendor's files in place; `--force` only when that hand-off is to be
 replaced). Build overrides pass through: `--tables --stalls --offer --band --logo
---pop-primary-logo --date`. Travisse flips the default after reviewing the parity proof.
+--pop-primary-logo --date`. Drive and email run only with an explicit `--live`; without it `--direct`
+stops after the export. `node --test scripts/print-handoff.test.mjs` proves the dry flags make zero Drive calls. Travisse flips the default after reviewing the parity proof.
 
 Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH), the
 `v2-db` CLI, `~/.config/gmail-tools/gmail.js` with the `boostly` account.
