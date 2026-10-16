@@ -1581,7 +1581,7 @@ async function main() {
     req.request_id && req.source === 'v2-db' ? { label: 'Fulfillment request', url: `https://new.boostly.com/admin/fulfillment/${req.request_id}` } : null,
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
-    run.signage?.direct?.preview_png ? { label: 'Signage preview (direct PDF)', url: '../' + String(run.signage.direct.preview_png).replace(/^\.?\//, '') } : null,
+    run.signage?.direct?.preview_png ? { label: 'Signage sheets', url: '#signage-sheets' } : null,
   ].filter(Boolean);
   // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
   // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never
@@ -1674,6 +1674,20 @@ async function main() {
   sections.push({ id: 'header', links: overviewLinks, parts: [
     { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source` : `Fable's default cell ${defaultLetter}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
   ] });
+  // Signage approval (Travisse 2026-10-16): with the direct PDF default there is no Figma section to
+  // review, so the contact sheet of every print page goes inline right after the overview. The
+  // signage/shots copy lands in the site's design tier (3200 px, lossless PNG); the print-handoff
+  // original is the fallback.
+  const signagePreview = run.signage?.direct?.preview_png
+    ? [path.join(runDir, 'signage', 'shots', 'review-sheets.png'), path.join(runDir, String(run.signage.direct.preview_png))].find((f) => existsSync(f))
+    : null;
+  if (signagePreview) {
+    const d = run.signage.direct;
+    const kinds = d.kinds ? Object.entries(d.kinds).map(([k, n]) => `${k} ${n}`).join(', ') : null;
+    sections.push({ id: 'signage-sheets', title: 'Signage sheets', navLabel: 'Signage sheets', subtitle: `${d.approved ? 'Approved' : 'Awaiting your approval'}. Every print page as it goes to customstickers.com${d.pages ? ` (${d.pages} pages${kinds ? `: ${kinds}` : ''})` : ''}. Click to open full size.`, links: [], parts: [
+      { type: 'image', file: signagePreview, eager: true, bust: true, alt: 'signage print sheets' },
+    ] });
+  }
 
   // ---- captures (collected first so failures never block the composition) ------------------
   const websitePng = path.join(reviewDir, 'website-desktop.png');
