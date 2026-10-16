@@ -813,7 +813,7 @@ function postSlack(decision: Decision, prior: PriorRun | null, note: string): Js
     return { thread_ts: threadTs, channel: SLACK_CHANNEL, posted_at: new Date().toISOString(), message_ts: posted.message_ts ?? posted.ts ?? null, files: posted.files ?? [], via: "post-review.mjs" };
   }
   // No shots to attach (no prior run on this machine): text-only reply through the Slack CLI.
-  const out = runCapture("node", [SLACK_JS, "send", SLACK_WORKSPACE, SLACK_CHANNEL, note, "--thread", threadTs]).stdout;
+  const out = runCapture("node", [SLACK_JS, "send", SLACK_WORKSPACE, SLACK_CHANNEL, "--thread", threadTs, note]).stdout;
   saveReceipt(runDir, "slack-apply.log", out);
   let messageTs: string | null = null;
   try { const value = asObject(parseLooseJson(out)); messageTs = typeof value.ts === "string" ? value.ts : null; } catch { /* non-JSON CLI output */ }
