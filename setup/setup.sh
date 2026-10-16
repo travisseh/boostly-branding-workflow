@@ -171,7 +171,7 @@ step "doctor"
 for k in BOOSTLY_RUN_ROOT BOOSTLY_CHROME_PROFILE BOOSTLY_ADMIN_MCP_KEY SLACK_USER_OAUTH_TOKEN SEARCHAPI_API_KEY GOOGLE_PLACES_API_KEY DATAFORSEO_LOGIN DATAFORSEO_PASSWORD BOOSTLY_V2_API_KEY BOOSTLY_REPO_DIR; do
   v="${!k:-}"; [ -n "$v" ] && ok "env $k set" || miss "env $k empty"
 done
-for k in NOTION_API_TOKEN ASKELEPHANT_API_KEY TINYPNG_API_KEY REPLICATE_API_TOKEN OPENAI_API_KEY; do v="${!k:-}"; [ -n "$v" ] && ok "env $k set (optional)" || warn "env $k empty (optional)"; done
+for k in NOTION_API_TOKEN ASKELEPHANT_API_KEY TINYPNG_API_KEY REPLICATE_API_TOKEN OPENAI_API_KEY GEMINI_API_KEY; do v="${!k:-}"; [ -n "$v" ] && ok "env $k set (optional)" || warn "env $k empty (optional)"; done
 [ -n "${FIGMA_TOKEN:-}" ] && ok "env FIGMA_TOKEN set (print hand-off)" || warn "env FIGMA_TOKEN empty (print hand-off PDF export will not run)"
 GT="$(eval echo "${GMAIL_TOOLS_DIR:-$HOME/.config/gmail-tools}")"; GO="$(eval echo "${GOOGLE_TOOLS_DIR:-$HOME/.config/google-tools}")"
 [ -f "$GT/gmail.js" ] && grep -q -- '--cc' "$GT/gmail.js" && grep -q 'drafts send' "$GT/gmail.js" && ok "gmail-tools CLI with draft --cc and drafts send at $GT" || warn "gmail-tools CLI with --cc and drafts send not at $GT (the print hand-off email needs the 2026-10-14 build; see README)"
