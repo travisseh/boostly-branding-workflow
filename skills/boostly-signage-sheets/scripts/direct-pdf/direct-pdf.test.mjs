@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { layoutText, baselineOffset } from './lib/text-layout.mjs';
 import { loadFont } from './lib/fonts.mjs';
 import { qrSvgToNodes, parsePath } from './lib/qr-nodes.mjs';
-import { buildSection, offerCopy, trim, expandRefs, loadTemplateSpec, sheetsOf } from './lib/retarget.mjs';
+import { buildSection, offerCopy, trim, recopy, expandRefs, loadTemplateSpec, sheetsOf, findAll } from './lib/retarget.mjs';
 import { PdfRenderer, savePdf, roundedRectPath, svgPathToOps } from './lib/pdf-render.mjs';
 import { classify, orderFrames } from './lib/kinds.mjs';
 
@@ -96,7 +96,82 @@ test('offer copy rules and trim counts follow plan.mjs and figma-trim', () => {
   assert.equal(sheetsOf(sec).length, 10);
   assert.equal(t.remaining.bathroomReview[0].y, 798.4 + 2929);
   assert.throws(() => trim(expandRefs(loadTemplateSpec()), 0, 1), /allowZero/);
-  assert.throws(() => trim(expandRefs(loadTemplateSpec()), 13, 1), /cannot add/);
+});
+
+// Counts above the template (10 tables / 6 stalls) clone the last full sheet; below it, trim.
+// Every per-count family lands on exactly ceil(N/4) sheets holding exactly N stickers.
+const stickerCounts = (sec, re, w, h) => sheetsOf(sec).filter((s) => re.test(s.n)).map((s) => s.k.filter((c) => c.t === 'FRAME' && c.w === w && c.h === h).length);
+const FAM = { table: [/^Print Sheet - Table Stickers/, 900, 900], review: [/^Print Sheet - Review Stickers/, 900, 900], bathroom: [/^Print Sheet - Bathroom Stickers/, 1300, 612], bathroomReview: [/^Print Sheet - Bathroom Review Stickers/, 1300, 612] };
+for (const [tables, stalls, exp] of [
+  [1, 1, { table: [1], bathroom: [1], added: 0, addedStickers: 0 }],
+  [10, 4, { table: [4, 4, 2], bathroom: [4], added: 0, addedStickers: 0 }],
+  [11, 4, { table: [4, 4, 3], bathroom: [4], added: 0, addedStickers: 2 }],
+  [40, 4, { table: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], bathroom: [4], added: 14, addedStickers: 4 }],
+  [57, 9, { table: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 1], bathroom: [4, 4, 1], added: 26, addedStickers: 8 }],
+]) {
+  test(`trim builds exactly ${tables} tables and ${stalls} stalls (${exp.added} cloned sheets)`, () => {
+    const sec = expandRefs(loadTemplateSpec());
+    const t = trim(sec, tables, stalls);
+    assert.deepEqual(stickerCounts(sec, ...FAM.table), exp.table);
+    assert.deepEqual(stickerCounts(sec, ...FAM.review), exp.table);
+    assert.deepEqual(stickerCounts(sec, ...FAM.bathroom), exp.bathroom);
+    assert.deepEqual(stickerCounts(sec, ...FAM.bathroomReview), exp.bathroom);
+    assert.equal(t.addedSheets.length, exp.added);
+    assert.equal(t.addedStickers.length, exp.addedStickers);
+    assert.equal(sheetsOf(sec).length, 2 * exp.table.length + 2 * exp.bathroom.length + 4);
+    // naming follows the family's "- Page N" convention and pages come out 1..N in order
+    for (const [key, [re]] of Object.entries(FAM)) {
+      const names = sheetsOf(sec).filter((s) => re.test(s.n)).map((s) => s.n);
+      names.forEach((n, i) => { if (i > 0) assert.equal(n, `${names[0].replace(/\s*- Page \d+$/, '')} - Page ${i + 1}`, `${key} page ${i + 1} name`); });
+      const pages = names.map((n) => classify(n).page);
+      assert.deepEqual(pages.slice(1), pages.slice(1).map((_, i) => i + 2), `${key} page numbers`);
+    }
+    // cloned stickers sit on the template grid (2x2 for 900 squares, 4 stacked strips for bathroom)
+    for (const s of sheetsOf(sec).filter((s) => FAM.table[0].test(s.n))) {
+      const pos = s.k.filter((c) => c.t === 'FRAME' && c.w === 900).map((c) => `${c.x},${c.y}`);
+      assert.deepEqual(pos, ['64,64', '1041,64', '64,1041', '1041,1041'].slice(0, pos.length), s.n);
+      assert.equal(s.k[0].n, 'cut-guide');
+    }
+    for (const s of sheetsOf(sec).filter((s) => FAM.bathroom[0].test(s.n))) {
+      const pos = s.k.filter((c) => c.t === 'FRAME' && c.w === 1300).map((c) => `${c.x},${c.y}`);
+      assert.deepEqual(pos, ['64,64', '64,753', '64,1442', '64,2131'].slice(0, pos.length), s.n);
+    }
+    // rows: each family stacks from PAGE_Y0 in PAGE_STEP rows; bathroom review follows the bathroom rows
+    const stallPages = Math.ceil(stalls / 4);
+    t.remaining.bathroomReview.forEach((s, i) => assert.equal(s.y, 798.4 + (stallPages + i) * 2929));
+    t.remaining.table.forEach((s, i) => assert.equal(s.y, 798.4 + i * 2929));
+  });
+}
+
+test('a discount headline that wraps at 90pt takes the two-line sticker layout (title never touches the body)', () => {
+  const sec = expandRefs(loadTemplateSpec());
+  trim(sec, 4, 4);
+  const { summary } = recopy(sec, '20% OFF Your Next Visit');
+  assert.equal(summary.kind, 'discount');
+  assert.equal(summary.headline, 'Get 20% Off Your Next Visit'); // copy unchanged
+  assert.equal(summary.stickerLayout, 'defaultTwoLine');
+  assert.equal(summary.stickerTitleSize, 74);
+  assert.equal(summary.stickerTitleLines, 2);
+  for (const f of sheetsOf(sec).find((s) => /Table Stickers/.test(s.n)).k.filter((c) => c.t === 'FRAME')) {
+    const [title, body] = f.k.filter((t) => t.t === 'TEXT').sort((a, b) => a.y - b.y);
+    assert.equal(title.text.fs, 74); assert.equal(title.text.lh, 'AUTO'); assert.equal(title.y, 56);
+    assert.equal(body.text.fs, 42); assert.equal(body.y, 274);
+    assert.ok(title.y + title.h <= body.y, `title bottom ${title.y + title.h} overlaps body at ${body.y}`);
+  }
+  // a short discount keeps Cam's default one-line 90/100 + 50/60 at y216
+  const sec2 = expandRefs(loadTemplateSpec());
+  trim(sec2, 4, 4);
+  const d = recopy(sec2, '20% OFF').summary;
+  assert.equal(d.stickerLayout, 'default'); assert.equal(d.stickerTitleSize, 90); assert.equal(d.stickerTitleLines, 1);
+  const [t2, b2] = sheetsOf(sec2).find((s) => /Table Stickers/.test(s.n)).k.find((c) => c.t === 'FRAME').k.filter((t) => t.t === 'TEXT').sort((a, b) => a.y - b.y);
+  assert.equal(t2.h, 100); assert.equal(b2.y, 216);
+  // a very long discount that would need three lines at 74 shrinks until it clears the body
+  const sec3 = expandRefs(loadTemplateSpec());
+  trim(sec3, 4, 4);
+  const l = recopy(sec3, 'Free Appetizer With Any Entree Purchase Today').summary;
+  assert.equal(l.stickerLayout, 'defaultTwoLine'); assert.ok(l.stickerTitleSize < 74 && l.stickerTitleLines === 2, JSON.stringify(l));
+  const [t3, b3] = sheetsOf(sec3).find((s) => /Table Stickers/.test(s.n)).k.find((c) => c.t === 'FRAME').k.filter((t) => t.t === 'TEXT').sort((a, b) => a.y - b.y);
+  assert.ok(t3.y + t3.h <= b3.y);
 });
 
 test('buildSection renders a vector page with the right size, fonts and QR', async () => {
@@ -137,4 +212,56 @@ test('buildSection renders a vector page with the right size, fonts and QR', asy
   assert.ok(/\/ICCBased/.test(raw), 'ICC colour space');
   assert.ok(roundedRectPath(0, 0, 10, 10, 2).includes(' c '));
   assert.equal(svgPathToOps('M0 0L9 0L9 9Z', 1, 1), '1 1 m 10 1 l 10 10 l h');
+});
+
+test('buildSection above the template count: cloned sheets carry recopy, QR and logo like originals and render', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'direct-grow-'));
+  const qrFiles = {};
+  for (const k of ['qr-tablePromo-primary', 'qr-tableReview-primary', 'qr-bathroomPromo-white', 'qr-bathroomReview-white', 'qr-pop-primary', 'qr-pop-white', 'qr-togoPromo-black', 'qr-togoReview-black']) {
+    qrFiles[k] = path.join(dir, `${k}.svg`);
+    fs.writeFileSync(qrFiles[k], fixtureSvg(/white/.test(k) ? '#ffffff' : /black/.test(k) ? '#000000' : '#aa0000'));
+  }
+  const logo = path.join(dir, 'logo.png');
+  await sharp({ create: { width: 400, height: 200, channels: 4, background: { r: 10, g: 20, b: 30, alpha: 1 } } }).png().toFile(logo);
+  const { section, log } = buildSection({ name: 'Big Hall (Provo)', date: '2026-10-16', band: '#2f5e3f', offer: '20% Off Your Next Visit', tables: 57, stalls: 9, qrFiles, logos: { sticker: logo, popPrimary: logo } });
+  assert.equal(log.trim.addedSheets.length, 26);
+  assert.equal(log.recopy.stickers, 57);
+  assert.equal(log.recopy.stickerLayout, 'defaultTwoLine');
+  assert.equal(log.strokeGateFixed.length, 0);
+  // every holder got a QR: one per table sticker of each kind, one per bathroom strip of each kind
+  assert.equal(log.qr['qr-tablePromo-primary'].count, 57);
+  assert.equal(log.qr['qr-tableReview-primary'].count, 57);
+  assert.equal(log.qr['qr-bathroomPromo-white'].count, 9);
+  assert.equal(log.qr['qr-bathroomReview-white'].count, 9);
+  assert.equal(log.qr['qr-pop-white'].count, 1); assert.equal(log.qr['qr-togoPromo-black'].count, 1);
+  const holders = findAll(section, (n) => n.t === 'FRAME' && n.n === 'qr');
+  assert.equal(holders.length, 57 * 2 + 9 * 2 + 2 + 2);
+  assert.ok(holders.every((h) => h.k && h.k.length === 1), 'every QR holder holds exactly one QR tree');
+  // every sticker logo rectangle has an image fill
+  const logos = findAll(section, (n) => n.t === 'RECTANGLE' && n.n === 'logo');
+  assert.ok(logos.every((r) => r.f.some((f) => f.imgFile)), 'every logo rect got an image');
+  assert.equal(log.logos.sticker, 57 * 2 + 1);
+  const sheets = sheetsOf(section);
+  const frames = orderFrames(sheets.map((s) => ({ ...classify(s.n), name: s.n, sheet: s })));
+  assert.equal(frames.filter((f) => f.kind === 'table-stickers').length, 15);
+  assert.equal(frames.filter((f) => f.kind === 'review-stickers').length, 15);
+  assert.equal(frames.filter((f) => f.kind === 'bathroom-stickers').length, 3);
+  assert.equal(frames.filter((f) => f.kind === 'bathroom-review-stickers').length, 3);
+  assert.equal(frames.length, 40);
+  // a cloned full sheet (page 12) and the trimmed last sheet (page 15, 1 sticker) render clean
+  const renderer = new PdfRenderer();
+  const p12 = frames.find((f) => f.kind === 'table-stickers' && f.page === 12);
+  assert.equal(p12.name, 'Print Sheet - Table Stickers (Primary) - Page 12');
+  let state = await renderer.newDocument();
+  let stats = await renderer.renderSheet(state, p12.sheet);
+  assert.equal(stats.warnings.length, 0, stats.warnings.join('; '));
+  assert.ok(stats.images === 4 && stats.vectors >= 40 && stats.glyphs > 100, JSON.stringify(stats));
+  const p15 = frames.find((f) => f.kind === 'table-stickers' && f.page === 15);
+  state = await renderer.newDocument();
+  stats = await renderer.renderSheet(state, p15.sheet);
+  assert.equal(stats.images, 1);
+  const bath3 = frames.find((f) => f.kind === 'bathroom-review-stickers' && f.page === 3);
+  state = await renderer.newDocument();
+  stats = await renderer.renderSheet(state, bath3.sheet);
+  assert.equal(stats.warnings.length, 0); assert.equal(stats.emoji, 1);
 });

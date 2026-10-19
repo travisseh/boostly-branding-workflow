@@ -6,7 +6,8 @@
 // box heights Figma would have produced.
 import fs from 'node:fs';
 import path from 'node:path';
-import { layoutText } from './text-layout.mjs';
+import { layoutText, lineHeightPx } from './text-layout.mjs';
+import { loadFont } from './fonts.mjs';
 import { qrSvgToNodes } from './qr-nodes.mjs';
 
 export const SKILL_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
@@ -125,46 +126,102 @@ export function offerCopy(offerText, mode = 'auto') {
 }
 
 const pageOf = (n) => { const m = /- Page (\d+)\s*$/.exec(n.n); return m ? Number(m[1]) : 1; };
+const baseNameOf = (n) => n.n.replace(/\s*- Page \d+\s*$/, '');
 
+// The per-count families: how the live quantities map to sheet kinds. Tables drive the table
+// promo AND the table review stickers (one of each per table); stalls drive both bathroom strips.
+export const COUNT_FAMILIES = [
+  { key: 'table', re: /^Print Sheet - Table Stickers/, count: 'tables', sticker: [900, 900] },
+  { key: 'review', re: /^Print Sheet - Review Stickers/, count: 'tables', sticker: [900, 900] },
+  { key: 'bathroom', re: /^Print Sheet - Bathroom Stickers/, count: 'stalls', sticker: [1300, 612] },
+  { key: 'bathroomReview', re: /^Print Sheet - Bathroom Review Stickers/, count: 'stalls', sticker: [1300, 612] },
+];
+
+// Fit the section to the live counts, in BOTH directions. The Figma-side figma-trim only ever
+// removed (the template holds 10 tables / 6 stalls); here a count above the template clones the
+// last FULL sheet of that kind (same cut-guide, same 4-per-sheet grid, same unit frames, so the
+// later recopy / QR / logo passes treat the clones exactly like originals), names it with the
+// family's existing "- Page N" convention, and the last sheet is cut back to the exact count.
+// Sheets short of the grid before the last page (the template's 2-sticker page 3) are refilled
+// from the family's full-sheet prototype at the grid slot that is empty.
 export function trim(sec, tables, stalls, { allowZero = false } = {}) {
   if (!Number.isInteger(tables) || !Number.isInteger(stalls) || tables < 0 || stalls < 0) throw new Error('tables and stalls must be non-negative integers');
   if (tables === 0 && !allowZero) throw new Error('tables=0 would delete every table and review sheet; pass allowZero to confirm');
-  const FAMILIES = [
-    { key: 'table', re: /^Print Sheet - Table Stickers/, total: tables, sticker: [900, 900] },
-    { key: 'review', re: /^Print Sheet - Review Stickers/, total: tables, sticker: [900, 900] },
-    { key: 'bathroom', re: /^Print Sheet - Bathroom Stickers/, total: stalls, sticker: [1300, 612] },
-    { key: 'bathroomReview', re: /^Print Sheet - Bathroom Review Stickers/, total: stalls, sticker: [1300, 612] },
-  ];
-  const removedSheets = [], removedStickers = [], errors = [], remaining = {};
+  const counts = { tables, stalls };
+  const removedSheets = [], removedStickers = [], addedSheets = [], addedStickers = [], errors = [], remaining = {};
   const stallPages = Math.ceil(stalls / PER_SHEET);
-  for (const fam of FAMILIES) {
-    const pagesNeeded = Math.ceil(fam.total / PER_SHEET);
+  for (const fam of COUNT_FAMILIES) {
+    const total = counts[fam.count];
+    const isSticker = (c) => c.t === 'FRAME' && c.w === fam.sticker[0] && c.h === fam.sticker[1];
+    const stickersOf = (s) => s.k.filter(isSticker).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const pagesNeeded = Math.ceil(total / PER_SHEET);
     const sheets = sec.k.filter((n) => fam.re.test(n.n)).sort((a, b) => pageOf(a) - pageOf(b));
-    if (sheets.length < pagesNeeded) errors.push(`${fam.key}: need ${pagesNeeded} sheets but only ${sheets.length} exist (trim cannot add pages)`);
+    if (!sheets.length) { errors.push(`${fam.key}: the template has no sheet of this kind`); continue; }
+    // prototype = the fullest sheet (a frozen copy, so later edits to the live sheets never leak in)
+    const fullest = sheets.reduce((a, b) => (stickersOf(b).length > stickersOf(a).length ? b : a));
+    const protoSlots = stickersOf(fullest);
+    if (protoSlots.length !== PER_SHEET) { errors.push(`${fam.key}: no full ${PER_SHEET}-per-sheet prototype (fullest sheet ${fullest.n} holds ${protoSlots.length})`); continue; }
+    const proto = clone(fullest);
+    const baseName = baseNameOf(sheets[0]);
+    // grow: append clones of the prototype after the family's last sheet, numbered on
+    let insertAt = sec.k.indexOf(sheets[sheets.length - 1]) + 1;
+    for (let page = sheets.length + 1; page <= pagesNeeded; page += 1) {
+      const s = clone(proto);
+      s.n = `${baseName} - Page ${page}`;
+      sec.k.splice(insertAt, 0, s); insertAt += 1;
+      sheets.push(s); addedSheets.push(s.n);
+    }
+    // shrink: drop pages past the count
     const keep = [];
     for (const s of sheets) {
       if (pageOf(s) > pagesNeeded) { removedSheets.push(s.n); sec.k.splice(sec.k.indexOf(s), 1); } else keep.push(s);
     }
-    if (keep.length && fam.total > 0) {
-      const last = keep[keep.length - 1];
-      const wanted = fam.total - (pageOf(last) - 1) * PER_SHEET;
-      const stickers = last.k.filter((c) => c.t === 'FRAME' && c.w === fam.sticker[0] && c.h === fam.sticker[1]).sort((a, b) => (a.y - b.y) || (a.x - b.x));
-      if (stickers.length < wanted) errors.push(`${fam.key}: ${last.n} holds ${stickers.length} stickers but ${wanted} are needed (trim cannot add stickers)`);
-      for (const st of stickers.slice(Math.max(0, wanted))) { removedStickers.push({ sheet: last.n, name: st.n }); last.k.splice(last.k.indexOf(st), 1); }
-    }
+    // every kept page holds exactly its share: refill empty grid slots from the prototype, cut extras
+    keep.forEach((s, i) => {
+      const wanted = Math.min(PER_SHEET, total - i * PER_SHEET);
+      const have = stickersOf(s);
+      for (const st of have.slice(Math.max(0, wanted))) { removedStickers.push({ sheet: s.n, name: st.n }); s.k.splice(s.k.indexOf(st), 1); }
+      if (have.length < wanted) {
+        const taken = new Set(have.map((st) => `${st.x},${st.y}`));
+        for (const slot of protoSlots) {
+          if (s.k.filter(isSticker).length >= wanted) break;
+          if (taken.has(`${slot.x},${slot.y}`)) continue;
+          const st = clone(slot);
+          s.k.push(st); taken.add(`${slot.x},${slot.y}`);
+          addedStickers.push({ sheet: s.n, name: st.n, x: st.x, y: st.y });
+        }
+        s.k = [...s.k.filter((c) => !isSticker(c)), ...stickersOf(s)]; // cut-guide first, then the grid in reading order
+      }
+    });
     keep.forEach((s, i) => { const row = fam.key === 'bathroomReview' ? stallPages + i : i; s.y = PAGE_Y0 + row * PAGE_STEP; });
-    remaining[fam.key] = keep.map((s) => ({ name: s.n, y: Math.round(s.y * 10) / 10, stickers: s.k.filter((c) => c.t === 'FRAME' && c.w === fam.sticker[0] && c.h === fam.sticker[1]).length }));
+    remaining[fam.key] = keep.map((s) => ({ name: s.n, y: Math.round(s.y * 10) / 10, stickers: stickersOf(s).length }));
+    const got = keep.reduce((a, s) => a + stickersOf(s).length, 0);
+    if (got !== total) errors.push(`${fam.key}: built ${got} stickers over ${keep.length} sheets, wanted ${total}`);
   }
   if (errors.length) throw new Error(errors.join('; '));
-  return { removedSheets, removedStickers, remaining };
+  // the section's own box grows with the tallest column (metadata only; the renderer draws sheets)
+  const bottom = Math.max(...sheetsOf(sec).map((s) => s.y + s.h));
+  if (Number.isFinite(bottom)) sec.h = Math.max(sec.h, Math.ceil(bottom + PAGE_Y0));
+  return { removedSheets, removedStickers, addedSheets, addedStickers, remaining };
 }
 
 export function recopy(sec, offerText, mode = 'auto') {
   const copy = offerCopy(offerText, mode);
   const MEDIUM = { fam: 'Figtree', sty: 'Medium' }, SEMIBOLD = { fam: 'Figtree', sty: 'SemiBold' };
   const sheets = sec.k.filter((n) => /^Print Sheet - /.test(n.n));
-  const summary = { kind: copy.kind, headline: copy.headline, stickerLayout: null, popTitleSize: null, popTitleLines: 1, stickers: 0, popSigns: 0 };
+  const summary = { kind: copy.kind, headline: copy.headline, stickerLayout: null, stickerTitleSize: null, stickerTitleLines: 1, popTitleSize: null, popTitleLines: 1, stickers: 0, popSigns: 0 };
   let stickerLayout = copy.kind === 'phrase' && !copy.reviewPhrase ? null : 'default';
+  // Two-line sticker layout (figma-recopy phraseTwoLine: title 74 auto-lh at y56, body 42/60 at
+  // y274), with a measured guard: a title that still runs past the body's top shrinks in steps
+  // of 2 until it clears y274 (floor 40), so title and body never overlap on any copy.
+  const STICKER_TWO_LINE_BODY_Y = 274, STICKER_TITLE_Y = 56;
+  const twoLine = (title, body) => {
+    let size = 74;
+    setText(title, { ...MEDIUM, fs: size, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: STICKER_TITLE_Y, w: 788 });
+    while (STICKER_TITLE_Y + title.h > STICKER_TWO_LINE_BODY_Y && size > 40) { size -= 2; title.text.fs = size; measureText(title); }
+    setText(body, { ...SEMIBOLD, fs: 42, lh: 60, ch: copy.stickerBody, x: 56, y: STICKER_TWO_LINE_BODY_Y, w: 788 });
+    return size;
+  };
   for (const sheet of sheets.filter((s) => /^Print Sheet - Table Stickers/.test(s.n))) {
     for (const f of sheet.k.filter((c) => c.t === 'FRAME' && c.w === 900 && c.h === 900)) {
       const texts = f.k.filter((t) => t.t === 'TEXT');
@@ -176,15 +233,23 @@ export function recopy(sec, offerText, mode = 'auto') {
         stickerLayout = title.h <= 100 ? 'phraseOneLine' : 'phraseTwoLine';
       }
       if (stickerLayout === 'default') {
-        setText(title, { ...MEDIUM, fs: 90, lh: 100, ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        // Cam's default is a ONE-line 90/100 title over the body at y216. A discount offer that
+        // wraps at 90 in the 788 box ("Get 20% Off Your Next Visit") would land its second line
+        // on the body, so it takes the two-line layout instead (copy unchanged).
+        const L = setText(title, { ...MEDIUM, fs: 90, lh: 100, ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
+        if (L && L.lines.length > 1) stickerLayout = 'defaultTwoLine';
+      }
+      if (stickerLayout === 'default') {
         setText(body, { ...SEMIBOLD, fs: 50, lh: 60, ch: copy.stickerBody, x: 56, y: 216, w: 788 });
+        summary.stickerTitleSize = 90;
       } else if (stickerLayout === 'phraseOneLine') {
         setText(title, { ...MEDIUM, fs: 82, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
         setText(body, { ...SEMIBOLD, fs: 50, lh: 60, ch: copy.stickerBody, x: 56, y: 216, w: 788 });
+        summary.stickerTitleSize = 82;
       } else {
-        setText(title, { ...MEDIUM, fs: 74, lh: 'AUTO', ch: copy.stickerTitle, x: 56, y: 56, w: 788 });
-        setText(body, { ...SEMIBOLD, fs: 42, lh: 60, ch: copy.stickerBody, x: 56, y: 274, w: 788 });
+        summary.stickerTitleSize = twoLine(title, body);
       }
+      summary.stickerTitleLines = Math.max(1, Math.round(title.h / lineHeightPx(title.text.lh, title.text.fs, loadFont(title.text.fam, title.text.sty))));
       summary.stickers += 1;
     }
   }

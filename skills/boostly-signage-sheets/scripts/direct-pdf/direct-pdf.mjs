@@ -201,7 +201,7 @@ if (isMain) {
   const runDir = path.resolve(args['run-dir'] || args._[0] || '');
   if (!runDir || !fs.existsSync(path.join(runDir, 'run.json'))) { console.error('usage: node direct-pdf.mjs --run-dir <run dir with run.json and signage/plan.json> [--out <dir>]'); process.exit(1); }
   renderRun(runDir, args).then((s) => {
-    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, preview: s.preview && s.preview.file, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length }, togo: s.build.togo }));
+    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, preview: s.preview && s.preview.file, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length, added_sheets: s.build.trim.addedSheets.length, added_stickers: s.build.trim.addedStickers.length }, togo: s.build.togo }));
     if (!s.all_ok) process.exit(2);
   }).catch((e) => { console.error(e.stack || e.message); process.exit(1); });
 }
