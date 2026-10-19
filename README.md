@@ -43,9 +43,10 @@ Start here: [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md).
 
 - **Signage PDFs without Figma (2026-10-15, default).** `closeout-location` renders the six vendor print
   files straight to vector PDF (`skills/boostly-signage-sheets/scripts/direct-pdf`, parity-proven against
-  Figma's export on three runs) into `RUN_DIR/print-handoff/` and Travisse approves `review-sheets.png`;
-  `closeout-finish` runs `print-handoff.mjs --run-dir RUN_DIR --live`, which re-renders from the recorded
-  inputs and uploads. `--figma` keeps the old Figma-section export for runs approved in Figma. The Figma
+  Figma's export on three runs) into `RUN_DIR/print-handoff/` and uploads them to the location's Google Drive folder (no vendor email, no
+  summary row) before the stop; the reviewer approves the high-res PDFs in Drive via the review page's Print
+  files link (2026-10-19). `closeout-finish` runs `print-handoff.mjs --run-dir RUN_DIR --live`, which adds the
+  summary row and emails the vendor (its upload re-run replaces changed files in place). `--figma` keeps the old Figma-section export for runs approved in Figma. The Figma
   MCP plugin (BOOTSTRAP step 7) is now optional. Dry flags (`--offline`, `--dry-run`, `--scratch`) never
   touch Drive or email.
 
