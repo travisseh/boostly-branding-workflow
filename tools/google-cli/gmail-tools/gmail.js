@@ -491,6 +491,13 @@ async function deleteDraft(accountId, draftId) {
   console.log(JSON.stringify({ status: "draft_deleted", id: draftId, subject }));
 }
 
+async function sendDraft(accountId, draftId) {
+  const auth = await getAuthClient(accountId);
+  const gmail = google.gmail({ version: "v1", auth });
+  const res = await gmail.users.drafts.send({ userId: "me", requestBody: { id: draftId } });
+  console.log(JSON.stringify({ status: "draft_sent", id: draftId, message_id: res.data.id, thread_id: res.data.threadId }));
+}
+
 async function replyToMessage(accountId, query, replyBody) {
   const auth = await getAuthClient(accountId);
   const gmail = google.gmail({ version: "v1", auth });
@@ -582,6 +589,7 @@ Commands:
   draft-reply <account> "query" "body"            Create a threaded draft reply (does NOT send)
   drafts list <account> [limit]                  List drafts (id, to, subject)
   drafts delete <account> <draftId>              Delete one draft by id (never sends)
+  drafts send <account> <draftId>                Send one existing draft by id
   download <account> "query" [output-dir]        Download attachments from a message
   check                                          Preflight check all accounts (pass/fail)
 
@@ -643,7 +651,8 @@ Examples:
       case "drafts":
         if (args[0] === "list" && args[1]) { await listDrafts(args[1], parseInt(args[2]) || 50); break; }
         if (args[0] === "delete" && args[1] && args[2]) { await deleteDraft(args[1], args[2]); break; }
-        console.log("Usage: node gmail.js drafts list <account> [limit] | drafts delete <account> <draftId>");
+        if (args[0] === "send" && args[1] && args[2]) { await sendDraft(args[1], args[2]); break; }
+        console.log("Usage: node gmail.js drafts list <account> [limit] | drafts delete <account> <draftId> | drafts send <account> <draftId>");
         break;
       case "draft-reply":
         if (args.length < 3) { console.log("Usage: node gmail.js draft-reply <account> \"query\" \"body\""); break; }
