@@ -6,12 +6,16 @@
 //   node post-review.mjs --run-dir <dir>
 //     [--location-id <id> | --thread-ts <ts> | --permalink <url>]
 //     [--channel <C...>] [--note <file>] [--files a.png,b.png] [--apply]
+//   node post-review.mjs --run-dir <dir> --reply "<text>" [--apply] [--force]
 //
 // Dry-run by default. --apply uploads and writes <run-dir>/slack-post.json.
-// Thread ts resolution order: --thread-ts, --permalink, DB lookup of
-// fulfillment_requests.slack_thread_ts by location id (--location-id or the
-// run manifest). NEVER guesses; refuses to post without a thread ts so nothing
-// lands top-level. Never prints the Slack token.
+// --reply posts exactly ONE plain thread reply (the hold reply after a CSM hold
+// lands once the vendor email is out), recorded in <run-dir>/slack-reply.json;
+// slack-post.json is never touched; a second reply needs --force.
+// Thread ts resolution order: --thread-ts, --permalink, run.json slack block
+// (the post receipt), DB lookup of fulfillment_requests.slack_thread_ts by
+// location id (--location-id or the run manifest). NEVER guesses; refuses to
+// post without a thread ts so nothing lands top-level. Never prints the token.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,7 +47,7 @@ function usage(msg) {
   process.exit(2);
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const out = { apply: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -60,6 +64,8 @@ function parseArgs(argv) {
       case '--channel': out.channel = take(); break;
       case '--note': out.note = take(); break;
       case '--files': out.files = take(); break;
+      case '--reply': out.reply = take(); break;
+      case '--force': out.force = true; break;
       case '--apply': out.apply = true; break;
       case '-h': case '--help': usage(); break;
       default: usage(`unknown argument ${a}`);
@@ -84,6 +90,25 @@ function manifestLocationId(m) {
 function manifestLocationName(m) {
   return m?.location_name || m?.location?.location_name || m?.location?.name || null;
 }
+// run.json slack block: the receipt of the review post (thread_ts + channel).
+export function runSlackThread(runDir) {
+  const p = path.join(runDir, 'run.json');
+  if (!fs.existsSync(p)) return null;
+  try {
+    const sl = JSON.parse(fs.readFileSync(p, 'utf8')).slack || {};
+    return sl.thread_ts && TS_RE.test(String(sl.thread_ts)) ? { threadTs: String(sl.thread_ts), channel: sl.channel || null } : null;
+  } catch { return null; }
+}
+
+// The slack-reply.json record for one thread reply.
+export function replyRecord({ channel, threadTs, source, text, ts, requestId, locationId, locationName, botUser }) {
+  return {
+    posted_at: new Date().toISOString(), channel, thread_ts: threadTs, thread_source: source, message_ts: ts,
+    permalink: ts ? `https://slack.com/archives/${channel}/p${ts.replace('.', '')}?thread_ts=${threadTs}&cid=${channel}` : null,
+    request_id: requestId, location_id: locationId, location_name: locationName, bot_user: botUser, text,
+  };
+}
+
 function manifestThreadTs(m) {
   const ts = m?.fulfillment_request?.slack_thread_ts;
   return ts && TS_RE.test(String(ts)) ? String(ts) : null;
@@ -129,7 +154,6 @@ async function dbThreadTs(locationId) {
 }
 
 function loadToken() {
-  if (process.env.SLACK_USER_OAUTH_TOKEN) return process.env.SLACK_USER_OAUTH_TOKEN;
   if (!fs.existsSync(SLACK_CONFIG)) fail(`Slack config not found at ${SLACK_CONFIG}`);
   const cfg = JSON.parse(fs.readFileSync(SLACK_CONFIG, 'utf8'));
   const token = cfg?.workspaces?.boostly?.token;
@@ -253,6 +277,12 @@ async function main() {
     threadTs = p.threadTs; source = '--permalink';
     if (channel && channel !== p.channel) fail(`--channel ${channel} disagrees with the permalink channel ${p.channel}`);
     channel = p.channel;
+  } else if (runSlackThread(runDir)) {
+    const r = runSlackThread(runDir);
+    threadTs = r.threadTs; source = 'run.json slack block';
+    if (r.channel) { if (channel && channel !== r.channel) fail(`--channel ${channel} disagrees with run.json slack.channel ${r.channel}`); channel = r.channel; }
+    requestId = requestId || JSON.parse(fs.readFileSync(path.join(runDir, 'run.json'), 'utf8')).request?.request_id || null;
+    locationName = locationName || JSON.parse(fs.readFileSync(path.join(runDir, 'run.json'), 'utf8')).request?.location_name || null;
   } else {
     if (!locationId) fail('no thread source: pass --thread-ts, --permalink, or --location-id (manifest.json has no location id)');
     const r = await dbThreadTs(locationId);
@@ -269,6 +299,31 @@ async function main() {
   const token = loadToken();
   const auth = await slack(token, 'auth.test');
   if (!auth.ok) fail(`auth.test failed: ${auth.error}`);
+
+  if (opts.reply !== undefined) {
+    const text = stripEmDashes(opts.reply).trim();
+    if (!text) fail('--reply text is empty');
+    const replyFile = path.join(runDir, 'slack-reply.json');
+    if (fs.existsSync(replyFile) && !opts.force) fail(`a thread reply is already recorded in ${replyFile}; the hold reply is sent once (pass --force for a deliberate second reply)`);
+    const thread = await verifyThread(token, channel, threadTs);
+    console.log(`mode:      ${opts.apply ? 'APPLY (reply)' : 'dry-run (reply)'}`);
+    console.log(`bot:       ${auth.user} (${auth.team})`);
+    console.log(`location:  ${locationName}${locationId ? ` [${locationId}]` : ''}`);
+    console.log(`channel:   ${channel}`);
+    console.log(`thread_ts: ${threadTs}  (from ${source})`);
+    if (thread) console.log(`thread:    verified, ${thread.replyCount} replies, parent: "${thread.preview}"`);
+    console.log(`reply (${text.length} chars):`);
+    console.log(text.split('\n').map((l) => `  | ${l}`).join('\n'));
+    if (!opts.apply) { console.log('\ndry-run only; pass --apply to post the reply.'); return; }
+    const d = await slack(token, 'chat.postMessage', { json: { channel, thread_ts: threadTs, text } });
+    if (!d.ok) fail(`chat.postMessage failed: ${d.error}`);
+    const record = replyRecord({ channel, threadTs, source, text, ts: d.ts, requestId, locationId, locationName, botUser: auth.user });
+    if (fs.existsSync(replyFile)) { try { record.previous = JSON.parse(fs.readFileSync(replyFile, 'utf8')); } catch { /* keep going */ } }
+    fs.writeFileSync(replyFile, JSON.stringify(record, null, 2) + '\n');
+    console.log(`\nreplied in ${channel} thread ${threadTs} (ts ${d.ts})`);
+    console.log(`wrote ${replyFile}`);
+    return;
+  }
 
   const { path: notePath, note } = resolveNote(opts, runDir);
   const files = resolveFiles(opts, runDir, locationName);
@@ -335,4 +390,5 @@ async function main() {
   console.log(`wrote ${path.join(runDir, 'slack-post.json')}`);
 }
 
-main().catch((e) => { console.error(`error: ${e?.message || e}`); process.exit(1); });
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+if (isMain) main().catch((e) => { console.error(`error: ${e?.message || e}`); process.exit(1); });

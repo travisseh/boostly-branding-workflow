@@ -541,7 +541,7 @@
       "pass_rule": "0 < bytes <= max_bytes",
       "severity": "block",
       "override_allowed": true,
-      "override_rationale": "The byte ladder has a documented human exception: at the 1000px floor and still over, write an explicit textured-art exception with edge crops. That exception is an override record.",
+      "override_rationale": "At the floor and still over the cap, the closeout ships the best under-cap copy from `scripts/finalize-asset.mjs` and this override is recorded from the pick notice (picking the letter also OKs the sticker size); no human exception.",
       "case_study": "Travisse 2026-09-08 byte ladder; Olympus 62,425 B textured art.",
       "battery": true,
       "override_allowed_for_shipped": false
@@ -561,7 +561,7 @@
       "pass_rule": "longest >= min_longest_px. Applies only to files the byte ladder reduced; a clean first-party source resampled once to its target (normally <= 800px) is governed by ship-gate instead.",
       "severity": "block",
       "override_allowed": false,
-      "override_rationale": "Hard technical floor of the ladder: below it the documented move is the textured-art exception on upload-size, not a smaller file.",
+      "override_rationale": "At the floor and still over the cap, the closeout ships the best under-cap copy from `scripts/finalize-asset.mjs` and this override is recorded from the pick notice (picking the letter also OKs the sticker size); no human exception.",
       "case_study": "Byte ladder rule (SKILL, 2026-09-08).",
       "battery": false,
       "when": "gates run --laddered",

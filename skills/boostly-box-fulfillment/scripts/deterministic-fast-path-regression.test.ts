@@ -69,9 +69,11 @@ test("deterministic plan decisions preserve recall while holding known unsafe wr
   );
 
   for (const [caseId, links] of Object.entries(decisions)) {
+    // Link write gate (2026-10-19): gift cards and name-matched app store links are standing writes;
+    // loyalty and generic app-download pages stay review-only. These fixtures carry no business
+    // names, so an app listing can never match here and apps must still hold.
     const unsafeWrites = links.filter((link) => link.action === "write" && [
       "reservations",
-      "gift_cards",
       "loyalty_rewards",
       "ios_app",
       "android_app",
@@ -79,6 +81,7 @@ test("deterministic plan decisions preserve recall while holding known unsafe wr
     ].includes(link.category));
     assert.deepEqual(unsafeWrites, [], `${caseId} auto-wrote a review-only category`);
   }
+  assert.equal(actionFor(decisions.taste_of_beauty, "gift_cards"), "write");
 
   assert.equal(actionFor(decisions.taste_of_beauty, "instagram"), "write");
   assert.equal(actionFor(decisions.taste_of_beauty, "facebook"), "write");

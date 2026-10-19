@@ -83,7 +83,7 @@ function hasPriorPlannedSocialWrite(plan: FulfillmentPlan, sequence: number): bo
   return plan.writes.some((write) =>
     write.sequence < sequence &&
     (write.kind === "branding" || write.kind === "social") &&
-    ["facebook_url", "instagram_url", "x_url", "tiktok_url", "youtube_url"]
+    ["facebook_url", "instagram_url", "x_url", "tiktok_url", "youtube_url", "apple_app_url", "google_app_url"]
       .some((field) => stringValue(write.payload?.[field]) !== null),
   );
 }
@@ -267,6 +267,8 @@ function brandingArgs(payload: Record<string, unknown> | undefined): string[] {
     tiktok_url: "--tiktok-url",
     youtube_url: "--youtube-url",
     x_url: "--x-url",
+    apple_app_url: "--apple-app-url",
+    google_app_url: "--google-app-url",
     web_primary_color: "--web-primary-color",
     web_secondary_color: "--web-secondary-color",
     web_text_color: "--web-text-color",

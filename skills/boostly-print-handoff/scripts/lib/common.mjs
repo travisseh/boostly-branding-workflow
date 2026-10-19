@@ -90,6 +90,13 @@ export function v2Query(sql) {
 
 function lit(s) { return `'${String(s).replace(/'/g, "''")}'`; }
 
+export const SHIP_TO_FIELDS = ["recipient_name", "address_line1", "city", "state", "zip"];
+// Which ship-to fields are still empty (the vendor email is gated on all five).
+export function shipToMissing(s) {
+  if (!s) return [...SHIP_TO_FIELDS];
+  return SHIP_TO_FIELDS.filter((k) => !String(s[k] || "").trim());
+}
+
 export function liveShipTo(locationId) {
   const rows = v2Query(`select name, shipping_recipient_name, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_zip from locations where id = ${lit(locationId)}`);
   if (!rows.length) throw new Error(`location ${locationId} not found`);
@@ -119,6 +126,22 @@ export function liveQuantities(requestId) {
 export function liveOffer(requestId) {
   const rows = v2Query(`select offer_text, location_id from fulfillment_requests where id = ${lit(requestId)}`);
   return rows[0] || null;
+}
+
+// What the SUBSCRIBE keyword pays right now (promotion title), or null without one.
+export function livePromotionTitle(locationId) {
+  const rows = v2Query(`select p.title from keywords k left join promotions p on p.id = k.promotion_id where k.location_id = ${lit(locationId)} and k.deleted_at is null and k.keyword ilike 'SUBSCRIBE%' order by k.created_at limit 1`);
+  return rows[0]?.title ?? null;
+}
+
+// empty and "Join the Club!" are the same generic offer (plan.mjs copy rule)
+const normOffer = (t) => String(t ?? "").trim().replace(/\s+/g, " ").toLowerCase().replace(/^join the club!?$/, "");
+// Pure: did the live offer move away from the one the approved sheets were built with?
+// Returns null when unchanged (or when there is no live read), else { from, to }.
+export function offerChange(recordedOffer, liveOffer) {
+  if (liveOffer === undefined || liveOffer === null) return null;
+  if (normOffer(recordedOffer) === normOffer(liveOffer)) return null;
+  return { from: recordedOffer ?? "", to: String(liveOffer) };
 }
 
 // Request facts: live first, run.json fallback only with --offline.

@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { layoutText, baselineOffset } from './lib/text-layout.mjs';
 import { loadFont } from './lib/fonts.mjs';
 import { qrSvgToNodes, parsePath } from './lib/qr-nodes.mjs';
-import { buildSection, offerCopy, trim, recopy, expandRefs, loadTemplateSpec, sheetsOf, findAll } from './lib/retarget.mjs';
+import { buildSection, offerCopy, trim, recopy, expandRefs, loadTemplateSpec, sheetsOf, placeLogoPanels, findAll, PANEL_PAD } from './lib/retarget.mjs';
 import { PdfRenderer, savePdf, roundedRectPath, svgPathToOps } from './lib/pdf-render.mjs';
 import { classify, orderFrames } from './lib/kinds.mjs';
 
@@ -95,7 +95,14 @@ test('offer copy rules and trim counts follow plan.mjs and figma-trim', () => {
   assert.equal(t.removedStickers.length, 6);
   assert.equal(sheetsOf(sec).length, 10);
   assert.equal(t.remaining.bathroomReview[0].y, 798.4 + 2929);
-  assert.throws(() => trim(expandRefs(loadTemplateSpec()), 0, 1), /allowZero/);
+  // zero tables is a normal order (POP-only ad hoc): both table families go, the log says so
+  const zeroSec = expandRefs(loadTemplateSpec());
+  const z = trim(zeroSec, 0, 1);
+  assert.deepEqual(z.absent, ['table', 'review']);
+  assert.equal(z.note, 'no table stickers in this order');
+  assert.equal(sheetsOf(zeroSec).filter((sh) => /^Print Sheet - (Table|Review) Stickers/.test(sh.n)).length, 0);
+  assert.equal(sheetsOf(zeroSec).filter((sh) => /Bathroom/.test(sh.n)).length, 2);
+  assert.equal(trim(expandRefs(loadTemplateSpec()), 8, 1).note, null);
 });
 
 // Counts above the template (10 tables / 6 stalls) clone the last full sheet; below it, trim.
@@ -172,6 +179,41 @@ test('a discount headline that wraps at 90pt takes the two-line sticker layout (
   assert.equal(l.stickerLayout, 'defaultTwoLine'); assert.ok(l.stickerTitleSize < 74 && l.stickerTitleLines === 2, JSON.stringify(l));
   const [t3, b3] = sheetsOf(sec3).find((s) => /Table Stickers/.test(s.n)).k.find((c) => c.t === 'FRAME').k.filter((t) => t.t === 'TEXT').sort((a, b) => a.y - b.y);
   assert.ok(t3.y + t3.h <= b3.y);
+});
+
+test('logo_panel draws a rounded box behind the mark on light surfaces only', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'panel-'));
+  const logo = path.join(dir, 'logo.png');
+  await sharp({ create: { width: 600, height: 200, channels: 4, background: { r: 10, g: 20, b: 30, alpha: 1 } } }).png().toFile(logo);
+  const sec = expandRefs(loadTemplateSpec());
+  trim(sec, 1, 1);
+  const res = placeLogoPanels(sec, { hex: '#1A2B3C' }, { sticker: logo });
+  assert.equal(res.placed, 3); // one table promo, one table review, the light POP; never the POP primary or the header
+  const panels = findAll(sec, (n) => n.n === 'logo-panel');
+  assert.equal(panels.length, 3);
+  for (const p of panels) {
+    const owner = findAll(sec, (n) => (n.k || []).includes(p))[0];
+    const unit = owner.unitName || owner.n;
+    assert.ok(['table-sticker-promo', 'table-sticker-review', 'pop-sign-light'].includes(unit), unit);
+    const logoRect = owner.k.find((n) => n.n === 'logo');
+    assert.ok(owner.k.indexOf(p) < owner.k.indexOf(logoRect), 'panel is drawn before (behind) the logo');
+    assert.equal(p.f[0].c, '#1a2b3c');
+    // 3:1 mark inside a 330x245 holder: width-bound, pad = 28% of the fitted height on every side
+    assert.ok(Math.abs(logoRect.w / logoRect.h - 3) < 1e-6);
+    assert.ok(Math.abs(p.w - (logoRect.w + 2 * PANEL_PAD * logoRect.h)) < 1e-6);
+    assert.ok(Math.abs(p.h - (logoRect.h + 2 * PANEL_PAD * logoRect.h)) < 1e-6);
+    assert.ok(Math.abs(p.cr - 0.2 * p.h) < 1e-6);
+    assert.ok(p.w <= 330 + 1e-6 && p.h <= 245 + 1e-6, 'box stays inside the template holder');
+  }
+  assert.equal(findAll(sec, (n) => n.n === 'logo-panel' && findAll(sec, (o) => (o.k || []).includes(n))[0].unitName === 'pop-sign-primary').length, 0);
+  // gradient: a clipped FRAME of stripes, top colour first, bottom colour last
+  const sec2 = expandRefs(loadTemplateSpec());
+  trim(sec2, 1, 1);
+  placeLogoPanels(sec2, { gradient: ['#FF0000', '#0000FF'] }, { sticker: logo });
+  const g = findAll(sec2, (n) => n.n === 'logo-panel')[0];
+  assert.equal(g.t, 'FRAME'); assert.equal(g.clip, true);
+  assert.equal(g.k[0].f[0].c, '#ff0000'); assert.equal(g.k[g.k.length - 1].f[0].c, '#0000ff');
+  assert.equal(placeLogoPanels(expandRefs(loadTemplateSpec()), null).placed, 0);
 });
 
 test('buildSection renders a vector page with the right size, fonts and QR', async () => {

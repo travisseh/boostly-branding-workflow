@@ -25,7 +25,7 @@ test("batch review validates results and includes held URL, reason, and decision
   };
   const review = generateBatchReview([result]);
   assert.match(review, /1 requests require review/);
-  assert.match(review, /Gift Cards: https:\/\/pilonis.com\/gift/);
+  assert.match(review, /Loyalty Rewards: https:\/\/pilonis.com\/rewards/);
   assert.match(review, /Next action: Verify the exact location and approve or reject/);
   assert.doesNotMatch(review, /branding_reason|local paths|badge_outcome/);
   assert.throws(() => generateBatchReview([{ ...result, execution: [] }]), /does not cover every planned write/);
@@ -73,12 +73,12 @@ test("Slack and Notion golden output comes only from structured result data", ()
     "- Careers: https://pilonis.com/jobs",
     "",
     "Held for review:",
-    "- Gift Cards: https://pilonis.com/gift — This category requires human approval under the current write policy.",
+    "- Loyalty Rewards: https://pilonis.com/rewards — This category requires human approval under the current write policy.",
     "",
   ].join("\n"));
   const notion = renderNotionChecklist(result);
   assert.match(notion, /\[x\] Careers: https:\/\/pilonis.com\/jobs/);
-  assert.match(notion, /\[ \] Gift Cards: https:\/\/pilonis.com\/gift/);
+  assert.match(notion, /\[ \] Loyalty Rewards: https:\/\/pilonis.com\/rewards/);
   assert.match(notion, /Cam must review and explicitly approve every held or unresolved item/);
   assert.equal(buildAuditRows(result).length, plan.writes.length);
   assert.equal(buildStatePatch(result).add_processed_badge_request_id, null);
@@ -256,7 +256,8 @@ function planFixture() {
     discovery_report: {
       category_results: [
         { category: "careers_jobs", category_status: "found_verified", selected_link: { input_url: "https://pilonis.com/jobs" } },
-        { category: "gift_cards", category_status: "found_verified", selected_link: { input_url: "https://pilonis.com/gift" } },
+        // loyalty stays review-only (gift cards became a standing write on 2026-10-19)
+        { category: "loyalty_rewards", category_status: "found_verified", selected_link: { input_url: "https://pilonis.com/rewards" } },
       ],
       proposed_location_updates: [],
       proposed_touchpoint_events: [
@@ -274,8 +275,8 @@ function planFixture() {
           write_gate: {},
         },
         {
-          touchpoint_category: "gift_cards",
-          url: "https://pilonis.com/gift",
+          touchpoint_category: "loyalty_rewards",
+          url: "https://pilonis.com/rewards",
           verification: {
             status: "verified",
             liveness: "live",

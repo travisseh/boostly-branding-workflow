@@ -12,7 +12,9 @@ import {
   colorSource,
   cssVarsFrom,
   fillTemplate,
+  isSampledSource,
   notesLine,
+  overrideNote,
   parseArgs,
   resolveText,
   splitFailing,
@@ -76,7 +78,7 @@ test('collectColors: every real color carries its source; inks of EVERY candidat
   assert.equal(by['#1976D2'], undefined, 'framework defaults are not brand colors');
   assert.equal(by['#FFF1F5'].source, 'site_surface');
   assert.equal(by['#E381A8'].source, 'site_css_var');
-  assert.equal(by['#AA434D'].source, 'instore_sampled');
+  assert.equal(by['#AA434D'].source, 'instore');
   assert.equal(by['#0184C8'].source, 'sheet_column');
   assert.equal(by['#FFFFFF'].source, 'decision_palette', 'web_text_color names white first');
 });
@@ -95,6 +97,12 @@ test('colorSource: a listed color matches within 24 RGB; a darker step of a bran
   assert.equal(darker.synthetic?.direction, 'darker');
   assert.equal(darker.synthetic?.of, '#B24570');
   assert.equal(colorSource('#4DBFFC', colors).reason, 'color_lighter_synthetic', 'a lighter tint of the blue band');
+  // rule 8 (2026-10-19): a lighter step off a SAMPLED base is allowed (the photo sample is shadowed); off an authored token it stays refused
+  const lifted = colorSource('#C65A64', colors);
+  assert.equal(lifted.ok, true, JSON.stringify(lifted));
+  assert.deepEqual([lifted.synthetic?.direction, lifted.synthetic?.of, lifted.source], ['lighter', '#AA434D', 'instore']);
+  assert.equal(isSampledSource({ source: 'site_token', also: [{ source: 'instagram_recurring' }] }), true, 'an also-source counts');
+  assert.equal(isSampledSource({ source: 'logo_ink', also: [] }), false);
   assert.equal(colorSource('#C9668B', colors).synthetic?.direction, 'darker', 'between raspberry and the site rose it is a darker step of the rose');
   assert.equal(colorSource('#2ECC71', colors).reason, 'color_not_in_evidence');
   assert.equal(colorSource('#777777', colors).reason, 'color_not_in_evidence');
@@ -133,6 +141,12 @@ test('validateProposals: a good two-tone swap is accepted with resolved text and
   assert.match(refusedOf(proposal({ logo: { derive: { op: 'recolor', from: '/run/fix/card-final.png' } } }))[0], /derive_op_not_allowed/);
   assert.match(refusedOf(proposal({ logo: { derive: { op: 'crop', from: '/run/fix/card-final.png', box: [0, 0, 9000, 10] } } }))[0], /crop_box_outside_asset/);
   assert.match(refusedOf(proposal({ pattern: 'vibes' }))[0], /unknown_pattern/);
+  assert.match(refusedOf(proposal({ expected_words: 42 }))[0], /expected_words_not_text/);
+  const lifted = validateProposals(brief, file({ proposals: [proposal({ primary: '#000000', secondary: '#C65A64', expected_words: 'SCOOPS' })] })).accepted[0];
+  assert.ok(lifted, 'a lifted in-store sample is an accepted band');
+  assert.match(lifted.note, /band #C65A64 lighter step of #AA434D \(instore, sampled; lifted to de-shadow the sample\)/);
+  assert.equal(lifted.expected_words, 'SCOOPS', 'expected_words rides along to add-cell --expected');
+  assert.equal(validateProposals(brief, file()).accepted[0].expected_words, null);
 });
 
 test('validateProposals: a duplicate of an existing cell is refused by letter; a light ground is accepted but labeled and escalated; a derivation is accepted with its recipe', () => {
@@ -191,6 +205,13 @@ test('derivations: stack splits at the widest transparent gap and copies pixels 
   const cm = await sharp(crop).metadata();
   assert.deepEqual([cm.width, cm.height], [50, 20], 'trimmed to the wordmark');
   await assert.rejects(buildDerived({ op: 'stack', from: crop, split: 'auto', gap: 10 }, path.join(dir, 'no.png')), /no transparent column gap/);
+});
+
+test('overrideNote: upload-size folds into the pick notice, any other overridable gate names the closeout override; never a human call', () => {
+  assert.equal(overrideNote({ gate: 'upload-size', verdict: 'over_cap' }), 'over the upload cap: folded into the pick notice (picking this letter also OKs the sticker size)');
+  assert.equal(overrideNote({ gate: 'ink-retention', verdict: 'thin_strokes' }), 'needs override at closeout: ink-retention (thin_strokes) (registry allows it)');
+  assert.equal(overrideNote({ gate: 'render-legibility' }), 'needs override at closeout: render-legibility (failed) (registry allows it)');
+  assert.doesNotMatch(overrideNote({ gate: 'upload-size' }), /human call/);
 });
 
 test('notesLine: one true sentence with letters, hand builds, holds and the light-ground escalation', () => {

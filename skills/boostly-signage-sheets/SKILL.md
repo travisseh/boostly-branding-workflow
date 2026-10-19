@@ -211,8 +211,11 @@ Flags and what to do:
 - QUANTITIES_CONFLICT / TABLES_MISMATCH / BATHROOM_CONCERN: CALL QUANTITIES
   BEAT WIZARD QUANTITIES. Build (or trim) to the transcript count and say so in
   the note. "Don't want stickers on the tables" / shared bathroom / "start
-  with the tables" are judgment calls for the CSM, not a reason to guess: list
-  them as questions.
+  with the tables" are judgment calls for the CSM, not a reason to guess.
+- SIBLING_IDENTICAL_QUANTITIES: another open request on the account has the
+  same table/stall/to-go counts. This flag, QUANTITIES_CONFLICT and
+  OFFER_MISMATCH draft the CSM DM at closeout (`call/csm-dm.txt`, sent by the
+  finish agent); none of them is asked of Travisse.
 - COPY_REJECTED: customer pushed back on "Join the club"; use their wording
   (phrase layout) or the specific offer. Never ship the generic default.
 - GENERIC_DEFAULT: request says Join the Club (or is empty) but a call agreed
@@ -223,16 +226,9 @@ Flags and what to do:
 - MULTI_LOCATION: sibling shipped before; inherit account branding per the
   boostly-brand-design "ADDING A LOCATION" rule.
 
-Paste the "Call facts" block and the CSM questions into the review note that
-post-review posts and into the runner report (fixed format, see
-boostly-box-fulfillment Finish). Validation sets: 2026-09-03
-<project>/preflight-validation/{aunt-tillies,butt-hutt,bunker-grille,fh-pizza-franklin};
-2026-09-08 `exp/call-preflight/` under the Fox's Chicora, Astoria, Denise's,
-and Midnight Munchie run dirs (Fox's: 9/3 Sterling demo + 9/4 Jonathan launch
-prep, 25% + free dessert; Astoria: 8/31 Cooper call + 9/4 launch prep
-transcript pending; Denise's: 9/3 Ella + Sterling demo only; Munchie: 9/2
-launch prep, 30% + free cookie; zero false matches after the sibling-brand,
-surname, and possessive guards).
+Paste the "Call facts" block into the review note that post-review posts and
+into the runner report (fixed format, see boostly-box-fulfillment Finish); CSM
+questions go to `call/csm-dm.txt`, not the note.
 
 ## How to run
 
@@ -250,9 +246,8 @@ surname, and possessive guards).
 1. Emit the plan:
    ```bash
    node ~/.claude/skills/boostly-signage-sheets/scripts/plan.mjs \
-     --location-id <v2-location-id> --account-id <v2-account-id> \
-     --logo <color-sticker-logo.png> [--band #RRGGBB] \
-     [--tables N] [--stalls N] --out-dir <run-dir>
+     --run-dir <run-dir> --location-id <v2-location-id> --account-id <v2-account-id> \
+     --logo <color-sticker-logo.png> [--tables N] [--stalls N] --out-dir <run-dir>
    ```
    Defaults: tables=32, stalls=4 (Davenport-observed), but NEVER trust the
    defaults when the request exists: read the real counts from the
@@ -369,10 +364,15 @@ Inn 14:2, Surfin Betty's Downtown 12:3/12:2) finish with `print-handoff.mjs --fi
 
 ## RECOPY / TRIM existing sections
 
-Two use_figma templates retrofit an ALREADY BUILT section without re-deriving
-the code. Print the filled-in code with the CLI, paste it as the `code` of a
-single use_figma call (skillNames "figma-use"), read the returned summary, and
-screenshot one sticker + one POP to confirm.
+Direct path (the default): `export-direct.mjs` at finish and at every recopy
+re-reads the live `offer_text` and SUBSCRIBE promotion title; when they differ
+from the recorded offer it recopies the headlines, logs `recopy.offer_changed
+{from, to}`, regenerates `review-sheets.png`, and the finish agent reports it.
+
+Figma fallback: two use_figma templates retrofit an ALREADY BUILT section.
+Print the filled-in code with the CLI, paste it as the `code` of a single
+use_figma call (skillNames "figma-use"), read the summary, and screenshot one
+sticker + one POP to confirm.
 
 - Recopy (offer copy on table promo stickers + both POP signs):
   `node scripts/figma-recopy.mjs --section <id> --offer '<offer_text>' [--mode auto|discount|phrase|generic]`
@@ -465,8 +465,8 @@ node ~/.claude/skills/boostly-signage-sheets/scripts/post-review.mjs --run-dir <
   including the 2-module quiet zone (ink = box * modules/(modules+4)).
 - Fonts: Figtree Medium/SemiBold (production print faces). loadFontAsync
   before any text write. Set no-wrap with explicit line breaks.
-- Band color follows the sticker band rule from boostly-brand-design:
-  highest-contrast-on-white authored role >= 3.0:1, web primary preferred.
+- Band = the applied cell's `sticker_band` (plan.mjs reads it with `--run-dir`;
+  `--band` is the explicit override); the darkest-authored-role fallback only when no sheet exists.
 - Do not label a generated set "PRODUCTION" before it is reviewed.
 - When writing the Figma build code, set `strokes`, `strokeWeight`, and
   `strokeAlign` on the sticker/POP frame in the same call that creates it.

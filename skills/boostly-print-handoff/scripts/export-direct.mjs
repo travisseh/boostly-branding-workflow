@@ -6,9 +6,12 @@
 // Status 2026-10-15: parity-proven on approved runs (direct-pdf/parity.mjs), NOT the default;
 // print-handoff.mjs --direct selects it. Same flags as direct-pdf.mjs for the build inputs:
 // Usage: node export-direct.mjs --run-dir <dir> [--kinds <kind[,kind]>] [--tables N] [--stalls N]
-//   [--offer "<text>"] [--band #RRGGBB] [--logo <png>] [--pop-primary-logo <png>] [--date YYYY-MM-DD]
+//   [--offer "<text>"] [--band #RRGGBB] [--logo <png>] [--pop-primary-logo <png>] [--date YYYY-MM-DD] [--offline]
+// LIVE OFFER: the finish re-reads fulfillment_requests.offer_text and the SUBSCRIBE promotion title; when the live
+// offer differs from the recorded (approved) one the live offer wins, recopy.offer_changed {from, to} is logged in
+// handoff.json and the review-sheets.png preview is regenerated so the change is visible. --offline skips the read.
 import path from "node:path";
-import { parseArgs, requireRunDir, readRun, handoffDir, readHandoff, writeHandoff, log } from "./lib/common.mjs";
+import { parseArgs, requireRunDir, readRun, handoffDir, readHandoff, writeHandoff, log, liveOffer, livePromotionTitle, offerChange } from "./lib/common.mjs";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const directPdf = path.resolve(here, "..", "..", "boostly-signage-sheets", "scripts", "direct-pdf", "direct-pdf.mjs");
@@ -34,13 +37,26 @@ if (recorded) {
   for (const [k, v] of Object.entries(map)) if (merged[k] === undefined && v !== undefined && v !== null) merged[k] = v;
   log("reusing the recorded direct-build inputs from handoff.json (" + (existing.exported_at || "earlier") + ")");
 }
+// Re-read the live offer (and what the SUBSCRIBE keyword pays) unless --offline or an explicit --offer.
+let offerChanged = null, promotion = null;
+if (!args.offline && args.offer === undefined && run.request?.request_id) {
+  const live = liveOffer(run.request.request_id);
+  try { promotion = livePromotionTitle(run.request.location_id); } catch (e) { promotion = null; log(`promotion read skipped: ${e.message}`); }
+  const baseline = merged.offer !== undefined ? merged.offer : (run.request.offer_text || "");
+  offerChanged = offerChange(baseline, live?.offer_text ?? null);
+  if (offerChanged) {
+    merged.offer = offerChanged.to;
+    delete merged["no-preview"];
+    log(JSON.stringify({ "recopy.offer_changed": offerChanged, promotion }));
+  }
+}
 const summary = await renderRun(runDir, { ...merged, out });
 const h = readHandoff(runDir);
 h.request_id = run.request?.request_id; h.location_name = run.request?.location_name;
 h.source = "direct";
-h.direct = { generator: summary.generator, status: summary.status, inputs: summary.inputs, build: { recopy: summary.build.recopy, trim: summary.build.trim, togo: summary.build.togo, strokeGateFixed: summary.build.strokeGateFixed, qr: summary.build.qr, logos: summary.build.logos }, frames: summary.frames.length };
+h.direct = { generator: summary.generator, status: summary.status, inputs: summary.inputs, build: { recopy: summary.build.recopy, trim: summary.build.trim, togo: summary.build.togo, strokeGateFixed: summary.build.strokeGateFixed, qr: summary.build.qr, logos: summary.build.logos, logoPanel: summary.build.logoPanel }, frames: summary.frames.length, note: summary.note, absent_kinds: summary.absent_kinds, offer_changed: offerChanged ? { ...offerChanged, promotion, at: summary.generated_at } : null };
 h.figma = run.figma?.section_node_id ? { file_key: run.figma.file_key, sections: [run.figma.section_node_id], frames: summary.frames.length, crosscheck: "not exported (direct render)" } : { crosscheck: "no Figma section (direct render)" };
 h.sheets = summary.sheets; h.exported_at = summary.generated_at;
 writeHandoff(runDir, h);
-log(JSON.stringify({ source: "direct", frames: summary.frames.length, kinds: Object.keys(summary.sheets).length, all_ok: summary.all_ok }));
+log(JSON.stringify({ source: "direct", frames: summary.frames.length, kinds: Object.keys(summary.sheets).length, all_ok: summary.all_ok, note: summary.note, offer_changed: offerChanged, preview: summary.preview?.file || null }));
 if (!summary.all_ok) process.exit(2);

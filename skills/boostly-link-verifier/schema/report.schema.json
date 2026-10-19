@@ -48,6 +48,10 @@
           "status": {
             "enum": ["verified", "rejected", "needs_manual_review", "broken"]
           },
+          "status_basis": {
+            "description": "How a verified status was reached: the page's own evidence, or verified_by_anchor (an official-site-linked social that could not be read).",
+            "enum": ["evidence", "verified_by_anchor"]
+          },
           "validity_evidence": { "type": "array", "items": { "type": "string" } },
           "location_match_evidence": { "type": "array", "items": { "type": "string" } },
           "rejection_reason": { "type": ["string", "null"] },

@@ -5,8 +5,8 @@
 // "either in a circle of black like we did with the one yesterday or strip the
 // black background").
 //
-//   node scripts/sticker-panel.mjs --logo <png> --out <png> --mode circle|strip
-//        [--bg #000000] [--pad 0.12] [--key <hex>] [--soft-lo 24] [--soft-hi 64] [--size 1000]
+//   node scripts/sticker-panel.mjs --logo <png> --out <png> --mode circle|strip|box
+//        [--bg #000000] [--pad 0.12] [--radius 0.2] [--key <hex>] [--soft-lo 24] [--soft-hi 64] [--size 1000]
 //
 //   circle  the art (ground keyed out, so the bbox is the ink, not the panel) centered
 //           by its bounding box inside a circular panel of --bg with --pad of the
@@ -15,11 +15,18 @@
 //   strip   the ground keyed out by color distance with a soft edge (alpha ramps from
 //           0 at --soft-lo to 1 at --soft-hi distance from the key color), edge pixels
 //           un-blended from the ground; truecolor RGBA, trimmed to the ink.
+//   box     the light-surface asset for a words-only cut of a badge: the transparent
+//           mark inside a rounded rectangle filled with --bg (the card ground), padding
+//           --pad x ink HEIGHT on every side (default 0.28), corner radius --radius x box
+//           height (default 0.2). The mark keeps its own alpha; the box edge is
+//           anti-aliased (Indian Kitchen 2026-10-10 fix/boxed/build-pad28-4000.py).
 //
 // --key is the ground color to remove; default: the median color of the 1-px border
-// (--bg is only the panel fill of circle mode). --size is the circle's diameter and
-// the minimum longest side of a strip output (>= 1000 px, upscaled with lanczos3 when
-// the source is smaller). Output alpha is anti-aliased (8-bit ramp), never binary.
+// for circle and strip (--bg is only the panel fill). Box mode keys nothing unless --key
+// is given (its input is already transparent); it trims to the alpha bbox. --size is the
+// circle's diameter and the minimum longest side of a strip or box mark (>= 1000 px,
+// upscaled with lanczos3 when the source is smaller). Output alpha is anti-aliased
+// (8-bit ramp), never binary.
 //
 // Prints a JSON summary. Exit 1 on any error. Gate the result yourself:
 //   gates.ts check --asset <out> --color #FFFFFF --surface sticker
@@ -32,8 +39,9 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(SCRIPT_DIR, '..', 'harness', 'package.json'));
 const sharp = require('sharp');
 
-export const MODES = ['circle', 'strip'];
-const DEFAULTS = { bg: '#000000', pad: 0.12, softLo: 24, softHi: 64, size: 1000 };
+export const MODES = ['circle', 'strip', 'box'];
+const DEFAULTS = { bg: '#000000', softLo: 24, softHi: 64, size: 1000 };
+export const BOX_DEFAULTS = { pad: 0.28, radius: 0.2 };
 const MIN_SIZE = 1000;
 
 export function parseArgs(argv) {
@@ -47,15 +55,17 @@ export function parseArgs(argv) {
     args[flag] = value;
     i += 1;
   }
-  if (!args.logo || !args.out || !args.mode) throw new Error('Usage: sticker-panel.mjs --logo <png> --out <png> --mode circle|strip [--bg #000000] [--pad 0.12] [--key <hex>] [--soft-lo 24] [--soft-hi 64] [--size 1000]');
+  if (!args.logo || !args.out || !args.mode) throw new Error('Usage: sticker-panel.mjs --logo <png> --out <png> --mode circle|strip|box [--bg #000000] [--pad 0.12|0.28] [--radius 0.2] [--key <hex>] [--soft-lo 24] [--soft-hi 64] [--size 1000]');
   if (!MODES.includes(args.mode)) throw new Error(`--mode must be one of ${MODES.join('|')}, got ${args.mode}`);
   args.bg = normalizeHex(args.bg, '--bg');
   args.key = args.key ? normalizeHex(args.key, '--key') : null;
-  args.pad = Number(args.pad);
+  args.pad = Number(args.pad ?? (args.mode === 'box' ? BOX_DEFAULTS.pad : 0.12));
+  args.radius = Number(args.radius ?? BOX_DEFAULTS.radius);
   args.softLo = Number(args.softLo);
   args.softHi = Number(args.softHi);
   args.size = Number(args.size);
   if (!(args.pad >= 0 && args.pad < 0.5)) throw new Error('--pad must be in [0, 0.5)');
+  if (!(args.radius >= 0 && args.radius <= 0.5)) throw new Error('--radius must be in [0, 0.5]');
   if (!(args.softLo >= 0 && args.softHi > args.softLo)) throw new Error('--soft-lo must be >= 0 and --soft-hi greater than --soft-lo');
   if (!(args.size >= MIN_SIZE)) throw new Error(`--size must be >= ${MIN_SIZE} (sticker assets ship at 1000px or more)`);
   return args;
@@ -119,14 +129,52 @@ export function circleLayout(bbox, { size, pad }) {
   return { diameter, scale, width: w, height: h, left: Math.round((diameter - w) / 2), top: Math.round((diameter - h) / 2) };
 }
 
-async function loadKeyed(logo, args) {
+/** Box-mode geometry, pure: pad = `pad` x ink height per side, radius = `radius` x box height. */
+export function boxLayout(bbox, { pad = BOX_DEFAULTS.pad, radius = BOX_DEFAULTS.radius } = {}) {
+  const padPx = Math.round(pad * bbox.height);
+  const width = bbox.width + 2 * padPx;
+  const height = bbox.height + 2 * padPx;
+  return { pad: padPx, radius: Math.round(radius * height), width, height, left: padPx, top: padPx };
+}
+
+/** Alpha bbox of RGBA data (no keying): the ink of an already transparent mark. */
+export function alphaBbox(data, width, height) {
+  let minX = width, minY = height, maxX = -1, maxY = -1, ink = 0;
+  for (let p = 0; p < width * height; p += 1) {
+    if (data[p * 4 + 3] === 0) continue;
+    ink += 1;
+    const x = p % width, y = (p - x) / width;
+    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  if (maxX < 0) return { bbox: null, keyed: 0, soft: 0, ink };
+  return { bbox: { left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 }, keyed: 0, soft: 0, ink };
+}
+
+async function loadKeyed(logo, args, { keyByDefault = true } = {}) {
   const { data, info } = await sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
-  const keyRgb = args.key ? hexToRgb(args.key) : borderMedian(data, width, height);
-  const result = keyGround(data, width, height, keyRgb, { softLo: args.softLo, softHi: args.softHi });
+  const keyRgb = args.key ? hexToRgb(args.key) : keyByDefault ? borderMedian(data, width, height) : null;
+  const result = keyRgb ? keyGround(data, width, height, keyRgb, { softLo: args.softLo, softHi: args.softHi }) : alphaBbox(data, width, height);
   if (!result.bbox) throw new Error(`no ink left after keying ${args.key ?? 'the border color'} out of ${logo}; pass --key <hex> for the real ground`);
   const art = sharp(data, { raw: { width, height, channels: 4 } }).extract(result.bbox);
   return { art, keyRgb, ...result, source: { width, height } };
+}
+
+export async function boxPanel(logo, out, args) {
+  const keyed = await loadKeyed(logo, args, { keyByDefault: false });
+  const longest = Math.max(keyed.bbox.width, keyed.bbox.height);
+  const scale = longest < args.size ? args.size / longest : 1;
+  const markW = Math.round(keyed.bbox.width * scale);
+  const markH = Math.round(keyed.bbox.height * scale);
+  let mark = await keyed.art.png().toBuffer();
+  if (scale > 1) mark = await sharp(mark).resize({ width: markW, height: markH, kernel: 'lanczos3', fit: 'fill' }).png().toBuffer();
+  const layout = boxLayout({ width: markW, height: markH }, { pad: args.pad, radius: args.radius });
+  const rect = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}"><rect x="0.5" y="0.5" width="${layout.width - 1}" height="${layout.height - 1}" rx="${layout.radius}" ry="${layout.radius}" fill="${args.bg}"/></svg>`);
+  await sharp({ create: { width: layout.width, height: layout.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: rect, left: 0, top: 0 }, { input: mark, left: layout.left, top: layout.top }])
+    .png({ palette: false, compressionLevel: 9, adaptiveFiltering: true, effort: 10 })
+    .toFile(out);
+  return { mode: 'box', logo, out, bg: args.bg, pad: args.pad, radius: args.radius, key: keyed.keyRgb ? rgbHex(keyed.keyRgb) : null, bbox: keyed.bbox, ink_px: keyed.ink, scale, mark: { width: markW, height: markH }, layout, width: layout.width, height: layout.height, panel: { hex: args.bg, pad_share_of_mark_height: args.pad, radius_share_of_box_height: args.radius } };
 }
 
 export async function stripGround(logo, out, args) {
@@ -163,6 +211,7 @@ export async function run(args) {
   const out = path.resolve(args.out);
   await fs.access(logo);
   await fs.mkdir(path.dirname(out), { recursive: true });
+  if (args.mode === 'box') return boxPanel(logo, out, args);
   return args.mode === 'circle' ? circlePanel(logo, out, args) : stripGround(logo, out, args);
 }
 

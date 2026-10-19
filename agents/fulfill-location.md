@@ -44,13 +44,17 @@ Do, in order:
    path is given by the lead or `BOOSTLY_COOKIE_FILE`; pass it with `--cookie-file`. NEVER print,
    echo, cat, log, or paste the cookie or any token, anywhere, in any form.
 2. Identity and evidence: website capture (note a 403 or a disconnected domain instead of faking
-   it), GBP photos and brand-environment photos for the place id, logo candidates walked down
-   `references/logo-source-ladder.json` with every rung tried recorded in the evidence input's
-   `logo_sources[]` (site SVG/PNG originals, og/apple-touch, menu PDFs, Toast/ChowNow/Clover/
-   SpotOn/Slice/Square, Uber Eats/DoorDash listings, Facebook master size, Instagram profile via
-   the live tab, GBP owner photos). Build the packet with `build-branding-evidence.ts --run`.
-   If the best source is under 700px, do the documented HQ rebuild (`fix/hq/sources.md`, build
-   script, `compare.png`) and gate it; a trace is only allowed after the ladder is complete.
+   it), GBP and brand-environment photos for the place id, logo candidates walked down every rung
+   of `references/logo-source-ladder.json` and recorded in the evidence input's `logo_sources[]`,
+   always including the Instagram, Facebook and TikTok avatars at max size (`tiktok_avatar` tried,
+   or untried with a reason, on every run; a full-lockup avatar follows the ladder's
+   `social_avatar_keyed` rule). Build the packet with
+   `build-branding-evidence.ts --run`. A first-party header lockup under 700px is rebuilt from its
+   parts (`fix/hq/sources.md`, build script, `compare.png`, gated), never dropped for resolution
+   alone; `trace-smooth.mjs` only after the ladder is complete. A storefront sign whose letterforms
+   differ from the site logo gets a flat sign-wordmark row (image-generator from the sign
+   reference, `add-row`, provenance `imagegen_simplified`; a pick records the ink-retention
+   override at closeout), never keyed from a perspective photo (Shawarma, Buz).
    Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "evidence packet" --next "Fable judgment" --by fulfill-location`.
 3. Fable judgment: launch ONE nested Agent (`model: "fable"`, medium effort) with the body of
    `~/.claude/skills/boostly-brand-design/references/subagent-prompt-template.md` and the
@@ -65,13 +69,14 @@ Do, in order:
    edit the decision file.
    Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "Fable judgment" --next "variant sheet" --by fulfill-location`.
 4. Variant sheet: `variant-sheet.mjs build --run-dir RUN_DIR --run RUN_DIR --offer "<offer>"`
-   (it marks Fable's default or a HOLD itself; add rows or cells for anything the lead asked for,
-   such as both lockups of a customer-supplied pair). Never add a cell you already consider
-   rejected (a cut that misspells the name, an opaque-panel lockup): the sheet-viability gate
-   refuses it at add time and records the skip under `variants.skipped`; do not mark-after-render.
-   The sticker logo is gated the same way: an opaque-ground sticker asset renders as "sticker: needs
-   panel or strip" on the sheet; fix it with `sticker-panel.mjs --mode circle|strip`, gate the output
-   with `gates.ts check --surface sticker --color #FFFFFF`, and `add-row --sticker-logo <png>`.
+   (it marks Fable's default itself; a small-source trace is a flag on the label, never a HOLD).
+   Add rows or cells the lead asked for (both lockups of a customer-supplied pair; `--expected
+   "<words>"` for an intentional descriptor drop). Never add a cell you already consider rejected
+   (a cut that misspells the name, an opaque-panel lockup): the sheet-viability gate refuses it
+   at add time and records the skip under `variants.skipped`; do not mark-after-render. The
+   sticker logo is gated the same way: an opaque-ground sticker asset renders as "sticker: needs
+   panel or strip"; fix it with `sticker-panel.mjs --mode circle|strip|box` (box for a words-only
+   badge cut), gate it with `gates.ts check --surface sticker --color #FFFFFF`, then `add-row --sticker-logo <png>`.
    Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "variant sheet" --next "taste pass" --by fulfill-location`.
 4b. Taste pass (Travisse 2026-10-15, brand SKILL.md rule 2b-taste): Fable looks at the sheet the way
    Travisse does and proposes the good cells it lacks (alternate real brand grounds, two-tone swaps,
@@ -94,10 +99,10 @@ Do, in order:
    (`--skip-google` when headless search is blocked; the live Chrome tab is the workaround, do not
    fight it). The sheet and the canvas need no Boostly dev server: cells are drawn by the browser
    from the sheet JSON and the vendored templates (no screenshots, no per-cell PNGs, no
-   `review-canvas.png` unless `--png`). When more than one cell is a real contender, also run
-   `review-canvas.mjs compare --run RUN_DIR --cells <letters>` (the page itself can compare
-   selected cells, so this is optional). Signage previews and AI mockups
-   are a post-pick step (closeout-location), not review-stage output; do not generate them here.
+   `review-canvas.png` unless `--png`). The canvas builds `review/compare-default.png` itself
+   (the default plus the strongest cell of every other row); pass `compare --cells <letters>`
+   only for a named shortlist. Signage previews and AI mockups are a post-pick step
+   (closeout-location), not review-stage output; do not generate them here.
    The full review page is the deliverable, never the variant sheet alone: confirm
    `RUN_DIR/review/review-canvas.html` exists before you start links, then refresh and publish
    the status board so the location shows "pick a letter":
@@ -149,23 +154,21 @@ Do, in order:
       and static reports fail). Never edit a report, a results file, a provider field, or a
       profile field.
    d. Pages neither transport could read (a blocked read, a refused extractor, a login wall)
-      stay unread: hold those candidates with the reason. No workarounds of any kind.
+      stay unread; an official-site-anchored social is still `ready`, anything else unread is
+      held with the reason. No workarounds of any kind.
    If neither transport is available, stop after the static pass, hold every
    browser-dependent candidate, and say so; never fake the provider flag or a results file. A
-   missing V2 `website_url` is a held bootstrap write (dry-run it, do not apply); crawl with
-   `--website-url-override` only to gather candidates and say the report is not fulfillable.
-   Record every candidate in the run.json `links` block. No link is written at this stage, but
-   the label must say why it waits: a candidate you verified (live page, right business, right
-   address or a site backlink) gets `action: "ready"` with its evidence in `reason` (it is
-   written at closeout without another look); only a candidate that needs a human decision gets
-   `action: "hold"` with the question in `reason`. Never label a verified social or a Places
-   website bootstrap as a hold. Check
-   `$BOOSTLY_HEARTBEAT_ROOT` (the shared heartbeat location) for a heartbeat
-   report on this location and read it if present. State whether the stored `ordering_url`
-   matches what the customer's own website links (the website wins).
-   Holds are for genuine ambiguity (a login wall you could not read, the same name in a different
-   city), never for anything you could decide by looking at the page: a social with no business
-   signal or a page that says it does not exist is a REJECT with its reason, so decide it.
+   missing V2 `website_url` is a `ready` bootstrap when Places and the search provider (DataForSEO)
+   agree (`website_bootstrap.verdict: ready`; dry-run only);
+   crawl with `--website-url-override` to gather candidates. Record every candidate in the
+   run.json `links` block. No link is written at this stage, but the label must say why it
+   waits: apply the standing defaults in box-fulfillment "Link write gate" (a verified candidate
+   gets `action: "ready"` with its evidence in `reason` and is written at closeout without
+   another look); hold only the two cases listed there, with the question in `reason`; a social
+   with no business signal or a page that says it does not exist is a REJECT with its reason.
+   Check `$BOOSTLY_HEARTBEAT_ROOT` (the shared heartbeat location) for a heartbeat report on this location
+   and read it if present. State whether the stored `ordering_url` matches what the customer's
+   own website links (the website wins).
 6. Write each run.json stage block as you go with `run-file.ts`; finish with `run-file validate`.
    Then stamp the review stage, which is the end of your job:
    `run-progress.mjs set --run RUN_DIR --stage review --last "review canvas built, site published" --next "Travisse picks a letter" --blocked-on "letter pick" --by fulfill-location`.
@@ -177,11 +180,11 @@ do not rewrite skill scripts. If something truly needs Travisse, record it in ru
 everything else. Progress text (`--last`, `--next`, `--blocked-on`) never carries ship-to data,
 cookies, or tokens: the Blob store is public read. If a progress publish fails because the Blob
 token is missing, continue and report it; the local `review/progress.json` still wrote.
-No white or near-white primary. No solid-silhouette knockout that fills authored
-negative space. The logo must be crisp: rebuild at higher quality when the source is pixelated.
+No white or near-white primary. No solid-silhouette knockout that fills authored negative space.
 
-Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (or
-HOLD and why), the taste pass line (which letters it added, which model ran it), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
+Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (its
+small-source flag when traced; "picking X also OKs the sticker size (N KB)" when the sticker is
+over cap), the taste pass line (which letters it added, which model ran it), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
 "not published" with the error) and the local review page path, variant sheet path, logo source rung and native px, links ready
 to write versus links that need a decision (and the ordering_url match or mismatch), quantities
 and ship-to gaps, blockers.

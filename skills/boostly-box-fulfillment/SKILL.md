@@ -287,18 +287,16 @@ real request was processed.
     summary **only if** the request carries a `slack_thread_ts`; otherwise the completion note
     is the site status alone.
 11. **Close out automatically (Travisse, 2026-09-17).** Who runs it (2026-09-29): the
-    `closeout-location` agent stops after the signage render (direct PDF by default, Figma on
-    the fallback) and writes `slack-note.txt` and `closeout-handoff.md`. Before that stop it
+    `closeout-location` agent writes the secondary logo (the on-white sticker asset, `branding
+    set --secondary-logo-file` in the same apply as the primary, since 2026-10-19), stops after
+    the signage render and writes `slack-note.txt` and `closeout-handoff.md`. Before that stop it
     uploads the print PDFs and logos to the location's vendor Drive folder with
     `boostly-print-handoff/scripts/drive-upload.mjs --run-dir <dir> --skip-summary` (Karissa
     2026-10-19: upload only, no summary-sheet row, no vendor email; `drive.folder_link` in
     `print-handoff/handoff.json` is the review site's Print files link, and reviewers approve the
     real PDFs there; review edits are rerendered and re-uploaded in place). After Travisse
-    approves the signage, the lead launches a fresh
-    `closeout-finish` agent (Sonnet) with the run dir, which writes the V2 secondary logo
-    (light backgrounds: the on-white sticker asset recorded in run.json `write.sticker_logo_file`,
-    uploaded with `branding set --secondary-logo-file` at the primary logo's scope, after Figma
-    approval and before branding complete; Travisse 2026-10-02), then does the Slack post, branding
+    approves the signage, the lead launches a fresh `closeout-finish` agent with the
+    run dir, which backfills the secondary logo only on older runs, then does the Slack post, branding
     complete, the store-details confirmation when the ship-to is complete (Travisse
     2026-10-01: "if in-store details are there just mark that complete, stop stopping and
     requiring me to specifically say that"; `fulfillment store-details <requestId> --confirm`,
@@ -474,11 +472,7 @@ is unavailable or insufficient; never make focus-stealing debug Chrome the defau
 - Never create Specials as a custom Link/Product event. Preserve unrelated existing events, but
   flag a pre-existing Specials custom event for explicit cleanup rather than describing it as a
   fulfillment-added link.
-- An events page is not enough to activate an Events link. Auto-create or enable Events when the
-  verified destination exposes at least one future structured Event `startDate` or
-  `time[datetime]`, or when the bounded `gpt-5.6-luna` exception review independently confirms a
-  visible future event and passes the strict schema, evidence-hash, confidence >= 0.90, grounded
-  event-copy, and normalized-date gates. Any model failure or insufficient decision remains held.
+- Events: a verified future structured date, or visible upcoming events in readable text, activates the link; an empty events page does not.
 - A high-confidence first-party page must be live, relevant to the exact business/location,
   destination-specific for its category, and free of challenge, timeout, HTTP 4xx/5xx, or
   soft-error evidence such as `404`, `page not found`, `not found`, or an error-page title/H1.
@@ -490,9 +484,16 @@ is unavailable or insufficient; never make focus-stealing debug Chrome the defau
   the exact-location destination first, then the category-specific root, then the shorter
   canonical stable URL. A score tie alone is not a hold; hold only for conflicting identity or
   location evidence, or when no candidate is safely preferable.
-- **Hold for review** (reply lists them, no write): gift cards, loyalty, apps,
-  and any candidate that does not clear the high-confidence gate, unless Travisse is actively
-  supervising and says otherwise.
+- **Standing defaults (write, report as written or skipped, never a question; Travisse 2026-10-19):**
+  a website that differs from the stored one only by tracking params, a live apex/www sibling of
+  a dead stored host, or a null website when Places and the search provider (DataForSEO) agree
+  (`website_bootstrap.verdict: ready`, reason `no_website_places_and_search_agree`); first-party
+  app store links when the app name matches the business; visible upcoming events = Events; gift
+  cards yes; never a second ordering URL when the stored one works; unverifiable TikTok no;
+  booking apps as Reservations with a non-restaurant title; an official-site-anchored social
+  whose page cannot be read is `status: verified`, `status_basis: verified_by_anchor`. Hold only
+  a login wall with no official-site anchor, or
+  same-name/different-city ambiguity (and loyalty, which has no touchpoint yet).
 - **Never** overwrite a different existing URL, and never write an unverified URL.
 - Strip the complete query string from first-party content links while retaining path and
   fragment. For ordering providers and socials, preserve only identity-critical parameters and

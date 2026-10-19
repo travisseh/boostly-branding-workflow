@@ -526,7 +526,6 @@
     fable_pick: { color: '#1565C0', text: '#FFFFFF', tag: 'FABLE PICK' },
     travisse_pick: { color: '#F9A825', text: '#000000', tag: 'TRAVISSE PICK' },
     rejected: { color: '#616161', text: '#FFFFFF', tag: 'REJECTED' },
-    hold: { color: '#B71C1C', text: '#FFFFFF', tag: 'HOLD: traced from small source' },
   };
   const NOT_VIABLE_STYLE = { color: '#4A148C', text: '#FFFFFF', tag: 'NOT VIABLE' };
   const TILE_BG = '#E5E5E5';
@@ -548,12 +547,10 @@
 .bs-cell.selectable { cursor: pointer; }
 .bs-cell.selected .bs-frame { border-color: #00C853; box-shadow: inset 0 0 0 2px #fff; }
 .bs-focus { position: absolute; pointer-events: none; border: 7px solid #1B5E20; }
-.bs-focus.hold { border-color: #B71C1C; }
 .bs-focus-tag { position: absolute; height: 32px; line-height: 32px; padding: 0 10px; background: #1B5E20; color: #fff; font-size: 22px; font-weight: 700; white-space: nowrap; }
-.bs-focus-tag.hold { background: #B71C1C; }
 .bs-compare { display: grid; gap: 16px; align-items: start; }
 .bs-compare .col { border: 2px solid #ddd; padding: 10px; background: #fff; }
-.bs-compare .col.travisse_pick { border-color: #B7791F; } .bs-compare .col.fable_pick { border-color: #1565C0; } .bs-compare .col.hold { border-color: #B71C1C; } .bs-compare .col.rejected { border-color: #616161; }
+.bs-compare .col.travisse_pick { border-color: #B7791F; } .bs-compare .col.fable_pick { border-color: #1565C0; } .bs-compare .col.rejected { border-color: #616161; }
 .bs-compare h3 { margin: 0 0 4px; font-size: 24px; } .bs-compare p { margin: 2px 0; font-size: 14px; } .bs-compare .piece { margin-top: 8px; background: ${TILE_BG}; display: flex; justify-content: center; }
 .bs-compare small { font-weight: 400; color: #666; }
 `;
@@ -589,7 +586,7 @@
   }
   /**
    * The whole montage from a sheet view ({ columns:[{index,hex,text}], rows:[{key,text}], cells:{L: view} }).
-   * `focus` = { letter, hold } frames Fable's default (green) or the HOLD cell (red) like review-canvas did.
+   * `focus` = { letter, flag, native_px } frames Fable's default in green with its tag.
    */
   function sheetHtml(sheetView, { src = (p) => p, focus = null, selectable = false } = {}) {
     const columns = sheetView.columns ?? [];
@@ -608,8 +605,8 @@
     for (const view of Object.values(sheetView.cells ?? {})) out.push(cellHtml(view, { src, at: place(view), selectable }));
     if (focus?.letter && sheetView.cells?.[focus.letter]) {
       const { left, top } = place(sheetView.cells[focus.letter]);
-      const tag = focus.hold ? `HOLD ${focus.letter}: traced from small source` : `default ${focus.letter}`;
-      out.push(`<div class="bs-focus${focus.hold ? ' hold' : ''}" style="left: ${left + 3}px; top: ${top + 3}px; width: ${g.cellW - 6}px; height: ${g.cellH - 6}px;"></div><div class="bs-focus-tag${focus.hold ? ' hold' : ''}" style="left: ${left}px; top: ${Math.max(0, top - 30)}px;">${esc(tag)}</div>`);
+      const tag = focus.flag ? `default ${focus.letter} (flag: traced from ${focus.native_px ?? '?'}px)` : `default ${focus.letter}`;
+      out.push(`<div class="bs-focus" style="left: ${left + 3}px; top: ${top + 3}px; width: ${g.cellW - 6}px; height: ${g.cellH - 6}px;"></div><div class="bs-focus-tag" style="left: ${left}px; top: ${Math.max(0, top - 30)}px;">${esc(tag)}</div>`);
     }
     return `<div class="bs-sheet" style="width: ${g.sheetW}px; height: ${g.sheetH}px;">${out.join('\n')}</div>`;
   }

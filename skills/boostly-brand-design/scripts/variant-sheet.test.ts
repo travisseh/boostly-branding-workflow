@@ -288,7 +288,7 @@ test('composeSheet refuses a cell whose logo file is missing instead of drawing 
 // ---------------------------------------------------------------------------------------------
 // 2026-09-21: provenance words, default-letter rule, HOLD for small-source traces, in-store row, gradient center
 // ---------------------------------------------------------------------------------------------
-import { defaultLetterFor, dominantHueFromPixels, hueDistance, provenanceWords, chromaOf, STATUSES } from './variant-sheet.mjs';
+import { defaultLetterFor, dominantHueFromPixels, hueDistance, provenanceWords, chromaOf, STATUSES, treatmentKeys, planTreatments, treatmentRows, applyPrintCell, planCutRows, cutRowsFrom, isBadgeCut, secondChromaFor, flatPanelHex, panelHexOf, boxStickerFor, finalizeRowAsset, finalizeRowUploads, descriptorInsideLockup, nameTokens } from './variant-sheet.mjs';
 import { applyStickerViability, applyViability, cellViability, checkSheetViability, gateStickerRow, rejectedLabelMatch, stickerLogoFor, stickerRenderable, STICKER_NEEDS_FIX, wordsCutSource } from './variant-sheet.mjs';
 
 test('every column source has plain-word provenance on the label; synthetic steps say synthetic', () => {
@@ -329,7 +329,7 @@ function sheetWith(columns, rows = [{ key: 'knockout', label: 'card knockout', l
   return manifest;
 }
 
-test('default letter: the knockout row at Fable\'s column, moved to the mark-ink column by the band rule, or a HOLD for a small-source trace', () => {
+test('default letter: the knockout row at Fable\'s column, moved to the mark-ink column by the band rule; a small-source trace is a FLAG on the default, never a hold (rule 5)', () => {
   const columns = [
     { hex: '#EFBA81', source: 'fable_chosen', label: 'chosen' },
     { hex: '#FB8308', source: 'logo_ink', label: 'logo ink 5%' },
@@ -338,26 +338,346 @@ test('default letter: the knockout row at Fable\'s column, moved to the mark-ink
   const plain = defaultLetterFor(sheetWith(columns), {});
   assert.equal(plain.letter, 'A');
   assert.equal(plain.hold, false);
+  assert.equal(plain.flag, null);
+  assert.equal(plain.override, null);
   const moved = defaultLetterFor(sheetWith(columns), { band_over_brand_ink: { reason: 'secondary_not_a_mark_ink', web_secondary_color: '#EFBA81', mark_ink: '#FB8308', mark_ink_share: 0.05 } });
   assert.equal(moved.letter, 'B', 'Skyboxx: tan site accent loses the band to the ball orange');
   assert.match(moved.reason, /band rule/);
-  const held = defaultLetterFor(sheetWith(columns), { traced_from_small_source: true, source_native_longest_px: 640 });
-  assert.equal(held.hold, true);
-  assert.equal(held.letter, 'A');
-  assert.match(held.reason, /HOLD: traced from a 640px source/);
-  // a hold is a status, not a default: applyMark records it and leaves fable_default_letter empty
+  const flagged = defaultLetterFor(sheetWith(columns), { traced_from_small_source: true, source_native_longest_px: 640 });
+  assert.equal(flagged.hold, false, 'picked straight through 5/5: a flag, not a hold');
+  assert.equal(flagged.flag, 'traced_from_small_source');
+  assert.equal(flagged.native_px, 640);
+  assert.equal(flagged.letter, 'A');
+  assert.match(flagged.reason, /flag: traced from a 640px source/);
+  assert.doesNotMatch(flagged.reason, /HOLD/);
+  // the flagged default is still the default: fable_pick with the px on the label, fable_default_letter set
   const manifest = sheetWith(columns);
-  applyMark(manifest, held.letter, 'hold', { note: held.reason, by: 'variant-sheet build' });
-  assert.ok(STATUSES.includes('hold'));
-  assert.equal(manifest.fable_default_letter, null);
-  assert.equal(manifest.cells.A.status, 'hold');
-  assert.equal(manifest.hold.letter, 'A');
+  applyMark(manifest, flagged.letter, 'fable_pick', { note: flagged.reason, by: 'variant-sheet build' });
+  manifest.default_flag = { letter: flagged.letter, flag: flagged.flag, native_px: flagged.native_px, reason: flagged.reason };
+  assert.equal(manifest.fable_default_letter, 'A');
+  assert.equal(manifest.cells.A.status, 'fable_pick');
+  assert.match(cellLabelText(manifest, manifest.cells.A), /source 640px$/);
+  assert.doesNotMatch(cellLabelText(manifest, manifest.cells.B), /source 640px/);
+  assert.ok(!STATUSES.includes('hold'), 'hold is no longer a status');
+  assert.throws(() => applyMark(manifest, 'A', 'hold'), /--status must be one of/);
+  applyMark(manifest, 'A', 'rejected', { by: 'Travisse' });
+  assert.equal(manifest.default_flag, null, 'rejecting the flagged default clears the flag');
+  // a sheet built before 2026-10-19 with a HOLD cell: the held cell becomes the flagged fable default
+  const legacy = normalizeManifest({ primary: '#161616', text: '#FFFFFF', rows: [{ key: 'knockout', label: 'card knockout', logo: '/k.png' }], columns, cells: { A: { letter: 'A', row: 'knockout', column_index: 0, secondary: '#EFBA81', status: 'hold', note: 'HOLD: traced from a 640px source' } }, hold: { letter: 'A', native_px: 640, reason: 'HOLD: traced from a 640px source' } }, '/tmp/x');
+  assert.equal(legacy.cells.A.status, 'fable_pick');
+  assert.equal(legacy.fable_default_letter, 'A');
+  assert.deepEqual(legacy.default_flag, { letter: 'A', flag: 'traced_from_small_source', native_px: 640, reason: 'HOLD: traced from a 640px source' });
+  assert.equal(legacy.hold, null);
+  // the band rule reads the validator's replacement shape too (rule 4 enum additions)
+  const viaReplacement = defaultLetterFor(sheetWith(columns), { band_over_brand_ink: { reason: 'same_hue_secondary', web_secondary_color: '#EFBA81', replacement: { hex: '#FB8308', source: 'site_cta', share: 0.05 } } });
+  assert.equal(viaReplacement.letter, 'B');
+  assert.match(viaReplacement.reason, /a tint of the primary; the site CTA #FB8308 \(5% of ink\)/);
   // the band rule never moves to a cell whose print digit has no brand-owned fix
   const badDigit = sheetWith([{ hex: '#EFBA81', source: 'fable_chosen', label: 'chosen' }, { hex: '#888888', source: 'logo_ink', label: 'logo ink 4%' }]);
   badDigit.cells.B.badge_digit_print = { pass: false, fix: null };
   assert.equal(defaultLetterFor(badDigit, { band_over_brand_ink: { mark_ink: '#888888', web_secondary_color: '#EFBA81' } }).letter, 'A');
 });
 
+test('default letter, rule 2: a bright band that needs a black print digit yields to the -10% step of its hue, else the darkest site token that carries a white digit', () => {
+  // chosen gold #E2A838: white on it is ~2:1; its -10% step is still light; the site token #0D4F3D carries white
+  const columns = [
+    { hex: '#E2A838', source: 'fable_chosen', label: 'chosen' },
+    { hex: '#0D4F3D', source: 'site_token', label: 'site token x5' },
+    { hex: '#C98F27', source: 'depth_darker_10', label: 'darker step -10%' },
+  ];
+  const sheet = sheetWith(columns);
+  const def = defaultLetterFor(sheet, {});
+  assert.equal(def.letter, sheet.cells.B.letter, 'the darkest site token with a white digit takes the default');
+  assert.match(def.reason, /digit rule: white on #E2A838 is/);
+  // a same-hue darker step that carries white wins over the site token
+  const steps = sheetWith([{ hex: '#E2A838', source: 'fable_chosen', label: 'chosen' }, { hex: '#0D4F3D', source: 'site_token', label: 'site token x5' }, { hex: '#7A5212', source: 'depth_darker_20', label: 'darker step -20%' }]);
+  assert.equal(defaultLetterFor(steps, {}).letter, 'C');
+  // nothing moves when no column carries a white digit (the print fix stays on the label)
+  const none = sheetWith([{ hex: '#E2A838', source: 'fable_chosen', label: 'chosen' }, { hex: '#F2D27A', source: 'depth_lighter_10', label: 'lighter' }]);
+  assert.equal(defaultLetterFor(none, {}).letter, 'A');
+});
+
+test('default letter, rules 1 and 3: the dark_ground set at the brand-chroma band when the decision carries dark_ground_default; the full-color row when its cell reads clean on a dark ground, with the render-legibility override named', () => {
+  const columns = [
+    { hex: '#C8C8C8', source: 'fable_chosen', label: 'chosen' },
+    { hex: '#D7262C', source: 'logo_ink', label: 'logo ink 62%' },
+  ];
+  const rows = [
+    { key: 'knockout', label: 'card knockout', logo: '/k.png' },
+    { key: 'full_color', label: 'full color', logo: '/c.png' },
+    { key: 'dark_ground', label: 'dark ground', logo: '/k.png', primary: '#111111', primary_source: 'dark_ground' },
+    { key: 'dark_ground_full_color', label: 'dark ground full color', logo: '/c.png', primary: '#111111', primary_source: 'dark_ground' },
+  ];
+  const marks = { dark_ground_default: { ground: '#111111', ground_source: 'site_header', band: '#D7262C', band_source: 'mark_ink', reasons: [] } };
+  const sheet = sheetWith(columns, rows);
+  const def = defaultLetterFor(sheet, marks);
+  const cell = sheet.cells[def.letter];
+  assert.equal(cell.row, 'dark_ground_full_color', 'Pagliai\'s: dark card, full authored mark, red band');
+  assert.equal(cell.secondary, '#D7262C');
+  assert.equal(def.override.gate, 'render-legibility');
+  assert.equal(def.override.asset, '/c.png');
+  assert.match(def.reason, /dark ground #111111 \(site header black\) with the mark ink #D7262C as the band/);
+  const plainBlack = defaultLetterFor(sheetWith(columns, rows), { dark_ground_default: { ground: '#111111', ground_source: 'default_black', band: '#D7262C', band_source: 'decision_secondary' } });
+  assert.match(plainBlack.reason, /plain black .* with Fable's secondary #D7262C as the band/);
+  // a full-color cell that vanished on the card is not clean: the knockout row of the set takes it
+  const sheet2 = sheetWith(columns, rows);
+  const full = Object.values(sheet2.cells).find((c) => c.row === 'dark_ground_full_color' && c.secondary === '#D7262C');
+  full.ink_on_card = { pass: false, verdict: 'ink_vanishes_on_card' };
+  const def2 = defaultLetterFor(sheet2, marks);
+  assert.equal(sheet2.cells[def2.letter].row, 'dark_ground');
+  assert.equal(def2.override, null);
+  // without the mark (or without the row on the sheet) the decision-primary set is the base, and on a mid-grey
+  // primary (not dark) the full-color row only leads when the descriptor is part of the lockup
+  const sheet3 = sheetWith(columns, rows.slice(0, 2));
+  sheet3.primary = '#BBBBBB'; // 1.9:1 on white: a light card, not a dark ground
+  for (const c of Object.values(sheet3.cells)) c.primary = '#BBBBBB';
+  assert.equal(sheet3.cells[defaultLetterFor(sheet3, {}).letter].row, 'knockout');
+  assert.equal(sheet3.cells[defaultLetterFor(sheet3, { descriptor_in_lockup: true }).letter].row, 'full_color');
+  assert.equal(sheet3.cells[defaultLetterFor(sheet3, marks).letter].row, 'knockout', 'a dark_ground mark with no dark_ground row falls back to the decision set');
+});
+
+test('treatment plan (rule 6): every ground gets knockout / full color / words only; a light ground tints the knockout ink; a dark ground adds a white-ink twin of every colored-ink row', () => {
+  assert.deepEqual(treatmentKeys(null), { knockout: 'knockout', full_color: 'full_color', words_only: 'words_only' });
+  assert.deepEqual(treatmentKeys('dark_ground'), { knockout: 'dark_ground', full_color: 'dark_ground_full_color', words_only: 'dark_ground_words_only' });
+  const dark = planTreatments({ setKey: 'dark_ground', ground: '#111111', label: 'dark ground', logoKnockout: '/k.png', logoColor: '/c.png', logoWords: '/w.png' });
+  assert.deepEqual(dark.rows.map((r) => r.key), ['dark_ground', 'dark_ground_full_color', 'dark_ground_words_only', 'dark_ground_full_color_white']);
+  assert.equal(dark.knockout_ink, null);
+  assert.equal(dark.dark_ground, true);
+  const twin = dark.rows.at(-1);
+  assert.equal(twin.twin_of, 'dark_ground_full_color');
+  assert.equal(twin.tint, '#FFFFFF');
+  assert.match(twin.label, /white ink$/);
+  const light = planTreatments({ ground: '#F3E9D2', text: '#FFFFFF', logoKnockout: '/k.png', logoColor: '/c.png', logoWords: '/w.png' });
+  assert.deepEqual(light.rows.map((r) => r.key), ['knockout', 'full_color', 'words_only']);
+  assert.equal(light.knockout_ink, '#000000', '206 Burger: white knockout on cream takes the black ink');
+  assert.match(light.rows[0].label, /ink #000000/);
+  assert.equal(light.rows[1].tint, null);
+  assert.equal(planTreatments({ ground: '#111111', logoKnockout: '/k.png' }).rows.length, 1, 'no color or words asset: just the knockout');
+});
+
+test('treatmentRows writes the tinted copies and records primary/source/label and an auto-flipped text on every row of a ground set', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-treat-'));
+  const png = async (name, fill) => { const f = path.join(dir, name); fs.writeFileSync(f, await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="30"><rect x="5" y="5" width="50" height="20" fill="${fill}"/></svg>`)).png().toBuffer()); return f; };
+  const k = await png('k.png', '#FFFFFF'); const c = await png('c.png', '#D7262C');
+  const { rows, knockout_ink } = await treatmentRows({ setKey: 'panel_ground', label: 'panel ground', primary: '#F3E9D2', primarySource: 'logo_panel', primaryLabel: 'authored panel color', sheetPrimary: '#111111', sheetText: '#FFFFFF', logoKnockout: k, logoColor: c, logoWords: null, outDir: dir });
+  assert.equal(knockout_ink, '#000000');
+  assert.deepEqual(rows.map((r) => r.key), ['panel_ground', 'panel_ground_full_color']);
+  assert.equal(rows[0].text, '#000000', 'white fails on the pale panel: the row text flips to black');
+  assert.equal(rows[0].primary, '#F3E9D2');
+  assert.equal(rows[0].primary_source, 'logo_panel');
+  assert.equal(rows[0].knockout_ink, '#000000');
+  assert.ok(rows[0].logo.endsWith('panel_ground-ink.png') && fs.existsSync(rows[0].logo));
+  const { data } = await sharp(rows[0].logo).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(data[(15 * 60 + 30) * 4], 0, 'the knockout ink was recolored to black');
+  assert.equal(rows[1].logo, c, 'the full-color row keeps the authored file');
+  assert.equal(rows[1].treatment, 'full_color');
+  const dark = await treatmentRows({ setKey: 'dark_ground', primary: '#111111', primarySource: 'dark_ground', sheetPrimary: '#F3E9D2', logoKnockout: k, logoColor: c, outDir: dir });
+  assert.equal(dark.rows.at(-1).key, 'dark_ground_full_color_white');
+  assert.ok(fs.existsSync(dark.rows.at(-1).logo));
+  assert.equal(dark.rows[0].text, '#FFFFFF');
+  const decision = await treatmentRows({ sheetPrimary: '#111111', logoKnockout: k, logoColor: c, outDir: dir });
+  assert.equal(decision.rows[0].primary, null, 'the decision set inherits the sheet primary');
+  assert.equal(decision.rows[0].primary_source, null);
+});
+
+test('parseArgs: swap-asset, --all-treatments, --expected and --print-cell parse', () => {
+  const swap = parseArgs(['swap-asset', '--run-dir', '/r', '--row', 'knockout', '--logo', 'x.png', '--expected', 'Surfin Burrito']);
+  assert.equal(swap.command, 'swap-asset');
+  assert.equal(swap.row, 'knockout');
+  assert.equal(swap.expected, 'Surfin Burrito');
+  const set = parseArgs(['add-row', '--run', '/r', '--primary', '#111111', '--all-treatments']);
+  assert.equal(set.allTreatments, true);
+  const m = parseArgs(['mark', '--run', '/r', '--cell', 'N', '--status', 'travisse_pick', '--print-cell', 'A']);
+  assert.equal(m.printCell, 'A');
+});
+
+test('mark --print-cell (rule 19): the picked cell takes the print cell\'s palette as its print roles, its web text turns white when it equals its own band, and the view is rewritten', () => {
+  const sheet = sheetWith([{ hex: '#E2A838', source: 'fable_chosen', label: 'chosen' }, { hex: '#111111', source: 'site_token', label: 'site token x3' }]);
+  sheet.cells.A.text = '#E2A838'; // Boludo U: gold text on the gold band
+  sheet.cells.A.badge_digit_web = badgeDigit('#E2A838', '#E2A838');
+  const { cell } = applyPrintCell(sheet, 'A', 'B');
+  assert.equal(cell.print_cell, 'B');
+  assert.equal(cell.print_primary, '#161616');
+  assert.equal(cell.print_secondary, '#111111');
+  assert.equal(cell.print_text_secondary, '#FFFFFF', 'B\'s print digit on #111111 has the brand-owned white fix: that is the print text secondary');
+  assert.equal(cell.text, '#FFFFFF', 'web text white when it equals the band');
+  assert.equal(cell.web_text_was, '#E2A838');
+  assert.equal(cell.badge_digit_web.text_color, '#FFFFFF');
+  assert.equal(cell.badge_digit_print.text_color, cell.print_text_secondary);
+  assert.equal(cell.view.print.secondary, '#111111');
+  assert.match(cellLabelText(sheet, cell), /print band #111111/);
+  assert.equal(cell.secondary, '#E2A838', 'the web band is untouched');
+  // a web text that differs from the band stays
+  const other = sheetWith([{ hex: '#E2A838', source: 'fable_chosen', label: 'chosen' }, { hex: '#111111', source: 'site_token', label: 'site token x3' }]);
+  applyPrintCell(other, 'A', 'B');
+  assert.equal(other.cells.A.text, '#FFFFFF');
+  assert.equal(other.cells.A.web_text_was, undefined);
+  assert.throws(() => applyPrintCell(other, 'A', 'Z'), /--print-cell "Z" is not on the sheet/);
+});
+
+test('cut rows (rule 7) from the cut-words sidecar: descriptor-free knockout and words, inner emblem of a ring badge, badge-only of a self-contained emblem', () => {
+  // components: 0 ring (giant, annular), 1-3 "PIZZA" name line inside the ring, 4-5 "PIZZERIA" descriptor line, 6 a bird emblem beside the words, 7 dust
+  const cut = {
+    ok: true,
+    source: { width: 1000, height: 400, total_ink: 100000 },
+    components: [
+      { id: 0, area: 30000, bbox: [0, 0, 400, 400], enclosed_adjacency: 0.6, decision: 'dropped:giant_emblem_or_ring' },
+      { id: 1, area: 9000, bbox: [60, 150, 150, 250], decision: 'kept:name_line' },
+      { id: 2, area: 9000, bbox: [160, 150, 250, 250], decision: 'kept:name_line' },
+      { id: 3, area: 9000, bbox: [260, 150, 340, 250], decision: 'kept:name_line' },
+      { id: 4, area: 2000, bbox: [420, 300, 600, 340], decision: 'dropped:descriptor_line_below_ratio' },
+      { id: 5, area: 2000, bbox: [610, 300, 800, 340], decision: 'dropped:descriptor_line_below_ratio' },
+      { id: 6, area: 20000, bbox: [700, 20, 980, 260], decision: 'dropped:solo_non_word_shape' },
+      { id: 7, area: 2, bbox: [5, 5, 6, 6], decision: 'dropped:dust' },
+    ],
+    lines: [
+      { id: 0, reason: 'kept:name_line', height_ratio: 1, members: [1, 2, 3], bbox: [60, 150, 340, 250] },
+      { id: 1, reason: 'dropped:descriptor_line_below_ratio', height_ratio: 0.4, members: [4, 5], bbox: [420, 300, 800, 340] },
+    ],
+  };
+  const plans = planCutRows(cut);
+  assert.deepEqual(plans.map((p) => p.key), ['knockout_nodesc', 'emblem_inner', 'badge_only']);
+  const nodesc = plans[0];
+  assert.deepEqual(nodesc.dropIds, [4, 5]);
+  assert.ok(nodesc.keepIds.includes(0) && nodesc.keepIds.includes(6) && !nodesc.keepIds.includes(4), 'the knockout minus the descriptor keeps the ring and the emblem');
+  assert.equal(nodesc.source, 'knockout', 'checked against the knockout with the expected words');
+  const inner = plans[1];
+  assert.deepEqual(inner.keepIds, [1, 2, 3, 7], 'everything inside the ring bbox but the ring');
+  assert.equal(inner.source, null, 'no wordmark check on an emblem cut');
+  const badge = plans[2];
+  assert.deepEqual(badge.keepIds, [6]);
+  // a second kept line far shorter than the name is the descriptor that survived the ratio: words_only_nodesc drops it
+  const twoLines = { ...cut, lines: [...cut.lines, { id: 2, reason: 'kept:name_line', height_ratio: 0.6, members: [4, 5], bbox: [420, 300, 800, 340] }] };
+  twoLines.components = cut.components.map((c) => ([4, 5].includes(c.id) ? { ...c, decision: 'kept:name_line' } : c));
+  const withWords = planCutRows({ ...twoLines, lines: [twoLines.lines[0], { id: 1, reason: 'dropped:descriptor_line_below_ratio', height_ratio: 0.3, members: [7], bbox: [5, 5, 6, 6] }, twoLines.lines[2]] });
+  const wn = withWords.find((p) => p.key === 'words_only_nodesc');
+  assert.ok(wn, 'words_only_nodesc planned');
+  assert.deepEqual(wn.keepIds, [1, 2, 3]);
+  assert.ok(wn.dropIds.includes(4) && wn.dropIds.includes(0));
+  assert.equal(isBadgeCut(cut), true);
+  assert.equal(isBadgeCut({ ok: true, components: [{ id: 1, decision: 'kept:name_line' }] }), false);
+  assert.deepEqual(planCutRows({ ok: false }), []);
+  assert.deepEqual(planCutRows({ ok: true, components: cut.components.slice(1, 4), lines: [cut.lines[0]] }), [], 'a plain wordmark adds no cut row');
+});
+
+test('cutRowsFrom cuts the planned rows from the knockout and skips a plan that keeps the whole mark', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-cut-'));
+  const knockout = path.join(dir, 'k.png');
+  // two word blocks (name) and a smaller third block below (descriptor), white on transparent
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect x="20" y="20" width="160" height="80" fill="#fff"/><rect x="220" y="20" width="160" height="80" fill="#fff"/><rect x="120" y="140" width="160" height="30" fill="#fff"/></svg>';
+  fs.writeFileSync(knockout, await sharp(Buffer.from(svg)).png().toBuffer());
+  const { cutWords } = await import('./cut-words.mjs');
+  const cut = await cutWords(knockout, path.join(dir, 'words.png'), { white: true, binaryAlpha: true, width: 1600 });
+  assert.equal(cut.ok, true);
+  const rows = await cutRowsFrom(cut, knockout, dir, { width: 400 });
+  assert.deepEqual(rows.map((r) => r.key), ['knockout_nodesc']);
+  assert.ok(fs.existsSync(rows[0].logo));
+  assert.equal(rows[0].cut_source, 'knockout');
+  assert.match(rows[0].note, /cut-words kept 2 components/);
+  assert.ok(fs.existsSync(path.join(dir, 'cut-knockout_nodesc.json')));
+});
+
+test('second brand chroma (rule 8): a far site token not already a column, else the in-store dominant; same-hue tints, neutrals and existing columns are not a second chroma', () => {
+  const columns = [{ hex: '#86D0CE', source: 'fable_chosen' }, { hex: '#0D4F3D', source: 'site_token' }];
+  const ev = { website: { authored_color_tokens: [
+    { hex: '#0D4F3D', evidence_class: 'theme_authored', semantic_count: 9 }, // already a column
+    { hex: '#9A6BB0', evidence_class: 'theme_authored', semantic_count: 7 }, // tint of the purple primary
+    { hex: '#777777', evidence_class: 'theme_authored', semantic_count: 6 }, // neutral
+    { hex: '#E8A317', evidence_class: 'theme_authored', semantic_count: 4 }, // the mustard: far from purple and teal
+  ] } };
+  const hit = secondChromaFor({ evidence: ev, instore: null, primary: '#8E5DA6', chosen: '#86D0CE', columns });
+  assert.equal(hit.hex, '#E8A317');
+  assert.equal(hit.source, 'site_token');
+  assert.match(hit.from, /site token x4/);
+  const store = secondChromaFor({ evidence: { website: {} }, instore: { hex: '#C8372D', share: 0.3 }, primary: '#8E5DA6', chosen: '#86D0CE', columns });
+  assert.equal(store.source, 'instore');
+  assert.equal(secondChromaFor({ evidence: { website: {} }, instore: { hex: '#A070B8', share: 0.3 }, primary: '#8E5DA6', chosen: '#86D0CE', columns }), null, 'a same-hue store sample is not a second chroma');
+  assert.equal(secondChromaFor({ evidence: { website: {} }, instore: null, primary: '#8E5DA6', chosen: '#86D0CE', columns }), null);
+  assert.match(provenanceWords('second_chroma_sampled', 'site token x4'), /second brand chroma, sampled \(site token x4\)/);
+  assert.match(provenanceWords('second_chroma_lifted'), /lifted one step/);
+});
+
+test('flat panel hex (rule 11): a lockup whose border is one opaque color names it; a transparent or mixed border does not', async () => {
+  const buf = async (svg) => sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const panel = await buf('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#C8102E"/><rect x="10" y="5" width="20" height="10" fill="#fff"/></svg>');
+  assert.equal(flatPanelHex(panel.data, panel.info.width, panel.info.height, panel.info.channels), '#C8102E');
+  const clear = await buf('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect x="10" y="5" width="20" height="10" fill="#fff"/></svg>');
+  assert.equal(flatPanelHex(clear.data, clear.info.width, clear.info.height, clear.info.channels), null);
+  const mixed = await buf('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="20" height="20" fill="#C8102E"/><rect x="20" width="20" height="20" fill="#1040C0"/></svg>');
+  assert.equal(flatPanelHex(mixed.data, mixed.info.width, mixed.info.height, mixed.info.channels), null);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-panel-'));
+  const file = path.join(dir, 'panel.png');
+  fs.writeFileSync(file, await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#C8102E"/></svg>')).png().toBuffer());
+  assert.equal(await panelHexOf(file), '#C8102E');
+});
+
+test('box sticker: a words-only cut of a badge records the panel hex and, when sticker-panel box renders, the box output as the sticker asset', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-box-'));
+  const words = path.join(dir, 'w.png');
+  fs.writeFileSync(words, await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120"><rect x="20" y="30" width="360" height="60" fill="#fff"/></svg>')).png().toBuffer());
+  const row = { key: 'words_only', label: 'words only', logo: words, sticker_logo: null };
+  const out = await boxStickerFor(row, '#111111', dir);
+  assert.deepEqual(row.sticker_panel, { hex: '#111111' });
+  assert.equal(out, path.join(dir, 'sticker-box-words_only.png'));
+  assert.ok(fs.existsSync(out)); assert.equal(row.sticker_logo, out);
+  assert.equal('sticker_panel_intent' in row, false, 'no intent field: the box mode is installed');
+  // a missing logo: the panel hex stays recorded, no sticker asset
+  const bad = { key: 'words_only', label: 'words only', logo: path.join(dir, 'missing.png'), sticker_logo: null };
+  assert.equal(await boxStickerFor(bad, '#111111', dir), null);
+  assert.deepEqual(bad.sticker_panel, { hex: '#111111' }); assert.equal(bad.sticker_logo, null);
+});
+
+test('descriptorInsideLockup: a dropped descriptor inside the name band or naming a business-name token is true, one stacked below is false', () => {
+  const inside = { lines: [{ reason: 'kept:name_line', bbox: [0, 0, 1000, 400] }, { reason: 'dropped:descriptor_line_below_ratio', bbox: [300, 250, 700, 380] }] };
+  const below = { lines: [{ reason: 'kept:name_line', bbox: [0, 0, 1000, 300] }, { reason: 'dropped:descriptor_line_below_ratio', bbox: [300, 320, 700, 380] }] };
+  const named = { lines: [{ reason: 'kept:name_line', bbox: [0, 0, 1000, 300] }, { reason: 'dropped:descriptor_line_below_ratio', bbox: [300, 320, 700, 380], text: "Julia's Kitchen" }] };
+  assert.equal(descriptorInsideLockup(inside), true);
+  assert.equal(descriptorInsideLockup(below), false);
+  assert.equal(descriptorInsideLockup(named, nameTokens("Julia's Kitchen")), true);
+  assert.deepEqual(nameTokens("Julia's Kitchen"), ['julia', 'kitchen']);
+  assert.equal(descriptorInsideLockup(named, ['pizza']), false);
+  assert.equal(descriptorInsideLockup({ lines: [{ reason: 'kept:name_line', bbox: [0, 0, 10, 10] }] }), false, 'no descriptor dropped');
+  assert.equal(descriptorInsideLockup({}), false);
+  assert.equal(descriptorInsideLockup(null), false);
+});
+
+test('FINALIZE at build: no finalize-asset.mjs means no upload fields; a finalize CLI records upload_bytes/upload_path, cached by sha, and the label says upload N KB; the sticker surface records sticker_upload_* with --box-bg from the panel and keeps an exit-3 copy', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-fin-'));
+  const logo = path.join(dir, 'k.png');
+  fs.writeFileSync(logo, await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect x="5" y="5" width="30" height="10" fill="#fff"/></svg>')).png().toBuffer());
+  const row = { key: 'knockout', label: 'card knockout', logo, logo_sha256: 'sha1' };
+  assert.equal(await finalizeRowAsset(row, dir, { cli: path.join(dir, 'missing.mjs') }), null);
+  assert.equal(row.upload_bytes, undefined);
+  const cli = path.join(dir, 'finalize-stub.mjs');
+  fs.writeFileSync(cli, `import fs from 'node:fs'; const a = process.argv; const i = a.indexOf('--in'); const o = a.indexOf('--out'); fs.copyFileSync(a[i + 1], a[o + 1]); process.stdout.write(JSON.stringify({ out: a[o + 1], bytes: fs.statSync(a[o + 1]).size, px: 40, steps: ['stub'] }));`);
+  const result = await finalizeRowAsset(row, dir, { cli });
+  assert.equal(result.px, 40);
+  assert.equal(row.upload_path, path.join(dir, 'upload', 'knockout.png'));
+  assert.equal(row.upload_bytes, fs.statSync(logo).size);
+  assert.equal(row.upload_sha256, 'sha1');
+  const again = await finalizeRowAsset(row, dir, { cli });
+  assert.equal(again.cached, true, 'same sha: no second run');
+  const sheet = sheetWith([{ hex: '#111111', source: 'fable_chosen', label: 'chosen' }], [row]);
+  assert.match(cellLabelText(sheet, sheet.cells.A), /upload \d+ KB$/);
+  assert.equal(sheet.cells.A.view ?? null, null);
+  const view = cellView(sheet, sheet.cells.A);
+  assert.equal(view.upload.bytes, row.upload_bytes);
+  // sticker surface: the row's sticker asset, --box-bg from sticker_panel, its own fields; exit 3 still records the file
+  const stub3 = path.join(dir, 'finalize-stub3.mjs');
+  fs.writeFileSync(stub3, `import fs from 'node:fs'; const a = process.argv; const i = a.indexOf('--in'); const o = a.indexOf('--out'); fs.copyFileSync(a[i + 1], a[o + 1]); process.stdout.write(JSON.stringify({ out: a[o + 1], bytes: fs.statSync(a[o + 1]).size, px: 1000, surface: a[a.indexOf('--surface') + 1], box_bg: a.includes('--box-bg') ? a[a.indexOf('--box-bg') + 1] : null })); process.exit(3);`);
+  const boxed = { key: 'words_only', label: 'words only', logo, logo_sha256: 'sha1', sticker_logo: logo, sticker_panel: { hex: '#111111' } };
+  const both = await finalizeRowUploads({ sticker_logo: null }, boxed, dir, { cli: stub3 });
+  assert.equal(both.card.surface, 'card'); assert.equal(both.card.box_bg, null);
+  assert.equal(both.sticker.surface, 'sticker'); assert.equal(both.sticker.box_bg, '#111111');
+  assert.equal(boxed.sticker_upload_path, path.join(dir, 'upload', 'words_only-sticker.png'));
+  assert.equal(boxed.sticker_upload_bytes, fs.statSync(logo).size); assert.equal(boxed.sticker_upload_fits, false);
+  assert.equal(boxed.upload_fits, false, 'exit 3 is the best under-cap copy, recorded as not fitting');
+  const twice = await finalizeRowUploads({ sticker_logo: null }, boxed, dir, { cli: stub3 });
+  assert.equal(twice.sticker.cached, true, 'same sticker sha: no second run');
+  const manifest = sheetWith([{ hex: '#111111', source: 'fable_chosen', label: 'chosen' }], [boxed]);
+  const cellView2 = cellView(manifest, manifest.cells.A);
+  assert.equal(cellView2.sticker_upload.bytes, boxed.sticker_upload_bytes);
+});
 test('in-store dominant color: the top saturated hue bin across photos, with its share; neutrals and highlights ignored', () => {
   const px = (r, g, b, n) => Buffer.from(Array.from({ length: n }, () => [r, g, b]).flat());
   const wall = { data: Buffer.concat([px(30, 90, 200, 300), px(240, 240, 240, 500), px(20, 20, 20, 500), px(200, 40, 40, 100)]), channels: 3 }; // flight blue wall, white, black, a little red
@@ -561,7 +881,7 @@ test('composeSheet draws the "needs panel or strip" placeholder for a refused st
 // ---------------------------------------------------------------------------------------------
 // 2026-10-01 (Travisse): a cell the builder refuses on the card takes no letter; a human rejected mark keeps its letter
 // ---------------------------------------------------------------------------------------------
-import { applyCellViability, cardContrastVerdict, cellLabelText, gateCells, vanishedInkShare } from './variant-sheet.mjs';
+import { applyCellViability, cardContrastVerdict, cellLabelText, cellView, gateCells, vanishedInkShare } from './variant-sheet.mjs';
 
 test('cell on card: a (row, column) whose ink vanishes on the row primary is not created, takes no letter, and lands in manifest.skipped as kind cell; letters stay contiguous; --force-viability keeps it with a NOT VIABLE badge', async () => {
   const columns = [{ hex: '#000000', source: 'fable_chosen', label: 'chosen' }, { hex: '#003D0E', source: 'site_token', label: 'site token' }, { hex: '#E70C2B', source: 'override', label: 'red' }];

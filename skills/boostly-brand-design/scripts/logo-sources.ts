@@ -92,6 +92,7 @@ export function sizesFromProse(text: string | null | undefined, own: { width?: n
 const RAW_SOURCE_FILES: Array<[RegExp, string]> = [
   [/^site-logo-original\./, 'site header, original file'],
   [/^site-logo-w\d+\./, 'site header, CDN rendition'],
+  [/^tt-avatar\./, 'TikTok avatar'],
   [/^fb-avatar-large\./, 'Facebook avatar, large'],
   [/^fb-avatar\./, 'Facebook avatar'],
   [/^fb-og-image\./, 'Facebook share image'],

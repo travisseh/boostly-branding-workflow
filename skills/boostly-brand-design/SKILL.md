@@ -278,24 +278,36 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    (the bare `--run-dir` form without a subcommand is the same `build`). It needs no dev server:
    the cells are HTML drawn from `templates/sheet-templates.js` (the production badge markup
    vendored from boostly `generate-badge-html.ts`); `--url-base` is accepted and ignored.
-   Rows are the logo treatments (chosen card knockout, full color, and the words-only cut from
-   `scripts/cut-words.mjs` when it differs from the knockout; the full lockup and any wordmark-only
-   variant appear here as rows, nobody has to ask for them). Columns are the secondary/band
+   Rows are the logo treatments (knockout, full color, the words-only cut from
+   `scripts/cut-words.mjs` when it differs) for EVERY ground row (decision primary, in-store,
+   Instagram, dark-ground, deeper-ground, panel), so nobody has to ask for the full lockup; a
+   colored-ink cell on a dark ground gets a white-ink twin row (Pig & Parrot M, Pizza Gene X).
+   Columns are the secondary/band
    candidates in provenance order: Fable's chosen secondary, the chosen mark's own inks (at least
    3% ink share; a gradient ink enters as its family CENTER, never the dark pole), theme-authored
    site tokens, then the DARKER depth ladder of the chosen secondary (-10%, -20% lightness; Q3 = A
    2026-09-22: a darker step is pick-eligible when the real ink fails band or digit contrast, the
-   +10% lighter column is never a pick and only renders behind `--allow-lighter`). Every column
+   +10% lighter column is never a pick and only renders behind `--allow-lighter`; exception: a
+   SAMPLED second chroma from the store or the site enters as two one-off cells on the current
+   primary, the sample and one lifted step because the photo sample is shadowed, never as a full
+   column: Koshari, Mad Fish, Creamer). Every column
    header and cell label carries the provenance in plain words ("Fable's pick", "logo ink 5%",
    "site theme token", "darker step, synthetic (allowed when real ink fails contrast)",
    "in-store dominant, sampled from photos"); a color with no such words is not on the sheet.
-   DEFAULT LETTER (2026-09-21): `build` marks Fable's default itself: the card-knockout row at
-   Fable's column, MOVED to the mark-ink column when the decision carries `band_over_brand_ink`
-   (Fable's secondary is a neutral or is not an ink of the mark while the mark has a saturated
-   ink >= 3% that reads on the primary: Toscano's cream, Skyboxx tan) and that cell's print digit
-   passes or has a brand-owned fix. When the decision carries `traced_from_small_source`, the
-   cell is marked `HOLD: traced from small source` with the native px on its label instead of a
-   default, and `fable_default_letter` stays empty until a human accepts it.
+   DEFAULT LETTER (2026-09-21): `build` marks Fable's default itself. Row: the full lockup when
+   the descriptor belongs to it or the full-color cell passes on the dark ground with nothing
+   stripped (CARD LOCKUP LADDER), else the knockout; on the `dark_ground` row when the decision
+   carries `dark_ground_default` (the mark is a single BRIGHT ink, under 7:1 on white, or a light badge, the site
+   header or footer is black, or the mark sits on its own black disc or is a one-ink neutral mark). Column: Fable's, MOVED to
+   the replacement-ink column when the decision carries `band_over_brand_ink` (Fable's secondary
+   is a neutral, a tint of the primary, a low-share ink, a theme-color meta token, or not a mark
+   ink while the mark has a saturated ink >= 3% that reads on the primary: Toscano's cream,
+   Skyboxx tan), and MOVED to the -10% column (or the darkest site token) when white on the
+   chosen secondary is under 3:1, so the print digit stays white (Scoops, Pig & Parrot, Julia's,
+   Pawsome, Brothers, Harbor).
+   `traced_from_small_source` is a flag, not a hold: the default is marked, its label carries the
+   native px, and the closeout records the edge-quality override as Travisse's standing
+   acceptance (Shawarma, Pig & Parrot, Indian Kitchen, Pizza Gene, Dino's all picked through).
    IN-STORE PRIMARY ROW (Chuy's 2026-09-18): the dominant saturated hue sampled across the
    brand-environment photos becomes its own primary row automatically (row label says
    "sampled") when it is 40 degrees or more from the site primary or the primary is a neutral;
@@ -338,11 +350,16 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
      calls `run-file select <run> <letter> --by Travisse` itself, so the applied letter is recorded
      once, in `run.json` (with the override record when it differs from `fable_pick`); never call
      `run-file select` by hand after a mark, and never retype the letter into a manifest.
+     `--print-cell <A>` records a web/print split as the pick itself (web = N with white text when
+     its text equals the band, print = A's palette); never a hand-written override.
    - `variant-sheet.mjs restitch --run-dir <run>`: rewrites `variant-sheet.html` and every cell view
      from the json (adopts a schema 2 sheet); `--raster` adds the png.
    - `variant-sheet.mjs render --run-dir <run> --cell <L> [--raster]`: writes `card-<L>.png`,
      `sticker-<row>.png`, `pop-<row>.png` from the templates for consumers that need files
      (`ai-mockup.mjs` calls it itself when they are missing).
+   - `variant-sheet.mjs swap-asset --run-dir <run> --run <run> --row <key> --logo <png>
+     [--expected "<words>"] [--sticker-logo <png>]`: gate first, then replace the row's asset in
+     place; letters and the recorded pick (row key plus column) survive an asset repair.
    Letters are assigned once in creation order (A..Z, AA, AB, ...) and never renumbered; new
    cells get the next letters, so a letter Travisse already quoted stays valid. A cell takes a
    letter only when it is created: a (row, column) the builder refuses on the card (below) is never
@@ -388,7 +405,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    panel or strip", the skip is recorded (`kind: sticker`) and printed. Fix it with
    `scripts/sticker-panel.mjs --logo <png> --out <png> --mode circle|strip`, gate the output with
    `gates.ts check --asset <out> --color #FFFFFF --surface sticker`, then `add-row --sticker-logo`.
-   LIGHT PRIMARY: when the card primary fails 3:1 against white (cream, yellow, pastel), the script recolors the knockout and words-only rows to the card text ink (black when the text ink is light too), labels the rows with that ink, records `light_primary` and `knockout_ink` in the sheet json, and renders the POP tile on the sticker band instead of the primary. A white knockout on a light card is invisible and the sheet is not reviewable (206 Burger 2026-09-09). The knockout applied from such a row is the tinted file, not the white one.
+   When the panel is a large flat authored color, the panel color becomes its own PANEL GROUND row
+   (lockup keyed onto it, text flipped to black when white fails: Buz V).
+   LIGHT PRIMARY: when the card primary fails 3:1 against white (cream, yellow, pastel), the script recolors the knockout and words-only rows to the card text ink (black when the text ink is light too), labels the rows with that ink, records `light_primary` and `knockout_ink` in the sheet json, and renders the POP tile on the sticker band instead of the primary. A white knockout on a light card is invisible and the sheet is not reviewable (206 Burger 2026-09-09). The knockout applied from such a row is the tinted file, not the white one. It also adds the DEEPER-GROUND rows: the mark's own darker inks first, then one labelled -10% synthetic step (Harbor AH was the synthetic; Creamer promoted the band green).
 2b-taste. **Taste pass: Fable adds the good cells the sheet lacks (Travisse 2026-10-15).** The
    pipeline runs on Opus 5.5 by default (the `fulfill-location` and `closeout-location` agents);
    Fable does the two judgment steps, the decision (rule 1) and this pass, because it has the
@@ -451,8 +470,8 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    native pixels as `review/default-cell.png`, and, mandatory since 2026-09-21, LOGO AT 3x (WHAT
    PRINTS): a crop of the exact final upload rendered at 3x native with nearest-neighbour on the
    card primary (`review/logo-3x.png`) under an effective-resolution line: final px, source px
-   and derivation, upscale factor, and the `edge-quality` verdict with its reason; a held
-   small-source trace is framed red and the header says HOLD instead of naming a default; gates
+   and derivation, upscale factor, and the `edge-quality` verdict with its reason; a
+   small-source trace shows its flag (native px) next to the default letter; gates
    per sheet row in plain words), website
    (cached `evidence/website-visual/desktop.png`, else a fresh Playwright capture, else a gray
    box with the reason), Google Business Profile (the downloaded Place photos with the ones Fable
@@ -493,6 +512,8 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    <run_dir> --cells K,M,L,N,R [--open]` writes `review/compare-K-M-L-N-R.png` and `.html`: the
    shortlisted cells side by side, each with its card, sticker, and POP tile and every color
    labeled with its provenance words. Use it whenever Travisse names more than one cell.
+   With no `--cells` it builds the default plus the strongest cell of every other row (dark-step and
+   site-token columns included) as `review/compare-default.png`; the canvas runs it itself (Franks "add I").
    Google Maps and the logo search are capped at about 90 seconds per location; a failure there
    never blocks the canvas, it becomes a labeled gray box. Place photos are already fetched at up
    to 4800px by the evidence build, so the canvas never needs to refetch them.
@@ -910,9 +931,9 @@ Knockout recipe: `restore-blocks` → `soft-fringe` (deglow if FAIL) → `counte
       computed backgrounds) but BELOW an authored logo ink and BELOW an explicit brand guideline. If
       Instagram and the website disagree on the primary field color, the variant sheet MUST include
       the Instagram primary on the same sheet: after `build`, run `variant-sheet.mjs add-row
-      --primary <instagram_hex> --logo <png> --label "<treatment> on Instagram primary"` for each
-      treatment (one sheet, new letters; never a second sheet or a stitched
-      `variant-sheet-all.png`), and the Fable decision must name both primaries and explain the choice. Never record a hex sampled from a
+      --primary <instagram_hex> --all-treatments` (one sheet, new letters; never a second sheet or
+      a stitched `variant-sheet-all.png`), and the Fable decision must name both primaries and
+      explain the choice. Never record a hex sampled from a
       photo of a printed piece as authored: mark it `sampled` and snap it to the nearest authored
       token (logo ink, SVG fill, theme token) when one sits within a small distance.
    5. LOGO: if Instagram shows a logo variant the site does not (a one-ink mark, a stacked lockup,
@@ -1033,28 +1054,29 @@ Use `/boostly-instore-link-settings` (CLI wraps the production server actions):
 - SECONDARY LOGO (light backgrounds, V2 2026-10): the branding row carries a second logo,
   `secondary_logo_attachment_id`, for light surfaces. It is the on-white sticker asset (authored
   inks on transparent or white, the file the sheets' stickers use), never the knockout card asset.
-  It is written at finish, by the `closeout-finish` agent after Travisse approves the Figma
-  signage, with `branding set --secondary-logo-file <sticker> --scope <write.scope>
-  --expect-from-readback production-readback.json`, never at fulfill and never in the first
-  branding apply. The closeout records the file in run.json `write.sticker_logo_file`; the finish
-  records the receipt in `write.secondary_logo`. `branding get` shows it as
+  It is written in the closeout apply alongside the primary logo (`--secondary-logo-file
+  <sticker>`, same scope, same `--expect-from-readback`), since 2026-10-19; the finish agent only
+  backfills older runs. When no truecolor copy fits 70,000 B the closeout ships the best under-cap
+  ladder copy and reports it; no human call. The closeout records the file in run.json
+  `write.sticker_logo_file` and the receipt in `write.secondary_logo`. `branding get` shows it as
   `secondary_logo_attachment_id` / `secondary_logo_url` / `secondary_logo_filename`.
 - Every `branding set` after the first apply must carry `--expect-from-readback <run-dir>/production-readback.json`
   so the CLI refuses (exit 6) to replay a logo someone else uploaded since our last write (2026-09-09 Swine Dining
   phone-photo incident: a two-color follow-up write carried a foreign JPG forward with a clean before/after diff).
-- FINALIZE CARD ASSET (one step, every card upload; consolidates BYTE BUDGET, KNOCKOUT EDGE
-  SHARPNESS, and TINY-SOURCE RESCUE, 2026-09-08). Run in this order on the chosen card cut and
-  record every intermediate byte count and path in the manifest:
+- FINALIZE CARD ASSET (runs at sheet build on every row asset through `scripts/finalize-asset.mjs`,
+  so the sheet and the review show the real upload size; rerun at closeout only when the asset
+  changed; 2026-09-08). The order, every byte count and path recorded:
   1. SOURCE RESCUE: walk `references/logo-source-ladder.json` in order and record every rung
      tried in the evidence input's `logo_sources[]` before any trace; a trace is allowed only
      when every rung at or above the 700px floor was tried (the validator refuses it otherwise).
-     For solid single-ink display type prefer a vector trace of the NATIVE source (potrace on a
-     clean 128-threshold binarization; `-a 1.2 -O 0.3 -t 6`, pgm backend at 2x) over AI raster
-     upscale, verified by a full-mark overlay diff (mismatch confined to 1px edge antialias;
-     counters, apostrophes, punctuation, serifs intact), rendered at the final size directly.
+     For a source under 700px use `scripts/trace-smooth.mjs` (Gaussian of one source px on the
+     soft mask at 8x, threshold 0.5, `potrace -a 1.334 -O 1.0 -t 50`, 4000px render with
+     anti-aliased alpha) over AI raster upscale; the trace must remove the source grid, not
+     preserve it (Indian Kitchen); verify by a full-mark overlay diff (counters, apostrophes,
+     punctuation, serifs intact).
   2. EDGE CHECK: zoom a 300px letter crop at 3x nearest on the card color. Soft or haloed edges
-     mean re-cut (trace as in step 1: bicubic-upsample alpha 2x, binarize at 128, potrace, LANCZOS
-     down, alpha snap), not ship. Compare the full mark side by side (counters, dots, ring intact).
+     mean re-cut (trace as in step 1), not ship. Compare the full mark side by side (counters,
+     dots, ring intact).
   3. BINARY ALPHA for flat knockouts and traced marks (snap >=128 to 255, else 0, zero RGB under
      alpha 0) ONLY at 1000px and above; under 1000px a binary-alpha file prints hard stair-steps
      and `edge-quality` blocks it (Skyboxx 2026-09-21, 800px): render from the vector at 2x and
@@ -1069,8 +1091,8 @@ Use `/boostly-instore-link-settings` (CLI wraps the production server actions):
      or lost transparency; keep the smaller file on a no-gain result). The tinified file is the upload.
   6. BYTE LADDER: still over 70,000 bytes, step the longest side down in 100px decrements,
      re-tinifying each step, never below 1000px and never below the 700px ship-gate. At the floor
-     and still over, write an explicit textured-art exception in-thread with the before and after
-     edge crops; never ship over the max silently.
+     and still over, ship the best under-cap copy and report the ladder; the textured-art note is
+     informational.
   7. EDGE CROP PROOF: save a 3x edge crop of the final file on the card color next to the proof
      (`fix/edge-crop-3x.png`) and rerun the full final battery on the exact final file.
   Targets, from Cam's Friday walkthrough: shipped logos run 160 to 300px on the long side and under
@@ -1196,21 +1218,25 @@ source to ship from.
   TINY-SOURCE RESCUE ladder, do NOT stop at a flag, generate a custom simplified mark with the
   `image-generator` skill (OpenAI gpt-image-2 primary; pass the best authored source via `--ref`
   and describe the wordmark/colors exactly), run it through the full gate battery like any
-  candidate, and post it in-thread labeled GENERATED, NEEDS REVIEWER APPROVAL. Never apply a
-  generated mark to production without Travisse/Cam approval in the thread.
-- STARTED PLACEHOLDER (Travisse, 2026-08-24) is RETIRED (2026-09-21): Slack gets exactly one post
-  per location, the automatic close-out result of boostly-box-fulfillment step 11
-  (`boostly-signage-sheets/scripts/post-review.mjs --apply`); no placeholder, no progress edits.
+  candidate, and add it with `variant-sheet.mjs add-row --logo <generated.png> --label "sign
+  wordmark, generated" --source <sign reference> --note "custom mark generated from the storefront
+  sign"` (provenance `imagegen_simplified` in the evidence input); when that row is picked, the
+  closeout records `run-file override --gate ink-retention --asset <png> --decided-by travisse
+  --reason "custom mark pick"`; the letter pick is the approval, nothing is applied without it.
 - CARD LOCKUP LADDER (Travisse, 2026-09-08, from Falafel coins, Piazza descriptor, Tillie's
   "since 1984", Mario's phone, Denise's tagline, Bunker and Cleveland descriptors): the reviewer's
   card edit was the same move every time, so it is now the default, not a request. For the chosen
   mark the runner always produces three labeled variants: FULL (the authored lockup),
   DESCRIPTOR-FREE (taglines, "est." and "since" lines, phone numbers, city lines, slogans, and drop
   shadows removed), and WORDS-ONLY (business-name words only, emblem and illustration dropped).
-  The card asset DEFAULTS to the descriptor-free cut when a descriptor exists, and to words-only
-  when the descriptor-free cut still fails the tiny-text gate; the sticker always keeps the FULL
-  lockup (STICKER SCALE COMPOSITION). All three appear as rows on the variant sheet (rule 2b), so
-  the reviewer picks a letter instead of asking. Cut deterministically with
+  The card asset DEFAULTS to the FULL lockup when the descriptor is part of the composed lockup or
+  carries part of the name, or when the full-color cell on the dark ground passes with nothing
+  stripped (`build` pre-records the render-legibility override); otherwise the descriptor-free
+  cut, then words-only (Julia's, Brothers, Franks, Creamer, Buz, Senor Bird's); the sticker keeps
+  the FULL lockup (STICKER SCALE COMPOSITION). First-sheet rows: FULL, DESCRIPTOR-FREE (knockout
+  and words-only), WORDS-ONLY, INNER-EMBLEM for ring-text badges, BADGE-ONLY for a self-contained
+  emblem; `add-row`/`add-cell --expected "<words kept>"` makes an intentional drop pass
+  sheet-viability (Surfin x2, Senor, Pizza Gene, Monza, Harbor). Cut deterministically with
   `node scripts/cut-words.mjs --in <knockout.png> --out <words.png> --json <components.json>
   --white --width 1600 --binary-alpha [--band y0,y1] [--keep-ids ..] [--drop-ids ..]`: it labels
   8-connected components, clusters them into text lines, drops arcs/rings/frames (wide giants that
@@ -1222,6 +1248,8 @@ source to ship from.
   shipped 19-letter cut with no hints; Denise's script yields the descriptor-free lockup (cupcake
   kept, tagline gone), and a true words-only cut there comes from the imagegen words-only path
   below. Ghost-clean and `verify-erase` rules still apply to any rect repaint done on top of a cut.
+  When a vector rung exists (menu-PDF or site SVG) cut the words from the glyph outlines
+  (`cut-words.mjs --svg`) with the clip check, never from the raster (Brothers).
 - IMAGEGEN KNOCKOUT CANDIDATE (experiments/imagegen-2.5/REPORT.md, 2026-09-08, 24 paid calls): at
   candidate prep, after the source hunt picks the authored mark and before the gate battery, add an
   `imagegen-knockout` candidate NEXT TO the deterministic knockout, never instead of it:
@@ -1255,28 +1283,25 @@ source to ship from.
   size, do NOT ship it on the card even when the gates numerically pass. Hunt for an authored
   simplified variant (wordmark-only lockup) across first-party surfaces AND wider authored
   placements, packaging/cup stickers, gift-card platforms (eGifter served Mara's exact stacked
-  wordmark from squarecdn), GBP photos, image search as a locator only, and ship that on the
-  card; the ~3in sticker may keep the fuller lockup. The simplified variant usually also resolves
+  wordmark from squarecdn), GBP photos, and ship that on the card; the ~3in sticker may keep the
+  fuller lockup. The simplified variant usually also resolves
   byte-cap violations (Mara's badge 295KB -> wordmark 33KB). The descriptor-free and words-only
   cuts themselves are produced by the CARD LOCKUP LADDER; this rule is about hunting an AUTHORED
   simplified variant first.
-  TINY-SOURCE RESCUE (same incident, r3): Mara's r2 shipped staircase edges from an AI upscale of a
-  sub-300px source ("insanely pixelated"). The rescue order is `references/logo-source-ladder.json`
-  (step 1 of FINALIZE CARD ASSET); `edge-quality` now measures the result.
+  TINY-SOURCE RESCUE (Mara's r2, staircase edges from an AI upscale): FINALIZE CARD ASSET step 1.
 - SECONDARY COLOR PROVENANCE (Travisse, 2026-09-02, Kabob Connection): the secondary role is
   printed as the tap-card band and the issue-badge fill, so it must be an ink that lives in the
-  mark or on in-store materials (menu boards, storefront, packaging) before a website theme
-  accent. Kabob shipped the site's decorative tan (#E4C590, subtitle/CTA/frames) while the logo
-  flame and every menu board are orange; the fix was the flame ink (#F5A411). Provenance order:
-  (1) a non-text ink in the chosen mark, (2) a color dominant on in-store photos, (3) the site
-  accent. Sample photo colors as a locator only (warm lighting shifts them; the menu-board photo
-  read #C8864B) and take the exact value from the mark or computed styles. When (3) is the only
-  candidate, render the card with the (1)/(2) alternative alongside and present both.
-  MECHANICAL FORM (Toscano's cream, Skyboxx tan, 2026-09-16/17): `validate-fable-decision.ts`
-  marks `band_over_brand_ink` when Fable's secondary is a neutral (chroma under 0.15) or is not
-  an ink of the chosen mark while the mark carries a saturated ink of at least 3% share that
-  reads on the primary; the sheet then makes that ink's cell the default and Fable's cell is
-  just another column. A site accent never outranks a mark ink, however small the ink.
+  mark or on in-store materials before a website theme accent (Kabob shipped the site's tan
+  #E4C590 while the logo flame and every menu board are orange #F5A411). Provenance order: (1) a
+  non-text ink in the chosen mark, (2) a color dominant on in-store photos, (3) the site accent,
+  and (4) a secondary that is a neutral, a low-share logo ink, a tint of the primary, or a
+  theme-color meta token yields to an authored CONTRASTING accent: the site CTA, the second site
+  chroma, or the in-store sample (Senor, Slice, Creamer, Koshari, Mad Fish, Monza); same-hue
+  darker steps stay on the sheet as columns, never the default. Sample photo colors as a locator
+  only (warm lighting shifts them) and take the exact value from the mark or computed styles.
+  MECHANICAL FORM: `validate-fable-decision.ts` marks `band_over_brand_ink` and the sheet moves
+  the default to the replacement ink's column (DEFAULT LETTER, rule 2b); Fable's cell is just
+  another column. A site accent never outranks a mark ink, however small the ink.
   CORRECTION (Travisse, 2026-09-02, Mario's): "in-store material" means the reviewer LOOKED at the
   whole photo set and judged what dominates, not a pixel sample from one element. A numpy sample
   found green trim on one storefront photo and proposed a green band for a shop that is red and
@@ -1289,24 +1314,11 @@ source to ship from.
   (black band + black text, white band + white text) prints an empty badge. Check
   secondary-vs-text contrast >= 3:1 on every proposal and every variant render; a black band
   forces white text.
-  LIMIT (Travisse, 2026-09-02, David's; amended Q3 = A, 2026-09-22): the fix must use a color the
-  brand already uses (a mark ink, or a value visible in-store), and never a lighter tint of one;
-  darker steps of a real brand hue are allowed when the real ink fails the band or digit contrast
-  (Fresho C: sage #93AD98 -20% carries a white digit; That's a Wrap K: #1A1A1A band over black).
-  A lighter synthetic step is never a pick (Coloradough AA, "from nowhere real"); the validator
-  rejects it as `band_lighter_synthetic`. If no brand color or darker step fixes it, keep the
-  palette and report the failing surface as informational: the app preview badge is low-stakes,
-  the printed card uses print_text_secondary and is usually fine. Do not ship a worse-looking
-  card to satisfy a number.
-- KNOCKOUT EDGE SHARPNESS (MezeHub, 2026-09-02): a knockout that meets the size floor can still
-  carry upsample blur from its extraction (MezeHub went 800px soft -> 800px crisp at 44KB via a
-  trace). The check and the re-cut recipe are steps 2 and 3 of FINALIZE CARD ASSET in the write
-  workflow; never ship a knockout without that zoom.
-- VARIANT RENDERS FOR A COLOR CALL (Travisse, 2026-09-02): when the reviewer says a card looks
-  washed out or asks "what about X color", do not describe options; render them through the
-  harness renderer with the exact field values (`harness/screenshot.mjs --primary --secondary
-  --text --text-secondary --logo`) and a one-row montage with the live card first. The renderer
-  exposes production behavior (badge fill, band, text roles) that a description misses.
+  LIMIT (David's 2026-09-02; Q3 = A 2026-09-22): the fix uses a color the brand already owns (a
+  mark ink, a value visible in-store, or a darker step of one: rule 2b), never a lighter tint; the
+  validator rejects a lighter step as `band_lighter_synthetic` (sampled second chroma excepted,
+  rule 2b). If nothing brand-owned fixes it, keep the palette and report the surface as
+  informational; never ship a worse-looking card to satisfy a number.
 - ADDING A LOCATION TO AN EXISTING ACCOUNT (Travisse, 2026-09-03, FH Pizza Franklin): before
   building evidence or launching Fable, check whether the account already has shipped branding.
   Steps: (1) `run_read_query` fulfillment_requests for every location on the account; any row
@@ -1337,18 +1349,14 @@ source to ship from.
 - QUALITY BAR: REFERENCE TAPCARDS (Travisse, 2026-09-03). `references/tapcard-design-examples.pdf`
   (16 cards) is the standard every proposal is checked against before it is posted. What the
   reference set does, as checks:
-  (1) Primary is a saturated brand color or the brand's own cream/tan/black. Never a neutral or
-      a muted site-theme value. Sonic red, Yoo yellow, Garage Grill blue, Chubby's tan. NEVER
-      white or near-white (That's a Wrap 2026-09-17: the primary is also the touchpoint page
-      background and a white one makes the link tree look broken): a neutral-ink mark takes a
-      BLACK card with a white knockout, and `primary-too-light` blocks anything under 1.3:1
-      against white. Only white and near-white are banned (Q8 = A, 2026-09-22): a brand's own
-      authored cream or tan is allowed as the card when text reads black on it (Chubby's tan;
-      That's a Wrap C white rejected).
-  (2) Band is a SECOND brand ink, usually the mark's complementary color (blue under yellow,
-      pink under orange, dark red under red, red under blue). A dark band is only right when
-      black/charcoal is genuinely the brand's ink (Buffalo Wild Wings, Beehive), never as a
-      default neutral. This is the mechanical form of Cam's "use a logo color" call.
+  (1) Primary is a saturated brand color, the brand's own cream/tan, or a DARK card (site
+      header/footer or badge-disc black, or the logo's own dark ink) with the brand chroma as the
+      band (dark card default: DEFAULT LETTER, rule 2b; Pagliai's, Franks, Dino's, Pizza Gene,
+      Surfin, Pig & Parrot, Pawsome, Monza web, Mad Fish). Never a neutral or muted site-theme
+      value, never white (That's a Wrap 2026-09-17: the primary is also the touchpoint page
+      background; `primary-too-light` blocks anything under 1.3:1 against white). A brand's own
+      authored cream or tan is allowed when text reads black on it (Q8 = A, Chubby's tan).
+  (2) Band: SECONDARY COLOR PROVENANCE.
   (3) Text and NFC icon take black on light cards, white on dark/saturated cards, or the band
       ink when it clears contrast (Yoo blue on yellow, Wingnutz red on yellow, Little India navy).
       Prefer the band ink when it passes; it ties the card together.
@@ -1365,12 +1373,8 @@ source to ship from.
       card ground read through the authored white, and when `ink-retention` reports
       `authored_white_dropped` record that decision as an override (it is a human
       recognizability call); a solid silhouette is only a candidate when the authored white is
-      itself the ground, never the default. EMBLEM DEFAULT (Q7 = A, 2026-09-22): when an
-      illustrated emblem loses its interior detail in a knockout, the default card is WORDS-ONLY
-      (business-name words, `mark_element_omitted` flagged) and the full emblem lives on the
-      sticker and POP (Katy Q). An open or outline knockout may be offered as a second row, never
-      as the default (Coloradough AD was a human pick); the validator refuses a collapsed emblem
-      knockout without one of those two paths (`emblem_knockout_needs_words_default`).
+      itself the ground, never the default. Emblem rule: EMBLEM KNOCKOUTS in
+      `references/subagent-prompt-template.md`.
   (6) Logo sits centered in the top third at roughly 45-55% of card width with air around it;
       small or busy marks are not enlarged to fill.
   (7) Two or three colors total, all from the brand. If a proposal needs a color the brand
@@ -1415,6 +1419,8 @@ source to ship from.
 - LOGO FINALISTS AS FILES (Travisse, 2026-08-28): the ACTUAL production logo files (the applied
   card PNG and the sticker PNG) travel with the one close-out post of boostly-box-fulfillment step
   11, labeled chosen / sticker; rejected finalists stay in the run dir and on the variant sheet.
+  The manifest records `sticker_logo`; the Fable decision stays six keys and the sticker asset is
+  directed in composition text.
 - STICKER LOGO / ON-WHITE VARIANT (Travisse, 2026-08-25): every fulfillment run also produces a
   STICKER LOGO that reads on WHITE. Physical signage stickers (Figma plugin in product2) place the
   logo on a white field below a band in the tapcard's web_primary_color, so the card asset is often
@@ -1426,38 +1432,25 @@ source to ship from.
   2. Hard gates vs #FFFFFF on the sticker asset: `iterate-logo-rules.mjs component-contrast`,
      `interior`, plus the standard soft-fringe / border-dust / ship-gate / png-color-type battery
      and render-legibility.
-  3. Context proof: `harness/sticker-mock.mjs --logo <sticker> --primary <web_primary_color>
-     --out <run>/fix/sticker-mock.png` renders the sticker form factor (band + copy + logo + QR).
-     Its QR is a seeded MOCK for color/composition proof only. The script hard-fails (exit 3) when
-     contrast(primary, white) < 3.0, that endangers the band copy and a primary-ink QR; the band
-     color is fixed to the tapcard primary, so surface the failure to the reviewer, never self-waive.
-  4. Slack: append sticker-mock.png to the proof reply. Manifest: record sticker_logo and
-     sticker_mock paths. The Fable decision stays six keys; the sticker asset is directed in
-     composition text and recorded in the manifest.
-  5. Storage: production has no account-level alternate (on-white) logo field yet, so the
-     sticker asset ships in the run dir + Slack only. When `branding get` exposes an alternate
-     logo field, apply the sticker asset the same way the main logo applies.
-  6. STICKER BAND COLOR (Travisse-ratified 2026-08-27, from the 5-way Figma comparison): the band is
+  3. STICKER BAND COLOR (Travisse-ratified 2026-08-27, from the 5-way Figma comparison): the band is
      the HIGHEST-CONTRAST-ON-WHITE authored brand role (WCAG >= 3.0 vs white), preferring
      web_primary_color only when it passes. Shipped Figma practice picks the strongest dark role
      (Sexton green over gold, Zo navy over pale, Rebel navy over white), so a light primary means
      the band moves to the darkest authored role, no reviewer round-trip needed; flag only when NO
-     authored role clears 3.0. The mock QR renders in the band color.
-  7. STICKER SCALE COMPOSITION (same ratification): stickers print at ~3in, not 126x56, card-size
+     authored role clears 3.0. The applied cell's `sticker_band` is the single source for the
+     signage band, dividers, QR modules and POP ground (`plan.mjs --run-dir` reads the sheet, never
+     the cell secondary or decision.json); "signage should be X" names the non-logo ink, the logo
+     keeps its authored ink unless named (Dino's).
+  4. STICKER SCALE COMPOSITION (same ratification): stickers print at ~3in, not 126x56, card-size
      simplifications MUST NOT cascade into the sticker asset. Prefer the fullest authored lockup
      that passes on white (ring text, descriptors, and decorative elements stay). Card OCR gates do
      not apply at sticker scale. Component-contrast vs white: text components keep the 3.0 floor;
      non-text decorative components relax to 1.8 (visible in print), below 1.8 still strips, with
      the omission flagged. Validated: Figma shipped Manjay's teal star and Random Arts' ring text on
      stickers; our card-driven strips were over-conservative there.
-  8. ENFORCED BEFORE FIGMA (The Place Pizza, Arnold's, 2026-09-17/18): the sticker and POP-on-white
-     asset must be transparent-ground and pass on white BEFORE the signage build: run
-     `gates.ts check --asset <sticker_logo> --color #FFFFFF --surface sticker` (battery against
-     white plus `sticker-ground`, an authored panel is still a panel on a white sticker, plus
-     `component-contrast` vs white). `boostly-signage-sheets/scripts/plan.mjs` runs the same check
-     on its `--logo` input and refuses a HOLD. When it fails, prefer the authored DARK variant of
-     the same mark (Arnold's navy badge) over any recolor.
-  9. OPAQUE PANEL, TWO STANDARD FIXES (Toscana Gourmet Pizza 2026-09-22, Travisse: "either in a
+  5. ENFORCED BEFORE FIGMA (Arnold's 2026-09-18): the sticker asset passes `gates.ts check --asset
+     <png> --color #FFFFFF --surface sticker` before signage; on a fail prefer the authored DARK variant.
+  6. OPAQUE PANEL, TWO STANDARD FIXES (Toscana Gourmet Pizza 2026-09-22, Travisse: "either in a
      circle of black like we did with the one yesterday or strip the black background"): an
      opaque-ground sticker asset is never rendered on the sheet or in signage. Run
      `scripts/sticker-panel.mjs --logo <src> --out <png> --mode circle` (art centered by its ink
@@ -1465,7 +1458,13 @@ source to ship from.
      panel-circle recipe) or `--mode strip` (ground keyed out by color distance with a soft edge,
      truecolor RGBA), both >= 1000px, then gate the output with
      `gates.ts check --asset <png> --color #FFFFFF --surface sticker` before it goes on the sheet
-     (`add-row --sticker-logo <png>`) or into Figma. Which of the two is a Fable/Travisse call.
+     (`add-row --sticker-logo <png>`) or into Figma. Defaults (Harbor, Slice, Senor, Pagliai's,
+     Indian Kitchen, Surfin): a words-only cut of a badge gets the BOX container (`--mode box`,
+     card ground, 28% padding), an opaque emblem circle or strip; an authored panel or gradient
+     stays off the asset and is drawn as a matching box behind it on light surfaces (plan.json
+     `logo_panel`); the sticker and signage asset is the fullest full-color authored lockup at
+     native resolution; the upload-size override is folded into the pick notice ("picking X also
+     OKs the sticker size"), never asked separately.
 
 ## Downstream: signage print sheets
 

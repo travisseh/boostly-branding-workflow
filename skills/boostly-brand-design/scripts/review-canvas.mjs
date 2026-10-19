@@ -93,11 +93,10 @@ function parseArgs(argv) {
     else if (a === '--png') args.png = true;
     else if (a === '--no-png') args.png = false;
     else if (a === '--no-record') args.record = false;
-    else if (a === '--help' || a === '-h') { console.log('node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly] [--scale 2] [--no-html] [--record-only] [--png] [--png-budget-mb 25] [--no-record]\nnode review-canvas.mjs compare --run <run_dir> --cells K,M,L [--open] [--png] [--scale 2]'); process.exit(0); }
+    else if (a === '--help' || a === '-h') { console.log('node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly] [--scale 2] [--no-html] [--record-only] [--png] [--png-budget-mb 25] [--no-record]\nnode review-canvas.mjs compare --run <run_dir> [--cells K,M,L] [--open] [--png] [--scale 2]   (no --cells: the default plus the strongest cell of every other row -> review/compare-default)'); process.exit(0); }
     else throw new Error(`Unknown argument ${a}`);
   }
-  if (!args.run) throw new Error('Usage: node review-canvas.mjs --run <run_dir> [--open]  |  node review-canvas.mjs compare --run <run_dir> --cells K,M,L');
-  if (args.command === 'compare' && !args.cells?.length) throw new Error('compare needs --cells <letter,letter,...>');
+  if (!args.run) throw new Error('Usage: node review-canvas.mjs --run <run_dir> [--open]  |  node review-canvas.mjs compare --run <run_dir> [--cells K,M,L]');
   if (!(args.scale >= 1 && args.scale <= 4)) throw new Error('--scale must be between 1 and 4');
   if (!(args.pngBudgetMb > 0)) throw new Error('--png-budget-mb must be a positive number');
   args.run = path.resolve(args.run);
@@ -505,7 +504,6 @@ export function pickStatus(letter, sheet, run) {
   const words = [];
   if (status === 'travisse_pick') words.push('TRAVISSE PICK');
   else if (status === 'fable_pick' || (!status && (sheet?.fable_default_letter ?? run?.variants?.fable_default_letter) === letter)) words.push('FABLE PICK');
-  else if (status === 'hold') words.push('HOLD');
   else if (status === 'rejected') words.push('rejected');
   if ((sheet?.applied_letter ?? run?.variants?.applied_letter) === letter) words.push('applied');
   return words;
@@ -1234,9 +1232,8 @@ async function renderSectionBlocks(sec, blocks) {
         const meta = await sharp(part.cell.file).metadata();
         const scale = Math.min(cellW / meta.width, L(520) / meta.height);
         const cw = Math.round(meta.width * scale); const chh = Math.round(meta.height * scale);
-        const frameColor = part.cell.hold ? '#B71C1C' : GREEN;
-        const img = await fitImage(part.cell.file, cw, chh, { bg: '#FFFFFF', frame: frameColor });
-        const cap = await textBlock([{ text: part.cell.caption, size: 18, color: frameColor, bold: true }], { width: cellW });
+        const img = await fitImage(part.cell.file, cw, chh, { bg: '#FFFFFF', frame: GREEN });
+        const cap = await textBlock([{ text: part.cell.caption, size: 18, color: GREEN, bold: true }], { width: cellW });
         const comps = [{ input: text.buffer, left: 0, top: 0 }, { input: img, left: CW() - cellW, top: 0 }, { input: cap.buffer, left: CW() - cellW, top: chh + L(6) }];
         let h = Math.max(text.height, chh + cap.height + L(6));
         if (part.zoom && existsSync(part.zoom.file)) {
@@ -1334,7 +1331,7 @@ function renderHtml(sections, { title, reviewDir, runDir = path.dirname(reviewDi
         const sp = part.spec;
         out.push(`<div class="signage-wrap">${templates.signagePreviewHtml({ logoUrl: sp.logo ? src(sp.logo) : null, logoLightUrl: sp.logo_light ? src(sp.logo_light) : null, primary: sp.primary, accent: sp.accent, offer: sp.offer, bathroomCopy: sp.bathroom_copy ?? null })}</div>${part.caption ? `<p class="cap">${linkify(part.caption)}</p>` : ''}`);
       }
-      else if (part.type === 'header') out.push(`<div class="hdr"><div>${textHtml(part.items)}</div>${part.cell ? `<div class="cell${part.cell.hold ? ' hold' : ''}">${part.cell.html ? `<div class="cell-html">${part.cell.html}</div>` : `<a href="${href(part.cell.file)}" target="_blank"><img src="${href(part.cell.file)}" alt="default cell"></a>`}<p>${esc(part.cell.caption)}</p>${part.zoom && existsSync(part.zoom.file) ? `<a href="${href(part.zoom.file)}" target="_blank" title="open the 3x crop"><img class="zoom3x${part.zoom.pass === false ? ' bad' : ''}" src="${href(part.zoom.file)}" alt="logo at 3x"></a><p><b>Logo at 3x (what prints).</b> ${esc(part.zoom.line)}</p>` : ''}</div>` : ''}</div>`);
+      else if (part.type === 'header') out.push(`<div class="hdr"><div>${textHtml(part.items)}</div>${part.cell ? `<div class="cell">${part.cell.html ? `<div class="cell-html">${part.cell.html}</div>` : `<a href="${href(part.cell.file)}" target="_blank"><img src="${href(part.cell.file)}" alt="default cell"></a>`}<p>${esc(part.cell.caption)}</p>${part.zoom && existsSync(part.zoom.file) ? `<a href="${href(part.zoom.file)}" target="_blank" title="open the 3x crop"><img class="zoom3x${part.zoom.pass === false ? ' bad' : ''}" src="${href(part.zoom.file)}" alt="logo at 3x"></a><p><b>Logo at 3x (what prints).</b> ${esc(part.zoom.line)}</p>` : ''}</div>` : ''}</div>`);
     }
     out.push('</section>');
   }
@@ -1351,7 +1348,6 @@ ${templates.FONT_LINK_HTML}
   :root { color-scheme: light; scroll-behavior: auto; }
   ${templates.SHEET_CSS}
   .cell-html .bs-cell { border: 6px solid #1b5e20; box-sizing: content-box; }
-  .cell.hold .cell-html .bs-cell { border-color: #B71C1C; }
   .sheet-wrap { border: 1px solid #ddd; overflow: auto; background: #C8C8C8; cursor: zoom-in; }
   .sheet-wrap.native { cursor: zoom-out; }
   .sheet-zoom { width: max-content; }
@@ -1401,7 +1397,6 @@ ${templates.FONT_LINK_HTML}
   .shot.zoom img { cursor: zoom-in; }
   .cell img.zoom3x { margin-top: 10px; border: 3px solid #444; image-rendering: pixelated; }
   .cell img.zoom3x.bad { border-color: #B71C1C; }
-  .cell.hold > a > img:first-of-type { border-color: #B71C1C; }
   .shot.zoom.native img { width: auto; max-width: none; cursor: zoom-out; }
   .grid { display: grid; gap: 14px; }
   .grid.cols3 { grid-template-columns: repeat(3, 1fr); }
@@ -1562,7 +1557,7 @@ async function main() {
   }
   const sheetJsonPath = abs(runDir, run.variants?.sheet_json ?? 'variants/variant-sheet.json');
   const sheet = await readJson(sheetJsonPath);
-  if (args.command === 'compare') { await compare({ args, runDir, reviewDir, run, sheet, openOutputs }); return; }
+  if (args.command === 'compare') { await compare({ args, runDir, reviewDir, run, sheet }); return; }
   const sheetPng = abs(runDir, run.variants?.sheet_png ?? 'variants/variant-sheet.png');
   const evidence = await readJson(abs(runDir, run.evidence?.packet_path ?? 'evidence/branding-evidence.json'), {});
   const decision = run.decision ?? (await readJson(path.join(runDir, 'decision.json'), {}));
@@ -1592,12 +1587,14 @@ async function main() {
     const u = d.folder_link ?? (d.folder_id ? `https://drive.google.com/drive/folders/${d.folder_id}` : null);
     if (u && /^https:\/\/drive\.google\.com\//.test(u)) printFolderLink = u;
   } catch {}
+  const defaultLetter = sheet?.fable_default_letter ?? run.variants?.fable_default_letter ?? null;
   const overviewLinks = [
     accountId ? { label: 'Boostly account', url: `https://new.boostly.com/admin/accounts/${accountId}` } : null,
     req.request_id && req.source === 'v2-db' ? { label: 'Fulfillment request', url: `https://new.boostly.com/admin/fulfillment/${req.request_id}` } : null,
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
     printFolderLink ? { label: 'Print files (Drive)', url: printFolderLink } : null,
+    defaultLetter && sheet?.cells?.[defaultLetter] ? { label: 'Compare default', url: 'compare-default.html' } : null,
   ].filter(Boolean);
   // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
   // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never
@@ -1611,10 +1608,9 @@ async function main() {
     placeId ? { label: 'Google Maps place', url: `https://www.google.com/maps/place/?q=place_id:${placeId}` } : null,
     { label: 'Google search', url: `https://www.google.com/search?q=${gq(`${name} ${city}`.trim())}` },
   ].filter(Boolean);
-  const defaultLetter = sheet?.fable_default_letter ?? run.variants?.fable_default_letter ?? null;
   const fableMark = (sheet?.marks ?? []).find((m) => m.status === 'fable_pick' && m.letter === defaultLetter);
   const rationaleLine = fableMark?.note ? fableMark.note.replace(/^Fable( default)?:\s*/i, '') : firstSentence(decision?.rationale);
-  const usage = { website: null, gbp_photos: null, vibe_photos: null, maps_view: null, logo_search: null, candidates: null, sheet: null, logo_3x: null, links: null, previews: null };
+  const usage = { website: null, gbp_photos: null, vibe_photos: null, maps_view: null, logo_search: null, candidates: null, sheet: null, logo_3x: null, links: null, previews: null, compare_default: null };
   const sections = [];
 
   // ---- sheet view (schema 3): every cell drawn by the browser from its view; the raster only behind --png ----
@@ -1623,10 +1619,10 @@ async function main() {
   if (sheet && !sheet.run_dir) sheet.run_dir = runDir;
   const sheetData = sheet ? sheetView(normalizeManifest(sheet, variantsDir)) : null;
   const srcFromReview = (relPath) => path.relative(reviewDir, path.join(runDir, relPath)).split(path.sep).map(encodeURIComponent).join('/');
-  // HOLD (2026-09-21): a small-source trace has no default letter; the held cell is framed red instead
-  const hold = sheet?.hold?.letter ? sheet.hold : null;
-  const focusLetter = defaultLetter ?? hold?.letter ?? null;
-  const focus = focusLetter && sheetData?.cells?.[focusLetter] ? { letter: focusLetter, hold: Boolean(hold && !defaultLetter) } : null;
+  // a small-source trace is a flag on the default, never a hold; the header says "default L (flag: traced from Npx)"
+  const flag = defaultFlag(sheet, run, defaultLetter);
+  const focusLetter = defaultLetter ?? null;
+  const focus = focusLetter && sheetData?.cells?.[focusLetter] ? { letter: focusLetter } : null;
   let defaultCell = null;
   if (sheet && focusLetter && sheet.cells?.[focusLetter]) {
     const geometry = sheetGeometry(sheet);
@@ -1646,8 +1642,8 @@ async function main() {
     if (defaultCell) {
       await sharp(sheetPng).extract({ left: defaultCell.x, top: defaultCell.y, width: defaultCell.w, height: defaultCell.h }).png().toFile(cellFile);
       const { x, y, w, h } = defaultCell;
-      const tagText = hold && !defaultLetter ? `HOLD ${focusLetter}: traced from small source` : `default ${focusLetter}`;
-      const tagColor = hold && !defaultLetter ? '#B71C1C' : GREEN;
+      const tagText = `default ${focusLetter}${flag ? ` (${flag.words})` : ''}`;
+      const tagColor = GREEN;
       const tagW = Math.max(120, 30 + tagText.length * 12);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sheetMeta.width}" height="${sheetMeta.height}"><rect x="${x + 3}" y="${y + 3}" width="${w - 6}" height="${h - 6}" fill="none" stroke="${tagColor}" stroke-width="7"/><rect x="${x}" y="${Math.max(0, y - 30)}" width="${tagW}" height="32" fill="${tagColor}"/><text x="${x + 10}" y="${Math.max(0, y - 30) + 23}" font-family="${FONT}" font-size="22" font-weight="700" fill="#FFFFFF">${esc(tagText)}</text></svg>`;
       await sharp(sheetPng).composite([{ input: Buffer.from(svg) }]).png().toFile(markedSheetFile);
@@ -1661,9 +1657,7 @@ async function main() {
   const headerItems = [
     { text: name, size: 52, bold: true },
     { text: `${city}${req.request_id ? `   ·   request ${req.request_id}` : ''}${req.order_type ? `   ·   ${req.order_type.replace(/_/g, ' ')}` : ''}`, size: 24, color: '#444444', gap: 6 },
-    hold && !defaultLetter
-      ? { text: `HOLD: cell ${hold.letter} is traced from a ${hold.native_px ?? '?'}px source (floor 700px); no default until a human accepts it`, size: 34, bold: true, color: '#B71C1C', gap: 22 }
-      : { text: defaultLetter ? `Fable's default: ${defaultLetter}` : 'Fable named no default letter', size: 34, bold: true, color: GREEN, gap: 22 },
+    { text: defaultLetter ? `Fable's default: ${defaultLetter}${flag ? ` (flag: ${flag.words})` : ''}` : 'Fable named no default letter', size: 34, bold: true, color: GREEN, gap: 22 },
     { text: rationaleLine || 'No rationale recorded.', size: 22, gap: 6 },
     { text: `Confidence: ${decision?.confidence ?? 'unknown'}${flags.length ? `   ·   flags: ${flags.join(', ')}` : ''}`, size: 19, color: '#666666', gap: 8 },
   ];
@@ -1688,7 +1682,7 @@ async function main() {
   usage.logo_3x = zoom ? { file: zoom.file ? rel(runDir, zoom.file) : null, logo: zoom.logo ?? null, edge_quality: zoom.edge_quality, line: zoom.line } : null;
   // The per-row gate summary is no longer rendered (Travisse, 2026-10-12); the gate results stay in run.json.
   sections.push({ id: 'header', links: overviewLinks, parts: [
-    { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source` : `Fable's default cell ${defaultLetter}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
+    { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, caption: `Fable's default cell ${defaultLetter}${flag ? ` (${flag.words} source, floor 700px)` : ''}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
   ] });
   // No inline Signage sheets section (removed 2026-10-19, Karissa): the signage is approved on the Drive PDFs.
 
@@ -1922,6 +1916,15 @@ async function main() {
   const previewSkip = size.skipped?.previews ?? null;
   usage.previews.png = !args.png ? 'not rendered (--png)' : previewSkip ? `skipped: ${previewSkip.reason}` : (Object.keys(previewLetters).length ? 'included at reduced width' : 'none to include');
   if (previewSkip && previewSec) previewSec.parts.push({ type: 'text', items: [{ text: `Not in review-canvas.png: the previews ${previewSkip.reason}. This page and the files above are the review surface for them.`, size: 18, color: '#8A1C1C', bold: true, gap: 10 }] });
+  // compare-default (rule 12): built by the canvas itself whenever a default exists; the header links it.
+  if (defaultLetter && sheet?.cells?.[defaultLetter]) {
+    try {
+      const c = await compare({ args: { ...args, cells: null, open: false, html: true }, runDir, reviewDir, run, sheet, quiet: true });
+      usage.compare_default = { cells: c.cells, html: rel(runDir, c.html), png: c.png ? rel(runDir, c.png) : null };
+    } catch (err) {
+      usage.compare_default = { error: String(err.message ?? err).slice(0, 200) };
+    }
+  }
   if (args.html) await fs.writeFile(htmlFile, renderHtml(sections, { title: `${name} review`, reviewDir, runDir }));
   else await fs.rm(htmlFile, { force: true });
   const record = {
@@ -1933,7 +1936,7 @@ async function main() {
     scale: S,
     render: 'html',
     fable_default_letter: defaultLetter,
-    hold: hold ? { letter: hold.letter, native_px: hold.native_px ?? null } : null,
+    flag: flag ? { letter: flag.letter, flag: flag.flag, native_px: flag.native_px } : null,
     sheet_revision: sheet?.revision ?? null,
     sections: usage,
   };
@@ -1947,10 +1950,14 @@ async function main() {
 // compare: shortlisted cells side by side (card, sticker, POP) with every color and its provenance
 // (Chuy's 2026-09-17/18: "show a preview with these next to each other", asked three times)
 // ---------------------------------------------------------------------------------------------
-async function compare({ args, runDir, reviewDir, run, sheet, openOutputs }) {
+async function compare({ args, runDir, reviewDir, run, sheet, quiet = false }) {
   if (!sheet) throw new Error('compare needs variants/variant-sheet.json; run variant-sheet.mjs build first');
   const { provenanceWords, sheetView, normalizeManifest } = await import(path.join(SCRIPT_DIR, 'variant-sheet.mjs'));
-  const letters = args.cells;
+  // No --cells (rule 12, 2026-10-19): the default plus the strongest cell of every other row (Franks "add I").
+  const shortlist = Boolean(args.cells?.length);
+  const defaultLetter = sheet.fable_default_letter ?? run.variants?.fable_default_letter ?? null;
+  const letters = shortlist ? args.cells : compareDefaultLetters(sheet, defaultLetter);
+  if (!letters.length) throw new Error(`compare needs --cells <letter,letter,...> or a default letter on the sheet (fable_default_letter is ${defaultLetter ?? 'empty'})`);
   const missing = letters.filter((l) => !sheet.cells?.[l]);
   if (missing.length) throw new Error(`cells not on the sheet: ${missing.join(', ')} (have ${Object.keys(sheet.cells ?? {}).join(', ')})`);
   const name = run.request?.identity?.account_name ?? run.request?.location_name ?? path.basename(runDir);
@@ -1964,11 +1971,12 @@ async function compare({ args, runDir, reviewDir, run, sheet, openOutputs }) {
     if (row?.primary_source) provenance.primary[letter] = provenanceWords(row.primary_source);
     provenance.secondary[letter] = provenanceWords(cell.secondary_source, cell.secondary_label);
   }
-  const slug = letters.join('-');
+  const slug = shortlist ? letters.join('-') : 'default';
   const pngFile = path.join(reviewDir, `compare-${slug}.png`);
   const htmlFile = path.join(reviewDir, `compare-${slug}.html`);
   const grid = templates.compareHtml(view, letters, { src, colW: 300, provenance });
-  const body = `<h1>${esc(name)}: compare ${esc(letters.join(', '))}</h1><p>Card, sticker, and POP for each shortlisted cell; every color with where it came from. Reply with one letter.</p>${grid}`;
+  const intro = shortlist ? 'Card, sticker, and POP for each shortlisted cell' : `Fable's default ${esc(defaultLetter)} next to the strongest cell of every other row (card, sticker, and POP)`;
+  const body = `<h1>${esc(name)}: compare ${esc(letters.join(', '))}</h1><p>${intro}; every color with where it came from. Reply with one letter.</p>${grid}`;
   const page = templates.pageHtml(body, { title: `${name} compare ${letters.join(', ')}`, extraCss: `body{font-family:${FONT};margin:24px;background:#fff;color:#111}h1{font-size:28px}` });
   if (args.html) await fs.writeFile(htmlFile, page);
   let png = null;
@@ -1978,9 +1986,50 @@ async function compare({ args, runDir, reviewDir, run, sheet, openOutputs }) {
     await fs.writeFile(pngFile, await renderHtmlPng(page, { baseDir: reviewDir, width: cols * 324 + 60, height: 900, scale: 2, fullPage: true }));
     png = pngFile;
   }
-  console.log(JSON.stringify({ ok: true, command: 'compare', cells: letters, png, html: args.html ? htmlFile : null }, null, 2));
+  const result = { ok: true, command: 'compare', cells: letters, png, html: args.html ? htmlFile : null };
+  if (!quiet) console.log(JSON.stringify(result, null, 2));
   if (args.open) { if (png) spawnSync('open', ['-a', 'Preview', png]); if (args.html) spawnSync('open', [htmlFile]); }
+  return result;
 }
+
+/**
+ * compare-default letters: Fable's default first, then for every other row the cell with the highest passing
+ * web-digit contrast (tie: the column nearest the default's), dark-step and site-token columns included.
+ * Rejected cells never enter. Exported for tests.
+ */
+export function compareDefaultLetters(sheet, defaultLetter) {
+  const def = defaultLetter ? sheet?.cells?.[defaultLetter] : null;
+  if (!def) return [];
+  const cells = Object.values(sheet.cells).filter((c) => c?.letter && c.status !== 'rejected');
+  const defCol = def.column_index ?? 0;
+  const strength = (c) => Number(c.badge_digit_web?.contrast_with_text) || 0;
+  const nearer = (a, b) => Math.abs((a.column_index ?? 0) - defCol) - Math.abs((b.column_index ?? 0) - defCol);
+  const out = [defaultLetter];
+  for (const row of sheet.rows ?? []) {
+    if (row.key === def.row) continue;
+    const inRow = cells.filter((c) => c.row === row.key);
+    if (!inRow.length) continue;
+    const passing = inRow.filter((c) => c.badge_digit_web?.pass !== false);
+    const best = (passing.length ? passing : inRow).sort((a, b) => strength(b) - strength(a) || nearer(a, b) || String(a.letter).localeCompare(String(b.letter)))[0];
+    out.push(best.letter);
+  }
+  return out;
+}
+
+/**
+ * The small-source flag on Fable's default (rule 5, 2026-10-19): read from the sheet's default_flag, else from the
+ * decision marks (sheet.decision_marks or run.decision.marks). Null when there is no default or no trace flag.
+ * Exported for tests.
+ */
+export function defaultFlag(sheet, run, defaultLetter) {
+  if (!defaultLetter) return null;
+  const df = sheet?.default_flag ?? sheet?.flag;
+  if (df?.flag && (!df.letter || df.letter === defaultLetter)) return { letter: defaultLetter, flag: df.flag, native_px: df.native_px ?? null, words: flagWords(df.flag, df.native_px) };
+  const marks = sheet?.decision_marks ?? run?.decision?.marks ?? null;
+  if (marks?.traced_from_small_source) return { letter: defaultLetter, flag: 'traced_from_small_source', native_px: marks.source_native_longest_px ?? null, words: flagWords('traced_from_small_source', marks.source_native_longest_px) };
+  return null;
+}
+function flagWords(flag, px) { return flag === 'traced_from_small_source' ? `traced from ${px ?? '?'}px` : String(flag).replace(/_/g, ' '); }
 
 const isEntry = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntry) main().catch((err) => {

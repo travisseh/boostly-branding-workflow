@@ -266,8 +266,7 @@ Deterministic discovery policy:
   clears the high-confidence gate for the same exact business and category. Choose in this order:
   exact-location destination, then category-specific root, then the shorter canonical stable URL.
   Hold only when identity/location evidence conflicts or no candidate is safely preferable.
-- Hold/manual-review: `gift_cards`, `loyalty_rewards`, app-download touchpoints, and any proposal
-  that fails the high-confidence gate.
+- Verdict defaults (gift cards, apps, events, website bootstrap, the two held cases): box-fulfillment "Link write gate".
 - Every proposal enters the structured plan/audit, including holds, existing-value skips,
   dedupe skips, and errors.
 - After verified socials and touchpoints are written, fulfillment must run
@@ -361,10 +360,10 @@ Careers links are less transactional than ordering links, but wrong-brand or sta
 
 ## Socials Discovery Contract
 
-Social links (Instagram, Facebook, TikTok, YouTube, X) published on the location's own official website are the highest-confidence candidates and must win over search candidates, but the website link alone is not sufficient identity proof for an automatic write.
+Social links (Instagram, Facebook, TikTok, YouTube, X) published on the location's own official website are the highest-confidence candidates and must win over search candidates; a readable page must still confirm identity (below), and only an unreadable page is written on the anchor alone.
 
 - The official website crawl extracts social anchors (header/footer/body) as `source_type=website` candidates. A social is eligible for automatic writing only when the destination also independently confirms the business through a matching account/location name, matching geo/phone/address evidence, or a backlink to the verified official domain.
-- An official-site-linked social that is login-walled or otherwise exposes no independent destination identity signal is `needs_manual_review`, not `verified`. A materially different visible profile title, logo, business identity, or location is also a mandatory hold even when the official website links to it; website social links can be stale or incorrect.
+- An official-site-anchored social whose page is login-walled or unreadable is `verified_by_anchor` (writable; verdict defaults: box-fulfillment "Link write gate"). A materially different visible profile title, logo, business identity, or location is a mandatory hold even when the official website links to it; website social links can be stale or incorrect.
 - Search-sourced socials without official-site backing are never auto-written, no matter how well they verify; a candidate page merely linking back to the official domain (`candidate_links_to_official_domain`) is NOT sufficient - sibling locations cross-link the same brand domain.
 - When candidates for a social category tie on verifier status, selection prefers `website` source, then verified official-site cross-links, then `external_link_in_bio`, then search.
 - The official-site crawl is rate-limit resilient: same-domain page fetches are paced (~1s apart), and total fetch failures or HTTP 429s on a crawl page are retried with backoff before conceding. Shared hosting (e.g. GoDaddy DPS) serves many sibling-location domains from one server and blocks bursts.

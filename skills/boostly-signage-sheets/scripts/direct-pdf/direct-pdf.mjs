@@ -15,10 +15,12 @@
 // Usage: node direct-pdf.mjs --run-dir <dir> [--out <dir>] [--tables N] [--stalls N]
 //   [--offer "<offer_text>"] [--mode auto|discount|phrase|generic] [--band #RRGGBB]
 //   [--logo <png>] [--pop-primary-logo <png>] [--header-logo <png>] [--name "<Location (City)>"]
-//   [--date YYYY-MM-DD] [--status "<header label>"] [--kinds <kind[,kind]>] [--no-icc] [--allow-zero]
+//   [--date YYYY-MM-DD] [--status "<header label>"] [--kinds <kind[,kind]>] [--no-icc]
 //   [--no-preview] [--preview-dpi 24]
 // Defaults come from run.json (figma.header_title, figma.quantities, request.offer_text) and
-// signage/plan.json (band, copy, qr files, logo). Never prints secrets; needs no network.
+// signage/plan.json (band, copy, qr files, logo, logo_panel). Zero tables is a normal order:
+// the table and review families are dropped and build-log.json says so. Never prints secrets;
+// needs no network.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -78,7 +80,7 @@ export function resolveInputs(runDir, args) {
   for (const [k, f] of Object.entries(logos)) if (f && !fs.existsSync(f)) throw new Error(`${k} logo missing: ${f}`);
   return {
     name, status: args.status || fig.header || 'GENERATED - REVIEW BEFORE PRINT', date: args.date || new Date().toISOString().slice(0, 10),
-    band, offer, mode: args.mode || 'auto', tables, stalls, qrFiles, logos, allowZero: !!args['allow-zero'],
+    band, offer, mode: args.mode || 'auto', tables, stalls, qrFiles, logos, logoPanel: plan.logo_panel || null,
     plan, run,
   };
 }
@@ -188,7 +190,10 @@ export async function renderRun(runDir, args = {}) {
     run_dir: runDir, out, generated_at: new Date().toISOString(),
     inputs: { name: inputs.name, status: inputs.status, date: inputs.date, band: inputs.band, offer: inputs.offer, mode: inputs.mode, tables: inputs.tables, stalls: inputs.stalls, logos: inputs.logos, qr_files: inputs.qrFiles },
     build: log, copy_check: copyCheck, frames: frames.map(stripSheets), sheets, pages: pageStats, preview, all_ok: allOk,
+    absent_kinds: KINDS.map((k) => k.kind).filter((k) => !sheets[k]),
+    note: inputs.tables === 0 ? 'no table stickers in this order' : null,
   };
+  if (summary.note) console.log('NOTE', summary.note, `(absent kinds: ${summary.absent_kinds.join(', ') || 'none'})`);
   fs.writeFileSync(path.join(out, 'section.json'), JSON.stringify(section));
   fs.writeFileSync(path.join(out, 'sheets.json'), JSON.stringify({ source: 'direct', frames: frames.map(stripSheets), sheets, exported_at: summary.generated_at }, null, 2));
   fs.writeFileSync(path.join(out, 'build-log.json'), JSON.stringify(summary, null, 2));
@@ -201,7 +206,7 @@ if (isMain) {
   const runDir = path.resolve(args['run-dir'] || args._[0] || '');
   if (!runDir || !fs.existsSync(path.join(runDir, 'run.json'))) { console.error('usage: node direct-pdf.mjs --run-dir <run dir with run.json and signage/plan.json> [--out <dir>]'); process.exit(1); }
   renderRun(runDir, args).then((s) => {
-    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, preview: s.preview && s.preview.file, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length, added_sheets: s.build.trim.addedSheets.length, added_stickers: s.build.trim.addedStickers.length }, togo: s.build.togo }));
+    console.log(JSON.stringify({ out: s.out, frames: s.frames.length, kinds: Object.keys(s.sheets).length, all_ok: s.all_ok, preview: s.preview && s.preview.file, recopy: s.build.recopy, trim: { removed_sheets: s.build.trim.removedSheets.length, removed_stickers: s.build.trim.removedStickers.length, added_sheets: s.build.trim.addedSheets.length, added_stickers: s.build.trim.addedStickers.length, absent: s.build.trim.absent }, note: s.note, logo_panel: s.build.logoPanel, togo: s.build.togo }));
     if (!s.all_ok) process.exit(2);
   }).catch((e) => { console.error(e.stack || e.message); process.exit(1); });
 }

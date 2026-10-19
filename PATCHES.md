@@ -490,3 +490,55 @@ Travisse: statuses live on https://fulfillment-reviews.vercel.app, not in Notion
   link and `signage_direct` field. The public site build (fulfillment-reviews `scripts/build.mjs`, commit 03c6057)
   treats `signage.direct` as the signage stage.
 - Both SKILL.md files, README, BOOTSTRAP section 7 (Figma MCP optional).
+
+## 2026-10-19: rules from the last 20 fulfillments ("do those on your own")
+Travisse's in-chat edits on the 20 fulfillments from 2026-10-02 to 2026-10-15 (Fable's default letter taken in 1 of 20)
+became 19 rules, merged into the existing bullets and functions rather than added as new sections. Every file below was
+merged from the live copy with the Codex daily mirror as the three-way base, so the package env lines survived
+(agents: working directory, reviews repo, heartbeat root; signage plan.mjs and post-review.mjs env lookups).
+- `skills/boostly-brand-design/scripts/validate-fable-decision.ts` (mirrored): decision marks `dark_ground_default`
+  (single bright ink, light badge, black site header/footer, badge disc, neutral-ink mark), the widened
+  `band_over_brand_ink` with a contrasting `replacement`, sampled-colour exemption from the lighter-step ban, the
+  full-colour-on-dark composition path. `build-branding-evidence.ts`: `website.meta_theme_color`.
+- `skills/boostly-brand-design/scripts/variant-sheet.mjs` (mirrored): `defaultLetterFor` prefers the full authored mark,
+  the dark-ground row, the -10% or darkest site-token band when white on the secondary is under 3:1, and flags a
+  small-source trace instead of holding (`manifest.default_flag`); `treatmentRows` builds every ground row with all
+  three treatments plus white-ink twins; descriptor-free, inner-emblem, badge-only, deeper-ground, panel-ground rows
+  and the two second-chroma cells; `--expected`, `add-row --all-treatments`, `mark --print-cell`, `swap-asset`;
+  card and sticker uploads finalized at build (`upload_bytes`, `sticker_upload_bytes`). `templates/sheet-templates.js`:
+  HOLD status retired.
+- NEW `scripts/finalize-asset.mjs` (byte ladder, `--box-bg`), `scripts/trace-smooth.mjs` (sub-700px trace recipe);
+  `cut-words.mjs --svg` and `kind: 'ring'`; `sticker-panel.mjs --mode box`.
+- `scripts/taste-pass.mjs`: `expected_words`, sampled-source lift exemption, upload-size folded into the pick notice.
+  `scripts/review-canvas.mjs`: `compare-default` built with the canvas; flag header instead of HOLD.
+- `skills/boostly-signage-sheets/scripts/plan.mjs` (merged): `--run-dir`, band from the applied cell's `sticker_band`,
+  `logo_panel`; `retarget.mjs` draws the panel box; `direct-pdf.mjs` zero tables is normal; `call-facts.mjs`
+  `SIBLING_IDENTICAL_QUANTITIES` and `call/csm-dm.txt`; `post-review.mjs --reply`; NEW `references/csm-channels.json`.
+- `skills/boostly-print-handoff/scripts/draft-email.mjs`: exit 3 on an incomplete ship-to; `export-direct.mjs`: live
+  offer recopy; `print-handoff.mjs`: `blocked_on`, `--offline`; `lib/common.mjs` (merged, env line kept).
+- `skills/boostly-box-fulfillment/scripts/run-file.ts`: `select --print-letter`, selection row key and column;
+  `fulfillment-plan.ts`: gift cards, name-matched app links and visible events write by default;
+  `execute-fulfillment-plan.ts`: app URL flags. `boostly-link-verifier/lib/verify-core.mjs` (merged, Playwright line
+  kept): `status_basis: verified_by_anchor`, visible-text event dates. `boostly-link-discovery/scripts/discover-links.mjs`
+  (merged, env lines kept): `website_bootstrap.verdict` with reasons.
+- Prose: both SKILL.md files, the three agents (package lines re-applied), signage-sheets, print-handoff,
+  link-discovery, link-verifier and link-settings SKILL.md, the Fable prompt, the taste prompt, gates.json rationales,
+  the logo-source ladder (`tiktok_avatar` rung, `social_avatar_keyed` and `sign_wordmark_row` rules). The
+  review-incidents section of the brand-design SKILL.md lost its superseded bullets.
+- Tests: 48 suites green on the live copies (brand-design 13, signage 4, print-handoff 1, link-discovery 13, verifier 1,
+  box-fulfillment 16).
+
+## 2026-10-20: merged with Karissa's 2026-10-19/20 commits
+
+- Rebased the rules commit onto Karissa's five commits (Drive upload at the signage-review stop,
+  direct-pdf growth past the template, two-line discount layout, POP ink by ground luminance,
+  `add-cell --pop-logo/--pop-ground`, gmail `drafts send`). Ten files conflicted; every hunk was
+  additive except `retarget.mjs trim()`: her grow-and-shrink body is kept, the `allowZero` guard is
+  gone (zero tables is a normal POP-only order), and the return gains `absent` and `note`.
+  `direct-pdf.test.mjs` keeps her per-count cases plus the zero-tables case; the old "cannot add"
+  assertion is gone because trim now clones sheets. `review-canvas.mjs` keeps her Print files
+  (Drive) chip plus the Compare default chip; the Signage sheets chip is gone with the section.
+- Her changes were applied to the live skills the same day (patch from the package diff; the agents'
+  package-only lines stay as listed above). Tests on the live copies: brand-design 20 suites,
+  signage-sheets 5, all green; `.test.ts` suites run with `node --experimental-strip-types --test`
+  (tsx fails on the harness's top-level await).

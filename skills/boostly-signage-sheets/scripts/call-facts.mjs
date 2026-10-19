@@ -23,15 +23,38 @@
 //   not_discussed     topics with no lines at all
 // Flags: OFFER_MISMATCH (with the exact `boostly-links offer set` command),
 //   BIRTHDAY_PROMO_MISSING (with the `promotions create` command),
-//   QUANTITIES_UNCONFIRMED (one line), TRANSCRIPT_PENDING, COMBINE_LISTS,
-//   COPY_REJECTED.
+//   QUANTITIES_UNCONFIRMED (one line), QUANTITIES_CONFLICT, TRANSCRIPT_PENDING,
+//   COMBINE_LISTS, COPY_REJECTED, SIBLING_IDENTICAL_QUANTITIES (another open
+//   request on the account carries exactly the same table/stall/to-go counts).
+// For QUANTITIES_CONFLICT, OFFER_MISMATCH and SIBLING_IDENTICAL_QUANTITIES the
+// CSM Slack DM is drafted automatically to <dir>/call/csm-dm.txt (Travisse
+// voice, plain text); the closeout names it and the finish sends it. It is
+// never pasted as a question for Travisse.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { loadRequest, loadOffers, parseOffer, sameOffer, findPromotionFor, describeOffer, offerSetCommand, parseNumberToken, NUMBER_WORD_RE, WIZARD_DEFAULTS } from './lib/v2-reads.mjs';
+import { loadRequest, loadOffers, parseOffer, sameOffer, findPromotionFor, describeOffer, offerSetCommand, parseNumberToken, NUMBER_WORD_RE, WIZARD_DEFAULTS, v2DbRows, sqlLiteral } from './lib/v2-reads.mjs';
+
+export const CSM_DM_CODES = ['QUANTITIES_CONFLICT', 'OFFER_MISMATCH', 'SIBLING_IDENTICAL_QUANTITIES'];
+
+// Other OPEN requests on the account (not canceled, not shipped) with their sticker counts,
+// so identical quantities across sibling locations are caught before the vendor order.
+export async function loadSiblingRequests(accountId, requestId) {
+  const rows = await v2DbRows(`
+    select fr.id, fr.location_id, l.name as location_name, fr.created_at::text as created_at,
+           coalesce((select max(quantity) from fulfillment_items fi where fi.fulfillment_request_id = fr.id and fi.item_type = 'stickers' and fi.placement = 'table'), 0)::int as tables,
+           coalesce((select max(quantity) from fulfillment_items fi where fi.fulfillment_request_id = fr.id and fi.item_type = 'stickers' and fi.placement = 'bathroom'), 0)::int as stalls,
+           coalesce((select max(quantity) from fulfillment_items fi where fi.fulfillment_request_id = fr.id and fi.item_type = 'stickers' and fi.placement = 'to_go'), 0)::int as to_go,
+           coalesce((select max(quantity) from fulfillment_items fi where fi.fulfillment_request_id = fr.id and fi.item_type = 'tapcards'), 0)::int as tap_cards
+    from fulfillment_requests fr join locations l on l.id = fr.location_id
+    where l.account_id = ${sqlLiteral(accountId)} and fr.id <> ${sqlLiteral(requestId)} and fr.canceled_at is null and fr.tracking_number is null
+    order by fr.created_at desc
+  `);
+  return rows.map((r) => ({ ...r, tables: Number(r.tables), stalls: Number(r.stalls), to_go: Number(r.to_go), tap_cards: Number(r.tap_cards) }));
+}
 import { parseTranscript, normText } from './find-calls.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -354,7 +377,7 @@ export function mergeLlm(facts, llm) {
 
 // ---------------------------------------------------------------------------
 // compare with the live system
-export function compareFacts({ facts, calls, req, offers }) {
+export function compareFacts({ facts, calls, req, offers, siblingRequests = [] }) {
   const flags = [];
   const push = (code, summary, evidence, command) => flags.push({ code, summary, evidence: evidence || [], ...(command ? { command } : {}) });
   const loc = req.location;
@@ -416,6 +439,9 @@ export function compareFacts({ facts, calls, req, offers }) {
     push('QUANTITIES_UNCONFIRMED', `tables ${q.tables} / stalls ${q.stalls} / tap cards ${q.tap_cards}${isDefault ? ' are the wizard defaults' : ''}; the call did not confirm ${unconfirmed.join(', ')}${confirmed.length ? ` (confirmed: ${confirmed.join(', ')})` : ''}${withTranscript.length ? '' : ' (no transcript to check)'}.`, []);
   }
   if (conflicts.length) push('QUANTITIES_CONFLICT', `Call quantities beat wizard quantities: ${conflicts.join('; ')}.`, [facts.tables?.evidence, facts.stalls?.evidence, facts.tap_cards?.evidence, ...facts.no_table_stickers].filter(Boolean));
+  const identical = siblingRequests.filter((s) => s.tables === q.tables && s.stalls === q.stalls && s.to_go === q.to_go && (q.tables + q.stalls + q.to_go) > 0);
+  facts.quantities.sibling_identical = identical.map((s) => ({ request_id: s.id, location_name: s.location_name }));
+  if (identical.length) push('SIBLING_IDENTICAL_QUANTITIES', `${identical.length} other open request${identical.length === 1 ? '' : 's'} on the account carr${identical.length === 1 ? 'ies' : 'y'} exactly tables ${q.tables} / stalls ${q.stalls} / to-go ${q.to_go}: ${identical.map((s) => `${s.location_name} (${s.id})`).join('; ')}. Likely one set of counts pasted across locations.`, []);
 
   if (facts.sign_copy.rejected_join_the_club) push('COPY_REJECTED', 'Customer pushed back on "Join the club" wording or asked for other wording.', facts.sign_copy.lines);
   if (facts.combine_lists?.agreed) push('COMBINE_LISTS', 'Customer wants the multi-store lists combined; check the account/location scope before sending.', facts.combine_lists.evidence);
@@ -443,15 +469,28 @@ export function compareFacts({ facts, calls, req, offers }) {
       case 'QUANTITIES_CONFLICT': questions.push(`${csm}: the call says ${conflicts.join('; ')} for ${name}. We will build to the call numbers unless you say otherwise.`); break;
       case 'COPY_REJECTED': questions.push(`${csm}: ${name} pushed back on "Join the club" on the call. What exact headline do they want on the stickers and POP?`); break;
       case 'COMBINE_LISTS': questions.push(`${csm}: ${name} asked to combine the store lists. Should the text club run at account scope for all locations?`); break;
+      case 'SIBLING_IDENTICAL_QUANTITIES': questions.push(`${csm}: ${identical.map((s) => s.location_name).join(' and ')} ${identical.length === 1 ? 'has' : 'have'} an open request with the same counts as ${name} (tables ${q.tables} / stalls ${q.stalls} / to-go ${q.to_go}). Did each store really ask for an identical set, or was one order pasted across them?`); break;
       default: break;
     }
   }
-  return { flags, csm_questions: questions };
+  return { flags, csm_questions: questions, csm_dm: csmDmText({ csm, name, flags, questions }) };
+}
+
+// The CSM Slack DM for quantity or offer conflicts and identical sibling counts (Travisse
+// voice: direct, no filler). null when none of those flags fired.
+export function csmDmText({ csm, name, flags, questions }) {
+  const hits = flags.map((f, i) => ({ f, q: questions[i] })).filter(({ f }) => CSM_DM_CODES.includes(f.code));
+  if (!hits.length) return null;
+  const strip = (q) => (q.startsWith(`${csm}:`) ? q.slice(csm.length + 1).trim() : q);
+  const lines = [`Hey ${csm}, quick check on ${name} before the print order goes out:`, ''];
+  for (const { q } of hits) lines.push(`- ${strip(q)}`);
+  lines.push('', 'Holding the vendor email until you confirm. Thanks!');
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
 // the fixed "Call facts" block runners paste into their report
-export function callFactsBlock({ calls, facts, flags, questions, search }) {
+export function callFactsBlock({ calls, facts, flags, questions, search, csm_dm = null }) {
   const L = [];
   const withT = calls.filter((c) => c.transcript_status === 'ok').length;
   L.push(`Call facts (${calls.length} calls matched, ${withT} with transcript; reps searched: ${(search?.reps_searched || []).map((r) => r.split(' ')[0]).join(', ')})`);
@@ -469,6 +508,7 @@ export function callFactsBlock({ calls, facts, flags, questions, search }) {
   L.push(`- Flags: ${flags.length ? flags.map((f) => f.code).join(', ') : 'none'}`);
   for (const f of flags.filter((x) => x.command)) L.push(`  ${f.code}: ${f.command}`);
   L.push(`- CSM questions: ${questions.length ? questions.map((q, i) => `(${i + 1}) ${q}`).join(' ') : 'none'}`);
+  L.push(`- CSM DM: ${csm_dm ? `drafted to call/csm-dm.txt (${flags.filter((f) => CSM_DM_CODES.includes(f.code)).map((f) => f.code).join(', ')}); the finish sends it` : 'not needed'}`);
   return L.join('\n');
 }
 
@@ -514,8 +554,10 @@ export async function runCallFacts({ runDir, locationId, llm = false, llmModel =
   let facts = extractFacts(calls);
   const llmResult = llm ? await llmPass(calls, facts, llmModel) : { ran: false, reason: 'not requested (--llm)' };
   facts = mergeLlm(facts, llmResult);
-  const { flags, csm_questions } = compareFacts({ facts, calls, req, offers });
-  const block = callFactsBlock({ calls, facts, flags, questions: csm_questions, search });
+  let siblingRequests = [];
+  if (req.request?.id) { try { siblingRequests = await loadSiblingRequests(req.location.account_id, req.request.id); } catch (e) { console.error(`warning: sibling request read failed: ${e.message}`); } }
+  const { flags, csm_questions, csm_dm } = compareFacts({ facts, calls, req, offers, siblingRequests });
+  const block = callFactsBlock({ calls, facts, flags, questions: csm_questions, search, csm_dm });
   const report = {
     generated_at: new Date().toISOString(),
     location: { id: req.location.id, name: req.location.name, account_id: req.location.account_id, csm: req.location.manager_name || null, csm_on_call: calls.filter((c) => c.classification === 'launch prep').flatMap((c) => c.rep_detail || []).find((r) => r.role === 'csm')?.name || null },
@@ -526,8 +568,10 @@ export async function runCallFacts({ runDir, locationId, llm = false, llmModel =
     calls: calls.map(({ lines, ...c }) => c),
     facts,
     llm: llmResult,
+    sibling_requests: siblingRequests.map(({ id, location_name, tables, stalls, to_go }) => ({ id, location_name, tables, stalls, to_go })),
     flags,
     csm_questions,
+    csm_dm,
     call_facts_block: block,
   };
   return report;
@@ -540,8 +584,11 @@ async function main() {
   await fs.mkdir(callDir, { recursive: true });
   await fs.writeFile(path.join(callDir, 'call-facts.json'), JSON.stringify(report, null, 2));
   await fs.writeFile(path.join(callDir, 'call-facts.md'), report.call_facts_block + '\n');
+  const dmFile = path.join(callDir, 'csm-dm.txt');
+  if (report.csm_dm) await fs.writeFile(dmFile, report.csm_dm + '\n');
+  else await fs.rm(dmFile, { force: true }); // a stale draft must not be sent at closeout
   if (args.json) console.log(JSON.stringify(report, null, 2));
-  else { console.log(report.call_facts_block); console.log(`\nWritten: ${path.join(callDir, 'call-facts.json')}`); }
+  else { console.log(report.call_facts_block); console.log(`\nWritten: ${path.join(callDir, 'call-facts.json')}${report.csm_dm ? ` and ${dmFile} (CSM DM drafted)` : ''}`); }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

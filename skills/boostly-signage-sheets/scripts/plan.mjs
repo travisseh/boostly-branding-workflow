@@ -15,7 +15,12 @@
 //
 // Usage:
 //   node plan.mjs --location-id <id> --account-id <id> --logo <on-white.png> \
-//     [--band #RRGGBB] --out-dir <dir>
+//     [--run-dir <run>] [--band #RRGGBB] --out-dir <dir>
+// Band default with --run-dir: the applied cell's sticker_band from variants/variant-sheet.json
+// (the print cell when run.json records a web/print split), never the cell secondary or
+// decision.json; --band stays the explicit override; the darkest-authored-role fallback only
+// when no sheet exists. The applied cell's sticker_panel is copied to plan.json logo_panel so
+// the direct renderer draws the authored panel or gradient behind the mark on light surfaces.
 //
 // Auth: BOOSTLY_V2_API_BASE / BOOSTLY_V2_API_KEY (or BOOSTLY_V2_AUTH_TOKEN)
 // are sourced from the brand-extractor-figma .env at runtime. Secrets are
@@ -69,6 +74,37 @@ async function loadEnv() {
     if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
   return env;
+}
+
+// ---------------------------------------------------------------------------
+// applied cell (rule: signage band = the applied cell's sticker_band). Reads run.json
+// variants.{selection.print_letter, applied_letter} and variants/variant-sheet.json cells[L].
+export async function appliedCellDefaults(runDir) {
+  const out = { letter: null, band: null, logo_panel: null, source: null };
+  if (!runDir) return out;
+  let run = null;
+  try { run = JSON.parse(await fs.readFile(path.join(runDir, 'run.json'), 'utf8')); } catch { return out; }
+  const variants = run.variants || {};
+  const letter = variants.selection?.print_letter || variants.applied_letter || null;
+  if (!letter) return out;
+  const sheetRel = variants.sheet_json || 'variants/variant-sheet.json';
+  let sheet = null;
+  try { sheet = JSON.parse(await fs.readFile(path.resolve(runDir, sheetRel), 'utf8')); } catch { return { ...out, letter }; }
+  const cell = sheet.cells?.[letter];
+  if (!cell) return { ...out, letter };
+  const row = (sheet.rows || []).find((r) => r.key === cell.row) || null;
+  const panel = cell.sticker_panel ?? row?.sticker_panel ?? null;
+  const band = typeof cell.sticker_band === 'string' && /^#[0-9a-fA-F]{6}$/.test(cell.sticker_band) ? cell.sticker_band.toUpperCase() : null;
+  return { letter, band, logo_panel: normalizePanel(panel), source: band ? 'applied cell sticker_band' : null, row: cell.row ?? null };
+}
+
+// plan.json logo_panel: { hex } | { gradient: [c1, c2] } | null
+export function normalizePanel(panel) {
+  if (!panel || typeof panel !== 'object') return null;
+  const hex = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c.toUpperCase() : null);
+  if (Array.isArray(panel.gradient) && panel.gradient.length >= 2 && hex(panel.gradient[0]) && hex(panel.gradient[1])) return { gradient: [hex(panel.gradient[0]), hex(panel.gradient[1])] };
+  if (hex(panel.hex)) return { hex: hex(panel.hex) };
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -505,8 +541,10 @@ async function main() {
   // Band rule: >= 3.0:1 on white for colored ink on white; darkest authored
   // role substitutes when the primary fails.
   const warnings = [];
-  let band = args.band ? args.band.toUpperCase() : authored.primary;
-  let bandSource = args.band ? 'cli-override' : 'branding primary';
+  const applied = await appliedCellDefaults(args.runDir ? path.resolve(args.runDir) : null);
+  let band = args.band ? args.band.toUpperCase() : applied.band || authored.primary;
+  let bandSource = args.band ? 'cli-override' : applied.band ? applied.source : 'branding primary';
+  if (args.runDir && !applied.band && !args.band) warnings.push(`no applied cell sticker_band in ${args.runDir} (letter ${applied.letter || 'none'}); band fell back to the V2 branding primary`);
   if (!band) throw new Error('No band color: pass --band or ensure branding colors exist');
   if (contrastOnWhite(band) < 3.0) {
     const candidates = [authored.primary, authored.secondary, authored.text]
@@ -612,6 +650,8 @@ async function main() {
     account_id: args.accountId || null,
     logo: logoFile,
     logo_white_knockout: whiteLogoFile,
+    logo_panel: applied.logo_panel,
+    applied_cell: applied.letter ? { letter: applied.letter, row: applied.row ?? null } : null,
     request: { tables: args.tables, stalls: args.stalls },
     format: SHEET_FORMAT,
     figma: figmaTargetBlock(FIGMA_TARGET),
@@ -641,13 +681,17 @@ async function main() {
   console.log(`\nPlan written: ${planPath}`);
   console.log(`Figma target: ${plan.figma.file_name} (${plan.figma.file_key}) template ${plan.figma.template_section_id}, grid origin ${plan.figma.grid.origin_x},${plan.figma.grid.origin_y} step ${plan.figma.grid.col_step}/${plan.figma.grid.row_step} x ${plan.figma.grid.cols_per_row} cols`);
   console.log(`Band: ${band} (${bandSource}, ${contrastOnWhite(band).toFixed(2)}:1 on white)`);
+  if (applied.logo_panel) console.log(`Logo panel: ${JSON.stringify(applied.logo_panel)} (drawn behind the mark on light surfaces)`);
   console.log(`Sheets: ${sheets.length} (tables=${args.tables} -> ${tablePages} promo + ${tablePages} review pages; stalls=${args.stalls} -> ${stallPages}+${stallPages} bathroom pages; 2 POP; 2 labels)`);
   console.log(`Touchpoints found: ${touchpoints.map((t) => t.name).join(' | ')}`);
   if (plan.summary.touchpoints_missing.length) console.log(`Missing: ${plan.summary.touchpoints_missing.join(' | ')}`);
   for (const w of warnings) console.log(`WARNING: ${w}`);
 }
 
-main().catch((err) => {
-  console.error(err.message);
-  process.exit(1);
-});
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+if (isMain) {
+  main().catch((err) => {
+    console.error(err.message);
+    process.exit(1);
+  });
+}

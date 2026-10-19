@@ -23,7 +23,7 @@ export function planSteps(args) {
   const skipped = [];
   const direct = !args.figma;
   if (!args["skip-export"]) {
-    if (direct) steps.push({ script: "export-direct.mjs", extra: pass(["kinds", "tables", "stalls", "offer", "band", "logo", "pop-primary-logo", "date", "force"]) });
+    if (direct) steps.push({ script: "export-direct.mjs", extra: pass(["kinds", "tables", "stalls", "offer", "band", "logo", "pop-primary-logo", "date", "force", "offline"]) });
     else steps.push({ script: "export-sheets.mjs", extra: pass(["section", "file-key", "force", "kinds"]) });
   }
   let stopReason = null;
@@ -35,7 +35,7 @@ export function planSteps(args) {
     return { steps, skipped, dry: dry.length > 0, stopReason, direct };
   }
   steps.push({ script: "drive-upload.mjs", extra: pass(["skip-summary"]) });
-  if (!args["skip-draft"]) steps.push({ script: "draft-email.mjs", extra: pass(["redraft", "no-send"]) });
+  if (!args["skip-draft"]) steps.push({ script: "draft-email.mjs", extra: pass(["redraft", "no-send"]), exit3: "blocked on ship-to" });
   else skipped.push({ script: "draft-email.mjs", reason: "--skip-draft" });
   return { steps, skipped, dry: false, stopReason: null, direct };
 }
@@ -45,9 +45,11 @@ export function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   const runDir = requireRunDir(args);
   const plan = planSteps(args);
+  let blocked = null;
   for (const s of plan.steps) {
     console.log(`\n== ${s.script} ==`);
-    execFileSync("node", [path.join(here, s.script), "--run-dir", runDir, ...s.extra], { stdio: "inherit" });
+    try { execFileSync("node", [path.join(here, s.script), "--run-dir", runDir, ...s.extra], { stdio: "inherit" }); }
+    catch (e) { if (s.exit3 && e.status === 3) { blocked = s.exit3; break; } throw e; }
   }
   for (const s of plan.skipped) console.log(`\n== ${s.script} skipped: ${s.reason} ==`);
   const h = readHandoff(runDir);
@@ -56,6 +58,9 @@ export function main(argv = process.argv.slice(2)) {
     location: h.location_name,
     source: h.source || (plan.direct ? "direct" : "figma"),
     stopped_after_export: plan.stopReason,
+    blocked_on: blocked ? { what: h.draft?.blocked_on || blocked, missing: h.draft?.missing || [] } : null,
+    offer_changed: h.direct?.offer_changed || null,
+    note: h.direct?.note || null,
     folder: h.drive?.folder_link,
     master: h.drive?.master_link,
     summary: h.drive?.summary?.link,
@@ -65,6 +70,7 @@ export function main(argv = process.argv.slice(2)) {
     message_id: h.draft?.message_id || null,
     order_placed: h.draft?.order_placed?.date || null,
   }, null, 2));
+  if (blocked) process.exitCode = 3;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);

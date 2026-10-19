@@ -11,10 +11,15 @@
 // checklist link read that file) and `render --cell <L>` writes card-<L>.png / sticker-<row>.png /
 // pop-<row>.png (what harness/mockups/ai-mockup.mjs reads for its reference sheets).
 //
-//   rows    = logo treatment: chosen knockout, full color, words-only cut
+//   rows    = logo treatment (knockout, full color, words only) on every GROUND: the decision primary,
+//             the in-store dominant, the dark ground (decision mark dark_ground_default), the deeper
+//             grounds of a pale primary (mark inks, then one -10% step), the authored panel color;
+//             a colored-ink row on a dark ground gets a white-ink twin (<key>_white); the cut-words
+//             sidecar adds knockout_nodesc / words_only_nodesc, emblem_inner and badge_only rows
 //   columns = secondary/band candidates in provenance order (Fable's chosen
 //             secondary, the chosen mark's inks, theme-authored site tokens),
-//             then a 3-step depth ladder of the chosen secondary
+//             then a 3-step depth ladder of the chosen secondary; a second brand chroma (site or
+//             store sample) enters as two one-off cells on the knockout row, sampled and lifted
 //   cell    = harness card (varies by column) + sticker mock + solid POP tile
 //             (both per row), with the badge digit contrast printed
 //
@@ -34,21 +39,30 @@
 //   add-row     --run-dir <run> --logo <png> --label "<treatment>" [--key <row_key>] [--primary <hex>]
 //               [--text <hex>] [--secondaries #hex,#hex] [--sticker-logo <png>] [--knockout] [--run <run_dir>]
 //               [--source <wordmark the cut came from>] [--note "<provenance>"] [--force-viability]
+//               [--expected "<words kept>"]  (an intentional descriptor drop passes sheet-viability)
+//               --primary <hex> --all-treatments [--label "<ground>"]: no --logo; the three treatments
+//               (and the white-ink twin on a dark ground) from the sheet's own knockout/color/words assets
 //   add-column  --run-dir <run> --secondary <hex> [--label "<label>"] [--source override] [--run <run_dir>]
 //   add-cell    --run-dir <run> --logo <png> --primary <hex> --secondary <hex> [--digit <hex>] [--text <hex>]
 //               --label "<treatment>" [--key <row_key>] [--sticker-logo <png>] [--run <run_dir>]
-//               [--print-primary <hex>] [--print-secondary <hex>] [--pop-logo <png>] [--pop-ground <hex>]
+//               [--print-primary <hex>] [--print-secondary <hex>] [--pop-logo <png>] [--pop-ground <hex>] [--expected "<words kept>"]
 //               pop-logo / pop-ground (Mi Corazon 2026-10-20): the POP tile's own logo asset and ground when
 //               they differ from the card logo and the sticker band (a light-primary row draws the POP on the
 //               band, where a dark-ink lockup vanishes; the fix is a white-words recolor of the lockup, or the
 //               white light-sign ground with the full-color logo). Card and sticker stay as the row has them;
 //               at closeout they map to direct-pdf --pop-primary-logo and plan.mjs --band.
+//   swap-asset  --run-dir <run> --run <run> --row <key> --logo <png> [--expected "<words>"] [--sticker-logo <png>]
+//               gate first (sheet-viability, every column the row has), then replace the row's asset in
+//               place: letters, statuses and the recorded pick survive; row.asset_history keeps the old sha.
 //               print-primary: the signage ground (sticker band, POP tile) when print_primary_color differs
 //               from the web card primary (Dogwood 2026-09-21: red web card, blue signage); print-secondary
 //               is the print band/badge fill when it differs from the web secondary. Both are recorded on
 //               the cell and printed on its label; the card render keeps the web colors.
 //   mark        --run-dir <run> --cell <letter> --status <fable_pick|travisse_pick|rejected|none>
-//               [--note "<why>"] [--by Travisse] [--run <run_dir>]
+//               [--note "<why>"] [--by Travisse] [--run <run_dir>] [--print-cell <A>]
+//               --print-cell with --status travisse_pick records a web/print split as the pick itself:
+//               print = A's palette copied onto the picked cell, web text white when it equals the band,
+//               run-file select --print-letter A. Never a hand-written override.
 //   restitch    --run-dir <run> [--out <dir>] [--run <run_dir>] [--raster]
 //   render      --run-dir <run> (--cell <letter> | --cells L,M | --all) [--raster] [--run <run_dir>]
 //               writes the per-cell PNG tiles (card-<L>.png, sticker-<row>.png, pop-<row>.png) from the
@@ -221,17 +235,27 @@ export async function ensureQrLinks(manifest, outDir) {
   if (manifest.qr_links === undefined || manifest.qr_links === null) manifest.qr_links = await loadQrLinks(manifest.run_dir ?? path.dirname(outDir), outDir);
   return manifest.qr_links;
 }
-const SUBCOMMANDS = ['build', 'add-row', 'add-column', 'add-cell', 'mark', 'restitch', 'render'];
-export const STATUSES = ['fable_pick', 'travisse_pick', 'rejected', 'hold', 'none'];
+const SUBCOMMANDS = ['build', 'add-row', 'add-column', 'add-cell', 'mark', 'restitch', 'render', 'swap-asset'];
+export const STATUSES = ['fable_pick', 'travisse_pick', 'rejected', 'none'];
+// a small-source trace is manifest.default_flag plus a px suffix on the default cell's label (never a hold).
 const STATUS_STYLE = {
   fable_pick: { color: '#1565C0', text: '#FFFFFF', tag: 'FABLE PICK' },
   travisse_pick: { color: '#F9A825', text: '#000000', tag: 'TRAVISSE PICK' },
   rejected: { color: '#616161', text: '#FFFFFF', tag: 'REJECTED' },
-  hold: { color: '#B71C1C', text: '#FFFFFF', tag: 'HOLD: traced from small source' },
 };
 const LOGO_INK_MIN_SHARE = 0.03; // below 3% is antialias blend, not an ink (Skyboxx ball 5%, 2026-09-17)
 const INSTORE_MIN_HUE_DISTANCE = 40; // an in-store dominant hue this far from the site primary earns its own primary row
 const INSTORE_MIN_SHARE = 0.04;      // of the saturated pixels across the in-store photos
+const SECOND_CHROMA_MIN_HUE_DISTANCE = 40; // a second brand chroma sits this far from the primary and the chosen secondary
+const SECOND_CHROMA_LIFT = 0.10;          // the lifted twin of a shadowed photo sample
+const DEEPER_GROUND_MAX_CONTRAST = 4.5;   // a primary under this on white gets the deeper-ground rows
+const DEEPER_GROUND_MAX_INKS = 2;         // darker mark inks promoted to grounds, then one -10% synthetic step
+const DARK_GROUND_MIN_CONTRAST = 3.0;     // a ground this far from white is "dark": colored ink rows on it get a white-ink twin
+const TRACE_FLOOR_PX = 700;
+const GROUND_LABELS = { site_header: 'site header black', site_footer: 'site footer black', badge_disc: 'badge disc', logo_dark_ink: 'logo dark ink', default_black: 'plain black (single-ink mark, no dark surface found)' };
+const BAND_SOURCE_LABELS = { mark_ink: 'the mark ink', decision_secondary: "Fable's secondary", site_cta: 'the site CTA', site_second_chroma: 'the second site chroma', instore: 'the in-store sample' };
+const FINALIZE_CLI = path.join(SCRIPT_DIR, 'finalize-asset.mjs');
+const STICKER_PANEL_CLI = path.join(SCRIPT_DIR, 'sticker-panel.mjs');
 
 /** Plain-word provenance for a column source (Travisse 2026-09-18: "where did you pull that from?" twice in one run). */
 export function provenanceWords(source, label = '') {
@@ -245,6 +269,8 @@ export function provenanceWords(source, label = '') {
     case 'depth_darker_20': return '20% darker step, synthetic (allowed when real ink fails contrast)';
     case 'depth_lighter_10': return '10% lighter, synthetic (never a pick; --allow-lighter only)';
     case 'instore': return 'in-store dominant, sampled';
+    case 'second_chroma_sampled': return `second brand chroma, sampled${l ? ` (${l})` : ''}`;
+    case 'second_chroma_lifted': return 'second brand chroma, lifted one step (the photo sample is shadowed)';
     case 'override': return `human override${l ? `: ${l}` : ''}`;
     case 'one_off': return `one-off${l ? `: ${l}` : ''}`;
     default: return l || String(source ?? 'unknown source');
@@ -258,7 +284,7 @@ const LADDER = [
   { key: 'depth_darker_20', label: 'darker step -20% (allowed when real ink fails contrast)', delta: -0.2 },
 ];
 const LIGHTER_STEP = { key: 'depth_lighter_10', label: 'lighter step +10% (never a pick)', delta: 0.1 };
-const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter', 'raster', 'all']);
+const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter', 'raster', 'all', 'allTreatments']);
 const GATES_CLI = path.join(SCRIPT_DIR, 'logo-quality-gates.ts');
 const GATES_JSON = path.resolve(SCRIPT_DIR, '..', 'references', 'gates.json');
 const NOT_VIABLE_STYLE = { color: '#4A148C', text: '#FFFFFF', tag: 'NOT VIABLE' };
@@ -286,7 +312,7 @@ export function parseArgs(argv) {
   }
   // --run <run_dir>: the run.json to record the sheet in (variants block). Defaults --run-dir to it.
   if (args.run && !args.runDir) args.runDir = args.run;
-  if (!args.runDir) throw new Error('Usage: variant-sheet.mjs [build|add-row|add-column|add-cell|mark|restitch|render] --run-dir <run> [--run <run_dir>] [options]');
+  if (!args.runDir) throw new Error('Usage: variant-sheet.mjs [build|add-row|add-column|add-cell|mark|restitch|render|swap-asset] --run-dir <run> [--run <run_dir>] [options]');
   if (args.urlBase !== DEFAULT_URL_BASE) process.stderr.write('note: --url-base is ignored; cells render from templates/sheet-templates.js, not the badge harness\n');
   return args;
 }
@@ -367,6 +393,31 @@ export function wordsCutSource(logo, outDir, runDir) {
     } catch { /* a broken sidecar is not a source */ }
   }
   return null;
+}
+/** Business-name tokens (3+ chars) a dropped descriptor line may name. */
+export function nameTokens(name) {
+  return String(name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+}
+/**
+ * Pure: does a cut-words sidecar show a dropped descriptor line that belongs to the composed lockup? True when a
+ * `dropped:descriptor_line_below_ratio` line overlaps the kept name lines' box (not stacked above or below), or
+ * when its `text` names a business-name token.
+ */
+export function descriptorInsideLockup(cut, tokens = []) {
+  const lines = Array.isArray(cut?.lines) ? cut.lines : [];
+  const bbox = (line) => (Array.isArray(line.bbox) && line.bbox.length === 4 && line.bbox.every((v) => Number.isFinite(v)) ? line.bbox : null);
+  const kept = lines.filter((l) => String(l.reason ?? '').startsWith('kept')).map(bbox).filter(Boolean);
+  const dropped = lines.filter((l) => String(l.reason ?? '') === 'dropped:descriptor_line_below_ratio');
+  for (const line of dropped) {
+    const text = String(line.text ?? '').toLowerCase();
+    if (text && tokens.some((t) => text.includes(t))) return true;
+    const b = bbox(line);
+    if (!b || !kept.length) continue;
+    const top = Math.min(...kept.map((k) => k[1])); const bottom = Math.max(...kept.map((k) => k[3]));
+    const left = Math.min(...kept.map((k) => k[0])); const right = Math.max(...kept.map((k) => k[2]));
+    if (Math.min(b[3], bottom) - Math.max(b[1], top) > 0 && Math.min(b[2], right) - Math.max(b[0], left) > 0) return true;
+  }
+  return false;
 }
 /**
  * Run the sheet-viability gate on one logo asset (label check first, no spawn; then
@@ -517,11 +568,13 @@ export async function gateStickerRow(manifest, row, { force, command, columnHex 
   return applied.render;
 }
 /** Check a row before it is rendered: fills row.viability_source / row.viability, prints skip lines, returns keep. */
-async function gateRow(manifest, row, { force, command, outDir, runDir, source = null, note = null, columnHex = null }) {
+async function gateRow(manifest, row, { force, command, outDir, runDir, source = null, note = null, columnHex = null, expected = null }) {
   const cached = row.viability && row.viability.logo_sha256 && row.viability.logo_sha256 === row.logo_sha256;
   if (!cached) {
     row.viability_source = source ?? row.viability_source ?? wordsCutSource(row.logo, outDir, runDir);
-    const result = await checkSheetViability(row.logo, { source: row.viability_source, expected: manifest.business_name ?? null, label: row.label, note: note ?? row.note ?? null });
+    // --expected "<words kept>": an intentional descriptor drop is checked against the words it keeps, not the business name.
+    row.expected_words = expected ?? row.expected_words ?? null;
+    const result = await checkSheetViability(row.logo, { source: row.viability_source, expected: row.expected_words ?? manifest.business_name ?? null, label: row.label, note: note ?? row.note ?? null });
     const applied = applyViability(manifest, row, result, { force, command, columnHex });
     if (!applied.keep) process.stderr.write(skipLine(applied.entry));
     return applied.keep;
@@ -668,37 +721,96 @@ export function candidateSecondaries({ decision, evidence, overrides, allowLight
 }
 
 // ---- default letter ----------------------------------------------------------
+/** Row keys of one ground's treatment set: the knockout row IS the set key (`dark_ground`), the others are suffixed. */
+export function treatmentKeys(setKey) {
+  return setKey ? { knockout: setKey, full_color: `${setKey}_full_color`, words_only: `${setKey}_words_only` } : { knockout: 'knockout', full_color: 'full_color', words_only: 'words_only' };
+}
+/** A cell is clean on its card when nothing was stripped and nothing vanished (no NOT VIABLE badge, ink_on_card not failed). */
+function cellClean(cell) {
+  return Boolean(cell) && !(cell.viability && cell.viability.pass === false) && !(cell.ink_on_card && cell.ink_on_card.pass === false);
+}
 /**
  * Fable's default cell, computed from the sheet and the decision marks (run.json decision.marks, written by
- * validate-fable-decision.ts). Pure. Returns { letter, reason, hold }:
- *   base      = the card-knockout row (else the first row) at the fable_chosen column;
- *   band rule = when marks.band_over_brand_ink names a mark ink, the default moves to that ink's column on the same
- *               row, provided the cell's print digit passes or has a brand-owned fix (Toscano's cream -> orange,
- *               Skyboxx tan -> orange, 2026-09-16/17);
- *   hold      = when marks.traced_from_small_source, the default is not a default: the cell is marked HOLD with the
- *               native source px on its label and fable_default_letter stays null until a human accepts it.
+ * validate-fable-decision.ts; build adds marks.descriptor_in_lockup from the cut-words sidecar). Pure. Returns
+ * { letter, reason, hold: false, flag, native_px, override }:
+ *   ground = the `dark_ground` set when the decision carries dark_ground_default and the sheet has that row, else
+ *            the decision-primary set;
+ *   row    = the full-color row when its cell at the target column is clean on a dark ground or the descriptor is
+ *            part of the lockup (`override` names the render-legibility override build records), else the knockout
+ *            row, else the first row of the set;
+ *   column = the dark-ground band ink, else the fable_chosen column; the band rule moves it to the replacement
+ *            accent's column when marks.band_over_brand_ink names one and the print digit passes or has a fix;
+ *   digit  = when white on the chosen band is under 3:1, the default moves to the -10% column of that hue, else the
+ *            darkest site token that carries a white digit; nothing moves when no such column exists;
+ *   flag   = 'traced_from_small_source' with native_px when the decision says so: a flag on the default, never a hold.
  */
 export function defaultLetterFor(manifest, marks = {}) {
   const cells = Object.values(manifest.cells ?? {});
-  if (!cells.length) return { letter: null, reason: 'no cells', hold: false };
-  const row = manifest.rows.find((r) => r.key === 'knockout') ?? manifest.rows[0];
-  const chosenCol = manifest.columns.find((c) => c.source === 'fable_chosen') ?? manifest.columns[0];
-  let cell = cells.find((c) => c.row === row.key && c.column_index === chosenCol.index) ?? cells.find((c) => c.row === row.key) ?? cells[0];
-  let reason = `${row.label} at ${provenanceWords(chosenCol.source, chosenCol.label)}`;
+  if (!cells.length) return { letter: null, reason: 'no cells', hold: false, flag: null, native_px: null, override: null };
+  const rowByKey = (key) => manifest.rows.find((r) => r.key === key) ?? null;
+  const cellAt = (row, col) => (row && col ? cells.find((c) => c.row === row.key && c.column_index === col.index) ?? null : null);
+  const darkGround = marks?.dark_ground_default?.ground ? normalizeHex(marks.dark_ground_default.ground) : null;
+  const useDark = Boolean(darkGround && rowByKey('dark_ground'));
+  const keys = treatmentKeys(useDark ? 'dark_ground' : null);
+  const notes = [];
+  // column: the dark ground's band ink, else Fable's chosen column
+  let col = manifest.columns.find((c) => c.source === 'fable_chosen') ?? manifest.columns[0];
+  if (useDark) {
+    const bandHex = normalizeHex(marks.dark_ground_default.band ?? '');
+    const bandCol = bandHex ? manifest.columns.find((c) => colorDistance(c.hex, bandHex) < 18) : null;
+    if (bandCol) col = bandCol;
+    const dg = marks.dark_ground_default;
+    notes.push(`dark ground ${darkGround} (${GROUND_LABELS[dg.ground_source] ?? dg.ground_source ?? 'authored dark'}) with ${BAND_SOURCE_LABELS[dg.band_source] ?? 'the brand chroma'} ${bandCol ? bandCol.hex : col.hex} as the band`);
+  }
+  // row: full authored mark when it reads clean on a dark ground or the descriptor belongs to the lockup; else the knockout
+  const knockoutRow = rowByKey(keys.knockout) ?? (useDark ? null : manifest.rows[0]);
+  const fullRow = rowByKey(keys.full_color);
+  const ground = normalizeHex((knockoutRow ?? fullRow)?.primary ?? manifest.primary ?? '#000000');
+  const groundDark = ground ? contrast(ground, '#FFFFFF') >= DARK_GROUND_MIN_CONTRAST : false;
+  let row = knockoutRow;
+  let override = null;
+  const fullCell = cellAt(fullRow, col);
+  if (fullCell && cellClean(fullCell) && (groundDark || marks?.descriptor_in_lockup)) {
+    row = fullRow;
+    override = { gate: 'render-legibility', asset: fullRow.logo, reason: 'full authored mark default' };
+    notes.push(marks?.descriptor_in_lockup ? 'full authored mark: the descriptor is part of the lockup' : 'full authored mark: the full-color cell reads clean on the dark ground');
+  }
+  if (!row) row = manifest.rows.find((r) => cells.some((c) => c.row === r.key)) ?? manifest.rows[0];
+  let cell = cellAt(row, col) ?? cells.find((c) => c.row === row.key) ?? cells[0];
+  let reason = `${row.label} at ${provenanceWords(col.source, col.label)}`;
+  // band rule: a neutral or non-mark secondary loses the band to the mark ink
   const band = marks?.band_over_brand_ink;
-  if (band?.mark_ink) {
-    const ink = normalizeHex(band.mark_ink);
-    const col = manifest.columns.find((c) => colorDistance(c.hex, ink) < 18 && c.source !== 'fable_chosen');
-    const target = col ? cells.find((c) => c.row === row.key && c.column_index === col.index) : null;
+  const replacement = band ? { hex: normalizeHex(band.replacement?.hex ?? band.mark_ink ?? ''), source: band.replacement?.source ?? 'mark_ink', share: band.replacement?.share ?? band.mark_ink_share ?? null } : null;
+  if (replacement?.hex) {
+    const ink = replacement.hex;
+    const bandCol = manifest.columns.find((c) => colorDistance(c.hex, ink) < 18 && c.source !== 'fable_chosen');
+    const target = bandCol ? cells.find((c) => c.row === row.key && c.column_index === bandCol.index) : null;
     if (target && (target.badge_digit_print?.pass || target.badge_digit_print?.fix)) {
       cell = target;
-      reason = `band rule: Fable's ${band.web_secondary_color} is ${band.reason === 'neutral_secondary' ? 'a neutral' : 'not a mark ink'}; the mark's ${ink} (${Math.round((band.mark_ink_share ?? 0) * 100)}% of ink) takes the band`;
+      const why = { neutral_secondary: 'a neutral', same_hue_secondary: 'a tint of the primary', low_share_ink: 'a low-share ink', meta_theme_token: 'the theme-color meta token' }[band.reason] ?? 'not a mark ink';
+      const from = BAND_SOURCE_LABELS[replacement.source] ?? replacement.source;
+      reason = `band rule: Fable's ${band.web_secondary_color} is ${why}; ${from} ${ink}${replacement.share != null ? ` (${Math.round(replacement.share * 100)}% of ink)` : ''} takes the band`;
     }
   }
-  if (marks?.traced_from_small_source) {
-    return { letter: cell.letter, reason: `HOLD: traced from a ${marks.source_native_longest_px ?? '?'}px source (floor 700px); ${reason}`, hold: true, native_px: marks.source_native_longest_px ?? null };
+  // digit rule: a bright band that needs a black print digit yields to the -10% step of its hue, else the darkest site token
+  const whiteOnBand = contrast(cell.secondary, '#FFFFFF');
+  if (whiteOnBand < 3.0) {
+    const hueOf = (hex) => rgbToHsl(hexToRgb(hex)).h * 360;
+    const carriesWhite = (c) => contrast(c.hex, '#FFFFFF') >= 3.0;
+    const sameHueStep = manifest.columns.filter((c) => /^depth_darker_/.test(c.source) && hueDistance(hueOf(c.hex), hueOf(cell.secondary)) < 15 && carriesWhite(c)).sort((a, b) => luminance(b.hex) - luminance(a.hex))[0];
+    const darkestToken = manifest.columns.filter((c) => c.source === 'site_token' && carriesWhite(c)).sort((a, b) => luminance(a.hex) - luminance(b.hex))[0];
+    const moveTo = sameHueStep ?? darkestToken ?? null;
+    const target = moveTo ? cells.find((c) => c.row === row.key && c.column_index === moveTo.index) : null;
+    if (target) {
+      reason = `digit rule: white on ${cell.secondary} is ${whiteOnBand.toFixed(2)}:1, the darker band ${moveTo.hex} (${provenanceWords(moveTo.source, moveTo.label)}) carries a white digit; ${reason}`;
+      cell = target;
+    }
   }
-  return { letter: cell.letter, reason, hold: false, native_px: marks?.source_native_longest_px ?? null };
+  if (notes.length) reason = `${notes.join('; ')}; ${reason}`;
+  const flagged = Boolean(marks?.traced_from_small_source);
+  const nativePx = marks?.source_native_longest_px ?? null;
+  if (flagged) reason = `flag: traced from a ${nativePx ?? '?'}px source (floor ${TRACE_FLOOR_PX}px); ${reason}`;
+  return { letter: cell.letter, reason, hold: false, flag: flagged ? 'traced_from_small_source' : null, native_px: nativePx, override };
 }
 
 /** Sampled dominant saturated color across in-store photos (Chuy's flight blue, 2026-09-18). Pure on raw pixel buffers; async wrapper below reads files. */
@@ -815,6 +927,175 @@ async function tintKnockout(srcFile, outFile, hex) {
   return outFile;
 }
 
+// ---- treatment rows: one ground, every treatment ------------------------
+/**
+ * Pure plan of one ground's row set: the three treatments (knockout, full color, words only) on `ground`, the
+ * knockout ink the LIGHT PRIMARY rule needs (white fails on the ground: the text ink, else black), and the
+ * white-ink twin of every colored-ink row on a DARK ground. `setKey` null is the decision-primary set (keys
+ * knockout / full_color / words_only); otherwise the knockout row carries the set key.
+ */
+export function planTreatments({ setKey = null, ground, text = '#FFFFFF', label = null, logoKnockout, logoColor = null, logoWords = null }) {
+  const keys = treatmentKeys(setKey);
+  const lightGround = contrast(ground, '#FFFFFF') < 3.0;
+  const knockoutInk = lightGround ? (contrast(text, ground) >= 3.0 ? text : '#000000') : null;
+  const darkGround = contrast(ground, '#FFFFFF') >= DARK_GROUND_MIN_CONTRAST;
+  const inkTag = knockoutInk ? ` (ink ${knockoutInk})` : '';
+  const prefix = label ? `${label} ` : '';
+  const rows = [
+    { key: keys.knockout, label: `${label ?? 'card knockout'}${inkTag}`, logo: logoKnockout, knockout: true, tint: knockoutInk },
+    logoColor ? { key: keys.full_color, label: `${prefix}full color`, logo: logoColor, knockout: false, tint: null } : null,
+    logoWords ? { key: keys.words_only, label: `${prefix}words only${inkTag}`, logo: logoWords, knockout: true, tint: knockoutInk } : null,
+  ].filter(Boolean);
+  const twins = darkGround ? rows.filter((r) => !r.knockout).map((r) => ({ key: `${r.key}_white`, label: `${r.label} white ink`, logo: r.logo, knockout: true, tint: '#FFFFFF', twin_of: r.key })) : [];
+  return { keys, knockout_ink: knockoutInk, light_ground: lightGround, dark_ground: darkGround, rows: [...rows, ...twins] };
+}
+/**
+ * Build the rows of one ground's treatment set (tinted copies written under outDir). `primary` null means the
+ * decision primary (rows record primary null and inherit the sheet's); any other ground records its hex, source
+ * and label on every row of the set. Returns { rows, knockout_ink }.
+ */
+export async function treatmentRows({ setKey = null, primary = null, primarySource = null, primaryLabel = null, text = null, label = null, sheetPrimary, sheetText = '#FFFFFF', logoKnockout, logoColor = null, logoWords = null, outDir, extra = {} }) {
+  const ground = normalizeHex(primary ?? sheetPrimary);
+  const textInk = normalizeHex(text ?? sheetText) ?? '#FFFFFF';
+  const plan = planTreatments({ setKey, ground, text: textInk, label, logoKnockout, logoColor, logoWords });
+  const rows = [];
+  for (const spec of plan.rows) {
+    const { tint, twin_of: twinOf, ...rest } = spec;
+    let logo = spec.logo;
+    if (tint) logo = await tintKnockout(spec.logo, path.join(outDir, `${spec.key}-ink.png`), tint);
+    rows.push({ ...rest, logo, logo_sha256: await fileSha256(logo), primary, primary_source: primary ? primarySource : null, primary_label: primary ? primaryLabel : null, text: primary ? (text ?? (contrast('#FFFFFF', ground) >= 3.0 ? '#FFFFFF' : '#000000')) : text, knockout_ink: tint, treatment: spec.key === plan.keys.full_color ? 'full_color' : spec.key === plan.keys.words_only ? 'words_only' : spec.key === plan.keys.knockout ? 'knockout' : 'white_ink', ...(twinOf ? { twin_of: twinOf } : {}), sticker_logo: null, ...extra });
+  }
+  return { rows, knockout_ink: plan.knockout_ink, dark_ground: plan.dark_ground };
+}
+
+// ---- FINALIZE at sheet build: the real upload size on every row ------------------------
+/**
+ * Run scripts/finalize-asset.mjs on a row's asset when that script exists (--in --out --surface card|sticker --json
+ * -> { out, bytes, px }). `surface` card finalizes row.logo and records row.upload_bytes / upload_path / upload_px;
+ * `surface` sticker finalizes `input` (the row's sticker asset) with --box-bg when row.sticker_panel.hex is set and
+ * records row.sticker_upload_bytes / sticker_upload_path / sticker_upload_px. Exit 3 (still over the cap at the
+ * floor) keeps the file: it is the best under-cap copy. Cached by the input sha. Silent no-op without the script or
+ * on a failure (the sheet never blocks on bytes).
+ */
+export async function finalizeRowAsset(row, outDir, { cli = FINALIZE_CLI, surface = 'card', input = null } = {}) {
+  if (!existsSync(cli)) return null;
+  const sticker = surface === 'sticker';
+  const file = input ?? row.logo;
+  const sha = sticker ? await fileSha256(file) : row.logo_sha256;
+  const k = sticker ? 'sticker_upload' : 'upload';
+  if (row[`${k}_sha256`] && row[`${k}_sha256`] === sha && row[`${k}_path`] && existsSync(row[`${k}_path`])) return { out: row[`${k}_path`], bytes: row[`${k}_bytes`], cached: true };
+  const out = path.join(outDir, 'upload', `${row.key}${sticker ? '-sticker' : ''}.png`);
+  await fs.mkdir(path.dirname(out), { recursive: true });
+  const box = sticker && row.sticker_panel?.hex ? ['--box-bg', row.sticker_panel.hex] : [];
+  const result = spawnSync(process.execPath, [cli, '--in', file, '--out', out, '--surface', surface, ...box, '--json'], { encoding: 'utf8' });
+  let parsed = null;
+  try { parsed = result.status === 0 || result.status === 3 ? JSON.parse((result.stdout ?? '').trim()) : null; } catch { parsed = null; }
+  if (!parsed || !parsed.out || !existsSync(parsed.out)) return null;
+  Object.assign(row, { [`${k}_path`]: parsed.out, [`${k}_bytes`]: parsed.bytes ?? (await fs.stat(parsed.out)).size, [`${k}_px`]: parsed.px ?? null, [`${k}_sha256`]: sha, [`${k}_fits`]: result.status === 0 });
+  return parsed;
+}
+/** Card then sticker finalize for one row (the sticker only when its asset renders). */
+export async function finalizeRowUploads(manifest, row, outDir, opts = {}) {
+  const card = await finalizeRowAsset(row, outDir, opts);
+  const sticker = stickerRenderable(row) ? await finalizeRowAsset(row, outDir, { ...opts, surface: 'sticker', input: stickerLogoFor(manifest, row) }) : null;
+  return { card, sticker };
+}
+
+// ---- authored panel (rules 11 and 14) ---------------------------------------------------------
+/** Pure: the flat panel color of an opaque lockup from its 1-px border pixels, or null when the border is not one color. */
+export function flatPanelHex(data, width, height, channels = 4, { tolerance = 24, minShare = 0.8 } = {}) {
+  const px = [];
+  const at = (x, y) => { const o = (y * width + x) * channels; return channels === 4 && data[o + 3] < 128 ? null : { r: data[o], g: data[o + 1], b: data[o + 2] }; };
+  for (let x = 0; x < width; x += 1) { px.push(at(x, 0)); px.push(at(x, height - 1)); }
+  for (let y = 1; y < height - 1; y += 1) { px.push(at(0, y)); px.push(at(width - 1, y)); }
+  const opaque = px.filter(Boolean);
+  if (!opaque.length || opaque.length < px.length * minShare) return null;
+  const median = (k) => { const v = opaque.map((p) => p[k]).sort((a, b) => a - b); return v[Math.floor(v.length / 2)]; };
+  const hex = rgbToHex({ r: median('r'), g: median('g'), b: median('b') });
+  const near = opaque.filter((p) => colorDistance(rgbToHex(p), hex) <= tolerance).length;
+  return near >= opaque.length * minShare ? hex : null;
+}
+export async function panelHexOf(logo) {
+  const { data, info } = await sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return flatPanelHex(data, info.width, info.height, info.channels);
+}
+/** Run sticker-panel.mjs; returns its JSON summary or null (stderr line) on failure. */
+function stickerPanel(argv) {
+  const result = spawnSync(process.execPath, [STICKER_PANEL_CLI, ...argv], { encoding: 'utf8' });
+  if (result.status !== 0) { process.stderr.write(`sticker-panel: ${(result.stderr || result.stdout || '').trim()}\n`); return null; }
+  try { return JSON.parse((result.stdout ?? '').trim()); } catch { return null; }
+}
+/**
+ * The light-surface asset of a words-only cut of a badge is the same words in a rounded container filled with the
+ * row ground (sticker-panel.mjs --mode box, 28% padding). Sets row.sticker_panel always and row.sticker_logo when
+ * the box renders.
+ */
+export async function boxStickerFor(row, ground, outDir) {
+  row.sticker_panel = { hex: ground };
+  const out = path.join(outDir, `sticker-box-${row.key}.png`);
+  const result = stickerPanel(['--logo', row.logo, '--out', out, '--mode', 'box', '--bg', ground, '--pad', '0.28', '--radius', '0.2']);
+  if (!result || !existsSync(out)) return null;
+  row.sticker_logo = out;
+  row.sticker_logo_rel = null;
+  return out;
+}
+
+// ---- cut rows from the cut-words sidecar -------------------------------------------
+/** Pure: which rows a cut-words sidecar supports, as keep/drop id lists for cutWords. */
+export function planCutRows(cut) {
+  if (!cut?.ok || !Array.isArray(cut.components) || !Array.isArray(cut.lines)) return [];
+  const comps = cut.components;
+  const ids = comps.map((c) => c.id);
+  const lines = cut.lines;
+  const descriptorIds = lines.filter((l) => l.reason === 'dropped:descriptor_line_below_ratio').flatMap((l) => l.members);
+  const nameLines = lines.filter((l) => l.reason === 'kept:name_line');
+  const nameIds = nameLines.flatMap((l) => l.members);
+  const nameBand = nameLines.length ? nameLines.reduce((b, l) => [Math.min(b[0], l.bbox[0]), Math.min(b[1], l.bbox[1]), Math.max(b[2], l.bbox[2]), Math.max(b[3], l.bbox[3])], [Infinity, Infinity, -Infinity, -Infinity]) : null;
+  const inside = (inner, outer) => inner[0] >= outer[0] && inner[1] >= outer[1] && inner[2] <= outer[2] && inner[3] <= outer[3];
+  const intersects = (a, b) => !(a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1]);
+  const plans = [];
+  if (descriptorIds.length) {
+    plans.push({ key: 'knockout_nodesc', label: 'card knockout, no descriptor', knockout: true, keepIds: ids.filter((id) => !descriptorIds.includes(id)), dropIds: descriptorIds, source: 'knockout', treatment: 'knockout' });
+    // the words-only cut already drops a below-ratio descriptor; a second kept line far shorter than the name is the
+    // descriptor that survived the ratio (Surfin "SURF SHACK", Pizza Gene "PIZZERIA"); the expected-words gate decides
+    const shorter = nameLines.length >= 2 ? nameLines.filter((l) => (l.height_ratio ?? 1) < 0.75) : [];
+    if (shorter.length && shorter.length < nameLines.length) {
+      const drop = [...descriptorIds, ...shorter.flatMap((l) => l.members)];
+      plans.push({ key: 'words_only_nodesc', label: 'words only, no descriptor', knockout: true, keepIds: nameIds.filter((id) => !drop.includes(id)), dropIds: ids.filter((id) => !nameIds.includes(id) || drop.includes(id)), source: 'knockout', treatment: 'words_only' });
+    }
+  }
+  const giants = comps.filter((c) => c.decision === 'dropped:giant_emblem_or_ring' || c.kind === 'ring');
+  const ring = giants.filter((c) => c.kind === 'ring' || (c.enclosed_adjacency ?? 0) >= 0.25).sort((a, b) => b.area - a.area)[0];
+  if (ring) {
+    const innerIds = comps.filter((c) => c.id !== ring.id && inside(c.bbox, ring.bbox)).map((c) => c.id);
+    if (innerIds.length) plans.push({ key: 'emblem_inner', label: 'inner emblem (ring text dropped)', knockout: true, keepIds: innerIds, dropIds: ids.filter((id) => !innerIds.includes(id)), source: null, treatment: 'emblem' });
+  }
+  const shapeDecisions = new Set(['dropped:solo_non_word_shape', 'dropped:giant_emblem_or_ring', 'dropped:outside_band']);
+  const emblem = comps.filter((c) => (shapeDecisions.has(c.decision) || c.kind === 'ring') && c !== ring && nameBand && !intersects(c.bbox, nameBand)).sort((a, b) => b.area - a.area)[0];
+  if (emblem && emblem.area >= 0.05 * (cut.source?.total_ink ?? Infinity)) {
+    const keep = comps.filter((c) => c.id === emblem.id || inside(c.bbox, emblem.bbox)).map((c) => c.id);
+    plans.push({ key: 'badge_only', label: 'badge only (self-contained emblem)', knockout: true, keepIds: keep, dropIds: ids.filter((id) => !keep.includes(id)), source: null, treatment: 'emblem' });
+  }
+  return plans;
+}
+/** Cut the planned rows from the knockout with the sidecar's plan; a cut that fails or keeps everything is skipped. */
+export async function cutRowsFrom(cut, logoKnockout, outDir, { width = 1600 } = {}) {
+  const rows = [];
+  for (const plan of planCutRows(cut)) {
+    const out = path.join(outDir, `card-${plan.key}-${width}.png`);
+    let result;
+    try { result = await cutWords(logoKnockout, out, { white: true, binaryAlpha: true, width, keepIds: plan.keepIds, dropIds: plan.dropIds }); } catch (error) { result = { ok: false, reason: error.message }; }
+    if (!result.ok || result.kept_ink_share >= 0.985) continue;
+    await fs.writeFile(path.join(outDir, `cut-${plan.key}.json`), `${JSON.stringify(result, null, 2)}\n`);
+    rows.push({ key: plan.key, label: plan.label, logo: out, logo_sha256: await fileSha256(out), knockout: plan.knockout, treatment: plan.treatment, primary: null, text: null, sticker_logo: null, cut_source: plan.source, note: `cut-words kept ${result.kept_component_count} components (${Math.round(result.kept_ink_share * 100)}% of ink)` });
+  }
+  return rows;
+}
+/** true when a cut-words sidecar dropped a ring/frame giant: its words-only cut is the words of a badge (box sticker). */
+export function isBadgeCut(cut) {
+  return Boolean(cut?.ok) && (cut.components ?? []).some((c) => c.decision === 'dropped:giant_emblem_or_ring' || c.kind === 'ring');
+}
+
 /** Run-dir-relative form of a path (what the browser-facing JSON carries); null stays null. */
 export function relRun(runDir, p) {
   if (!p) return null;
@@ -879,8 +1160,22 @@ export function normalizeManifest(manifest, outDir) {
   }
   manifest.print_text_secondary = manifest.print_text_secondary ?? Object.values(manifest.cells)[0]?.print_text_secondary ?? manifest.text ?? null;
   manifest.fable_default_letter = manifest.fable_default_letter ?? null;
-  manifest.hold = manifest.hold ?? null;
+  manifest.default_flag = manifest.default_flag ?? manifest.flag ?? null; // { letter, flag, native_px, reason }: a flag on the default, not a hold
+  delete manifest.flag;
+  // a legacy sheet that holds its default: the held cell becomes the flagged default
+  for (const cell of Object.values(manifest.cells)) {
+    if (cell.status !== 'hold') continue;
+    cell.status = 'fable_pick';
+    manifest.fable_default_letter = manifest.fable_default_letter ?? cell.letter;
+    manifest.default_flag = manifest.default_flag ?? { letter: cell.letter, flag: 'traced_from_small_source', native_px: manifest.hold?.native_px ?? null, reason: manifest.hold?.reason ?? cell.note ?? null };
+  }
+  manifest.hold = null;
   manifest.applied_letter = manifest.applied_letter ?? null;
+  // the sheet's own treatment assets (add-row --all-treatments reads them); a legacy sheet takes them from its rows
+  const rowLogo = (key) => manifest.rows.find((r) => r.key === key)?.logo ?? null;
+  manifest.logo_knockout = manifest.logo_knockout ?? rowLogo('knockout');
+  manifest.logo_color = manifest.logo_color ?? rowLogo('full_color');
+  manifest.logo_words = manifest.logo_words ?? rowLogo('words_only');
   manifest.revision = manifest.revision ?? 1;
   manifest.out_dir = outDir;
   manifest.sheet_html = manifest.sheet_html ?? (outDir ? path.join(outDir, SHEET_HTML) : null);
@@ -939,6 +1234,10 @@ export function cellView(manifest, cell) {
       ? { logo: rel(stickerLogo), band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: qrView(links?.table_promo), seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
       : { logo: null, band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: null, seed: null, status: STICKER_NEEDS_FIX },
     pop: { logo: rel(row.pop_logo && existsSync(row.pop_logo) ? row.pop_logo : row.logo), ground: row.pop_ground ?? band, offer: copy.pop.title, body: copy.pop.body, qr: qrView(links?.pop) },
+    // the box drawn behind a transparent mark on light surfaces (sticker, POP), and the real upload sizes
+    sticker_panel: row.sticker_panel ?? null,
+    upload: row.upload_bytes ? { bytes: row.upload_bytes, path: rel(row.upload_path), px: row.upload_px ?? null } : null,
+    sticker_upload: row.sticker_upload_bytes ? { bytes: row.sticker_upload_bytes, path: rel(row.sticker_upload_path), px: row.sticker_upload_px ?? null } : null,
     print: { primary: cell.print_primary ?? null, secondary: cell.print_secondary ?? null, text_secondary: cell.print_text_secondary ?? null, fix: cell.badge_digit_print?.fix ?? null, digit_contrast: cell.badge_digit_print?.contrast_with_text ?? null },
     status,
     status_tag: status ? STATUS_STYLE[status].tag : null,
@@ -955,7 +1254,7 @@ export function sheetView(manifest) {
     offer: manifest.offer ?? DEFAULT_OFFER,
     revision: manifest.revision ?? null,
     fable_default_letter: manifest.fable_default_letter ?? null,
-    hold: manifest.hold ?? null,
+    default_flag: manifest.default_flag ?? null,
     applied_letter: manifest.applied_letter ?? null,
     columns: manifest.columns.map((col) => ({ index: col.index, hex: col.hex, source: col.source, label: col.label, text: `${col.hex}  ${provenanceWords(col.source, col.label)}` })),
     rows: manifest.rows.map((row) => ({ key: row.key, label: row.label, text: rowLabelText(manifest, row) })),
@@ -980,13 +1279,13 @@ async function prepareViews(manifest, outDir, { rows: rowsArg, cells }) {
     Object.assign(row, { sticker: stickerOk ? keep(row.sticker) : null, sticker_status: stickerOk ? null : STICKER_NEEDS_FIX, sticker_band: band, sticker_band_note: note, pop: keep(row.pop), sticker_fingerprint: stickerFp, pop_fingerprint: popFp, sticker_logo_used: stickerLogo });
     if (!stickerOk) counts.skipped_stickers = (counts.skipped_stickers ?? 0) + 1;
     for (const cell of Object.values(manifest.cells)) {
-      if (cell.row === row.key) Object.assign(cell, { sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
+      if (cell.row === row.key) Object.assign(cell, { sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, sticker_panel: row.sticker_panel ?? null, upload_bytes: row.upload_bytes ?? null, upload_path: row.upload_path ?? null, sticker_upload_bytes: row.sticker_upload_bytes ?? null, sticker_upload_path: row.sticker_upload_path ?? null, pop: row.pop });
     }
   }
   for (const cell of cells) {
     const row = manifest.rows.find((r) => r.key === cell.row);
     const fp = cardFingerprint({ logoSha: await fileSha256(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, textSecondary: cell.text, treatment: row.key });
-    Object.assign(cell, { card: cell.card && existsSync(cell.card) ? cell.card : null, fingerprint: fp, cache: cacheHas(outDir, 'card', fp) ? cachePath(outDir, 'card', fp) : null, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, pop: row.pop });
+    Object.assign(cell, { logo: row.logo, card: cell.card && existsSync(cell.card) ? cell.card : null, fingerprint: fp, cache: cacheHas(outDir, 'card', fp) ? cachePath(outDir, 'card', fp) : null, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, sticker_panel: row.sticker_panel ?? null, upload_bytes: row.upload_bytes ?? null, upload_path: row.upload_path ?? null, sticker_upload_bytes: row.sticker_upload_bytes ?? null, sticker_upload_path: row.sticker_upload_path ?? null, pop: row.pop });
   }
   for (const cell of Object.values(manifest.cells)) { cell.view = cellView(manifest, cell); counts.views += 1; }
   manifest.row_assets = manifest.rows.map((row) => ({ row: row.key, sticker: row.sticker, sticker_status: row.sticker_status ?? null, sticker_band: row.sticker_band, sticker_band_note: row.sticker_band_note, pop: row.pop }));
@@ -1061,7 +1360,7 @@ export function sheetGeometry(manifest) {
   return { cardH, sideH, cellW, cellH, sheetW: ROW_HEADER_W + manifest.columns.length * cellW, sheetH: COL_HEADER_H + manifest.rows.length * cellH };
 }
 export function rowLabelText(manifest, row) {
-  if (row.primary_source === 'instore') return `${row.label} ${row.primary}`; // "in-store #90532E": the row header is 120px wide
+  if (row.primary_source && row.primary_source !== 'decision') return `${row.label} ${row.primary}`; // "in-store #90532E": the row header is 120px wide
   const base = row.primary && row.primary !== manifest.primary ? `${row.label}  primary ${row.primary}` : row.label;
   return row.print_primary ? `${base}  print primary ${row.print_primary}` : base;
 }
@@ -1080,13 +1379,17 @@ export function cellLabelText(manifest, cell) {
   const digit = cell.badge_digit_web;
   const flag = digit.pass ? 'ok' : `LOW${digit.fix ? `, use ${digit.fix === '#FFFFFF' ? 'white' : 'black'} digit` : ', no brand fix'}`;
   const words = provenanceWords(cell.secondary_source, cell.secondary_label);
-  const holdPx = cell.status === 'hold' && manifest.hold?.native_px ? `   source ${manifest.hold.native_px}px` : '';
+  // the native px of a small-source trace stays on the default cell's label (a flag, not a hold; legacy hold sheets keep theirs)
+  const flagPx = manifest.default_flag?.letter === cell.letter ? manifest.default_flag.native_px ?? null : null;
+  const holdPx = flagPx ? `   source ${flagPx}px` : '';
+  const row = manifest.rows.find((r) => r.key === cell.row);
+  const upload = row?.upload_bytes ? `   upload ${Math.round(row.upload_bytes / 1000)} KB` : '';
   const printRoles = printRolesText(cell);
   const head = cell.status === 'rejected' ? `${cell.letter}  REJECTED` : cell.letter;
   // A print-role cell leads with its print palette so the 120px-per-column label never truncates it away.
   return printRoles
-    ? `${head}${printRoles}   web band ${cell.secondary} digit ${digit.contrast_with_text}:1 ${flag}${holdPx}`
-    : `${head}   ${cell.secondary} ${words}   digit ${digit.contrast_with_text}:1 ${flag}${holdPx}`;
+    ? `${head}${printRoles}   web band ${cell.secondary} digit ${digit.contrast_with_text}:1 ${flag}${holdPx}${upload}`
+    : `${head}   ${cell.secondary} ${words}   digit ${digit.contrast_with_text}:1 ${flag}${holdPx}${upload}`;
 }
 /**
  * Write <out>/variant-sheet.html: the montage drawn from every cell's view with the vendored templates,
@@ -1106,7 +1409,8 @@ export async function composeSheet(manifest, outDir, { raster = false } = {}) {
   }
   const view = sheetView(manifest);
   const { sheetW, sheetH } = sheetGeometry(manifest);
-  const focus = manifest.fable_default_letter ? { letter: manifest.fable_default_letter, hold: false } : manifest.hold?.letter ? { letter: manifest.hold.letter, hold: true } : null;
+  const df = manifest.default_flag;
+  const focus = manifest.fable_default_letter ? { letter: manifest.fable_default_letter, flag: df?.letter === manifest.fable_default_letter ? df.flag : null, native_px: df?.letter === manifest.fable_default_letter ? df.native_px ?? null : null } : null;
   const body = `${templates.sheetHtml(view, { src: srcFrom(runDir, outDir), focus })}\n<script type="application/json" id="variant-sheet-view">${JSON.stringify(view).replace(/<\//g, '<\\/')}</script>`;
   const html = templates.pageHtml(body, { title: `${manifest.business_name ?? 'variant sheet'} variant sheet`, width: sheetW, background: '#C8C8C8' });
   const htmlFile = path.join(outDir, SHEET_HTML);
@@ -1219,31 +1523,39 @@ async function build(args) {
   const { primary, chosen, candidates } = candidateSecondaries({ decision, evidence, overrides, allowLighter: Boolean(args.allowLighter) });
   // decision marks (validate-fable-decision.ts writes them next to the six keys in run.json)
   const runJson = args.run && existsSync(path.join(path.resolve(args.run), 'run.json')) ? JSON.parse(await fs.readFile(path.join(path.resolve(args.run), 'run.json'), 'utf8')) : null;
-  const marks = args.marks ? JSON.parse(await fs.readFile(path.resolve(args.marks), 'utf8')) : (runJson?.decision?.marks ?? {});
-  if (marks?.band_over_brand_ink?.mark_ink && !overrides) {
-    const ink = normalizeHex(marks.band_over_brand_ink.mark_ink);
-    if (ink && !candidates.some((c) => colorDistance(c.hex, ink) < 18)) candidates.splice(1, 0, { hex: ink, source: 'mark_ink', label: `logo ink ${Math.round((marks.band_over_brand_ink.mark_ink_share ?? 0) * 100)}%` });
+  const marks = { ...(args.marks ? JSON.parse(await fs.readFile(path.resolve(args.marks), 'utf8')) : (runJson?.decision?.marks ?? {})) };
+  const bandMark = marks.band_over_brand_ink;
+  const bandReplacement = bandMark ? { hex: normalizeHex(bandMark.replacement?.hex ?? bandMark.mark_ink ?? ''), source: bandMark.replacement?.source ?? 'mark_ink', share: bandMark.replacement?.share ?? bandMark.mark_ink_share ?? null } : null;
+  if (bandReplacement?.hex && !overrides && !candidates.some((c) => colorDistance(c.hex, bandReplacement.hex) < 18)) {
+    candidates.splice(1, 0, { hex: bandReplacement.hex, source: bandReplacement.source, label: bandReplacement.share != null ? `${BAND_SOURCE_LABELS[bandReplacement.source] ?? bandReplacement.source} ${Math.round(bandReplacement.share * 100)}%` : BAND_SOURCE_LABELS[bandReplacement.source] ?? bandReplacement.source });
   }
   const columns = candidates.slice(0, Number(args.maxColumns)).map((col, i) => ({ index: i, ...col, one_off: false }));
   const text = normalizeHex(decision.palette.web_text_color) ?? '#FFFFFF';
   const printTextSecondary = normalizeHex(decision.palette.print_text_secondary_color) ?? text;
 
-  // LIGHT PRIMARY rule (206 Burger 2026-09-09: cream card, white knockout rows rendered blank).
+  const sheetText = text;
+  const candidate = (evidence?.logo_candidates ?? []).find((c) => c.local_path === decision.logo_choice) ?? (evidence?.logo_candidates ?? [])[0] ?? null;
+  const wordsCut = (() => { for (const f of [path.join(outDir, 'cut-words.json'), path.join(runDir, 'fix', 'words', 'cut-words.json'), path.join(runDir, 'fix', 'cut-words.json')]) { if (!existsSync(f)) continue; try { const c = JSON.parse(readFileSync(f, 'utf8')); if (c?.ok) return c; } catch { /* broken sidecar */ } } return null; })();
+  // the descriptor the sidecar dropped belongs to the composed lockup: the full authored mark is the default
+  marks.descriptor_in_lockup = wordsCut ? descriptorInsideLockup(wordsCut, nameTokens(businessName)) : false;
+  const sheetLogos = { logoKnockout, logoColor, logoWords };
+  const setOf = (opts) => treatmentRows({ ...sheetLogos, sheetPrimary: primary, sheetText, outDir, ...opts });
+
+  // DECISION PRIMARY set: knockout / full color / words only (LIGHT PRIMARY rule 206 Burger 2026-09-09: the
+  // knockout ink is the text ink, else black, on a card that fails 3:1 vs white; the label says so).
+  const decisionSet = await setOf({});
   const lightPrimary = contrast(primary, '#FFFFFF') < 3.0;
-  let knockoutInk = null;
-  if (lightPrimary) {
-    knockoutInk = contrast(text, primary) >= 3.0 ? text : '#000000';
-    logoKnockout = await tintKnockout(logoKnockout, path.join(outDir, 'card-knockout-ink.png'), knockoutInk);
-    if (logoWords) logoWords = await tintKnockout(logoWords, path.join(outDir, 'card-words-ink.png'), knockoutInk);
+  const knockoutInk = decisionSet.knockout_ink;
+  const rows = [...decisionSet.rows];
+  // DESCRIPTOR-FREE, INNER-EMBLEM and BADGE-ONLY cuts from the cut-words sidecar, on the decision primary.
+  const cutRows = wordsCut && !args.noWords ? await cutRowsFrom(wordsCut, logoKnockout, outDir) : [];
+  for (const row of cutRows) {
+    if (knockoutInk) { row.logo = await tintKnockout(row.logo, path.join(outDir, `${row.key}-ink.png`), knockoutInk); row.logo_sha256 = await fileSha256(row.logo); row.knockout_ink = knockoutInk; row.label = `${row.label} (ink ${knockoutInk})`; }
+    rows.push(row);
   }
 
-  const rows = [
-    { key: 'knockout', label: knockoutInk ? `card knockout (ink ${knockoutInk})` : 'card knockout', logo: logoKnockout, knockout: true },
-    logoColor ? { key: 'full_color', label: 'full color', logo: logoColor, knockout: false } : null,
-    logoWords ? { key: 'words_only', label: knockoutInk ? `words only (ink ${knockoutInk})` : 'words only', logo: logoWords, knockout: true } : null,
-  ].filter(Boolean).map((row) => ({ ...row, primary: null, text: null, sticker_logo: null }));
   // IN-STORE PRIMARY ROW (Chuy's 2026-09-18): the dominant painted color of the in-store photos becomes its own
-  // primary row automatically when its hue is far from the site primary (or the primary is a neutral).
+  // primary row set automatically when its hue is far from the site primary (or the primary is a neutral).
   let instore = null;
   if (!args.noInstore && evidence?.brand_environment) {
     const env = evidence.brand_environment;
@@ -1254,16 +1566,34 @@ async function build(args) {
       const far = chromaOf(primary) < 0.15 || hueDistance(primaryHue, dominant.hue) >= INSTORE_MIN_HUE_DISTANCE;
       const alreadyAColumn = columns.some((c) => colorDistance(c.hex, dominant.hex) < 24);
       instore = { ...dominant, far, added: far && !alreadyAColumn && contrast(dominant.hex, '#FFFFFF') >= 1.2 };
-      if (instore.added) {
-        rows.push({ key: 'instore_primary', label: 'in-store', logo: logoKnockout, knockout: true, primary: dominant.hex, primary_source: 'instore', primary_label: `sampled: ${Math.round(dominant.share * 100)}% of the saturated in-store pixels`, text: null, sticker_logo: null });
-      }
+      if (instore.added) rows.push(...(await setOf({ setKey: 'instore_primary', label: 'in-store', primary: dominant.hex, primarySource: 'instore', primaryLabel: `sampled: ${Math.round(dominant.share * 100)}% of the saturated in-store pixels` })).rows);
     }
   }
-  for (const row of rows) row.logo_sha256 = await fileSha256(row.logo);
+  // DARK GROUND set: the decision mark names the site header/footer black, the badge disc or the logo's own dark ink
+  // as the card, with the brand chroma as the band.
+  const darkMark = marks?.dark_ground_default?.ground ? normalizeHex(marks.dark_ground_default.ground) : null;
+  let darkGround = null;
+  if (darkMark && colorDistance(darkMark, primary) >= 24) {
+    darkGround = { ground: darkMark, source: marks.dark_ground_default.ground_source ?? null, band: normalizeHex(marks.dark_ground_default.band ?? '') };
+    rows.push(...(await setOf({ setKey: 'dark_ground', label: 'dark ground', primary: darkMark, primarySource: 'dark_ground', primaryLabel: GROUND_LABELS[darkGround.source] ?? darkGround.source ?? 'authored dark' })).rows);
+    if (darkGround.band && !columns.some((c) => colorDistance(c.hex, darkGround.band) < 18) && columns.length < Number(args.maxColumns)) columns.push({ index: columns.length, hex: darkGround.band, source: 'mark_ink', label: 'brand chroma (dark ground band)', one_off: false });
+  }
+  // DEEPER GROUNDS: a pale or mid-light primary gets the mark's own darker inks as grounds, then one
+  // labelled -10% synthetic step (Harbor AH was the synthetic; Creamer promoted the band green).
+  const deeper = [];
+  if (contrast(primary, '#FFFFFF') < DEEPER_GROUND_MAX_CONTRAST) {
+    const pl = rgbToHsl(hexToRgb(primary)).l;
+    const inks = (candidate?.measured_colors ?? []).map((c) => ({ hex: normalizeHex(c.hex), share: c.pixel_share ?? 0 })).filter((c) => c.hex && c.share >= LOGO_INK_MIN_SHARE && rgbToHsl(hexToRgb(c.hex)).l < pl - 0.15 && colorDistance(c.hex, primary) >= 24 && (!darkMark || colorDistance(c.hex, darkMark) >= 24)).slice(0, DEEPER_GROUND_MAX_INKS);
+    inks.forEach((ink, i) => deeper.push({ setKey: `deeper_ground_${i + 1}`, label: 'deeper ground', primary: ink.hex, primarySource: 'mark_ink', primaryLabel: `deeper ground: logo ink ${Math.round(ink.share * 100)}%` }));
+    deeper.push({ setKey: `deeper_ground_${inks.length + 1}`, label: 'deeper -10%', primary: shiftLightness(primary, -0.10), primarySource: 'depth_darker_10', primaryLabel: '-10% step, synthetic' });
+    for (const spec of deeper) rows.push(...(await setOf(spec)).rows);
+  }
+  for (const row of rows) row.logo_sha256 = row.logo_sha256 ?? await fileSha256(row.logo);
   // The words-only row is checked against the wordmark it was cut from: the cut-words sidecar's `in`, else
   // (for the deterministic cut of the knockout) the knockout itself. An explicit --logo-words with no sidecar
   // is an authored asset, not a cut, and gets only the opaque-ground and label checks.
   const wordsSource = logoWords ? (wordsCutSource(logoWords, outDir, runDir) ?? (args.logoWords ? null : logoKnockout)) : null;
+  const sourceFor = (row) => (row.treatment === 'words_only' ? wordsSource : row.cut_source === 'knockout' ? logoKnockout : null);
 
   const manifest = normalizeManifest({
     schema: 2,
@@ -1280,12 +1610,17 @@ async function build(args) {
     offer: args.offer ?? DEFAULT_OFFER,
     url_base: args.urlBase,
     sticker_logo: logoSticker && existsSync(logoSticker) ? logoSticker : null,
+    logo_knockout: logoKnockout,
+    logo_color: logoColor,
+    logo_words: logoWords,
     sheet: path.join(outDir, 'variant-sheet.png'),
     rows,
     columns,
     words_note: wordsNote,
     row_assets: [],
     instore_dominant: instore,
+    dark_ground: darkGround,
+    deeper_grounds: deeper.map((d) => ({ key: d.setKey, primary: d.primary, source: d.primarySource })),
     decision_marks: marks ?? null,
     cells: {},
     skipped: [],
@@ -1296,31 +1631,157 @@ async function build(args) {
   // SHEET VIABILITY: refuse junk before it renders (Dogwood 2026-09-21: "Do woo Pizza" cut, white-square lockup).
   const viableRows = [];
   for (const row of rows) {
-    const keep = await gateRow(manifest, row, { force: Boolean(args.forceViability), command: 'build', outDir, runDir, source: row.key === 'words_only' ? wordsSource : null });
+    const keep = await gateRow(manifest, row, { force: Boolean(args.forceViability), command: 'build', outDir, runDir, source: sourceFor(row), expected: row.treatment === 'emblem' ? '' : null });
     if (keep) viableRows.push(row);
   }
+  // PANEL GROUND (Buz V): a lockup refused for its opaque flat authored panel becomes its own ground, the
+  // authored-ink lockup keyed onto it (sticker-panel.mjs --mode strip --key), text black when white fails.
+  let panel = null;
+  const panelHex = logoColor && manifest.skipped.some((s) => s.row === 'full_color' && s.verdict === 'opaque_ground') ? await panelHexOf(logoColor) : null;
+  if (panelHex && logoColor && colorDistance(panelHex, primary) >= 24) {
+    const keyed = path.join(outDir, 'panel-keyed.png');
+    const stripped = stickerPanel(['--logo', logoColor, '--out', keyed, '--mode', 'strip', '--key', panelHex]);
+    if (stripped && existsSync(keyed)) {
+      panel = { hex: panelHex, keyed, key: stripped.key ?? panelHex };
+      const panelSet = await setOf({ setKey: 'panel_ground', label: 'panel ground', primary: panelHex, primarySource: 'logo_panel', primaryLabel: 'authored panel color', logoColor: keyed });
+      for (const row of panelSet.rows) {
+        row.logo_sha256 = await fileSha256(row.logo);
+        row.sticker_panel = { hex: panelHex };
+        if (await gateRow(manifest, row, { force: Boolean(args.forceViability), command: 'build', outDir, runDir, source: sourceFor(row) })) { rows.push(row); viableRows.push(row); }
+      }
+    }
+  }
+  manifest.panel = panel;
   if (!viableRows.length) throw new Error(`sheet-viability refused every row (${manifest.skipped.map((s) => `${s.row}: ${s.verdict}`).join('; ')}); fix the assets or pass --force-viability to render them with a NOT VIABLE badge.`);
   manifest.rows = viableRows;
+  // STICKER ASSET: a words-only cut of a badge ships as the same words in a rounded box of the row ground.
+  for (const row of viableRows) if (row.treatment === 'words_only' && isBadgeCut(wordsCut) && !row.sticker_logo) await boxStickerFor(row, rowPrimary(manifest, row), outDir);
   // STICKER GROUND: the sticker asset of every kept row is checked on the same terms before any cell exists.
   for (const row of viableRows) await gateStickerRow(manifest, row, { force: Boolean(args.forceViability), command: 'build' });
+  // FINALIZE: the real card and sticker upload sizes on every row when scripts/finalize-asset.mjs exists.
+  for (const row of viableRows) await finalizeRowUploads(manifest, row, outDir);
   // CELL ON CARD: a (row, column) whose ink vanishes on the card takes no letter (Travisse 2026-10-01).
   const pairs = await gateCells(manifest, viableRows.flatMap((row) => columns.map((column) => ({ row, column }))), { force: Boolean(args.forceViability), command: 'build' });
   if (!pairs.length) throw new Error(`every cell was refused on the card (${manifest.skipped.map((s) => `${s.row}${s.column ? ` x ${s.column}` : ''}: ${s.verdict}`).join('; ')}); fix the assets or pass --force-viability to render them with a NOT VIABLE badge.`);
+  // SECOND BRAND CHROMA: a consistent second non-neutral color on the site or in the store enters as two
+  // one-off cells on the knockout row, the sample and one lifted step (the photo sample is shadowed); never eight.
+  const secondChroma = secondChromaFor({ evidence, instore, primary, chosen, columns });
+  if (secondChroma) {
+    const knockoutRow = viableRows.find((r) => r.key === 'knockout');
+    const lifted = shiftLightness(secondChroma.hex, SECOND_CHROMA_LIFT);
+    const oneOffs = [
+      { index: columns.length, hex: secondChroma.hex, source: 'second_chroma_sampled', label: secondChroma.from, one_off: true },
+      { index: columns.length + 1, hex: lifted, source: 'second_chroma_lifted', label: 'lifted one step (photo sample is shadowed)', one_off: true },
+    ];
+    if (knockoutRow) {
+      columns.push(...oneOffs);
+      manifest.columns = columns;
+      pairs.push(...(await gateCells(manifest, oneOffs.map((column) => ({ row: knockoutRow, column })), { force: Boolean(args.forceViability), command: 'build' })));
+    }
+  }
+  manifest.second_chroma = secondChroma;
   const renderRows = viableRows.filter((row) => pairs.some((p) => p.row.key === row.key));
   manifest.rows = renderRows;
   const created = appendCells(manifest, pairs);
-  // Fable's default cell: the band rule can move it; a small-source trace turns it into a HOLD instead of a default.
+  // Fable's default cell: the ground, row, band and digit rules move it; a small-source trace is a flag on it, not a hold.
   const def = defaultLetterFor(manifest, marks);
   if (def.letter) {
-    applyMark(manifest, def.letter, def.hold ? 'hold' : 'fable_pick', { note: def.hold ? def.reason : `Fable default: ${def.reason}`, by: 'variant-sheet build' });
-    if (def.hold) manifest.hold = { ...manifest.hold, native_px: def.native_px, reason: def.reason };
+    const flagNote = def.flag ? `traced from ${def.native_px ?? '?'}px source (floor ${TRACE_FLOOR_PX}px)` : null;
+    applyMark(manifest, def.letter, 'fable_pick', { note: `Fable default: ${def.reason}${flagNote ? `; ${flagNote}` : ''}`, by: 'variant-sheet build' });
+    manifest.default_flag = def.flag ? { letter: def.letter, flag: def.flag, native_px: def.native_px, reason: def.reason, note: flagNote } : null;
+    // the full authored mark default pre-records its render-legibility override
+    if (def.override && args.run) {
+      const rec = runFile(['override', path.resolve(args.run), '--gate', def.override.gate, '--asset', def.override.asset, '--decided-by', 'rule', '--reason', def.override.reason]);
+      def.override_recorded = rec.status === 0;
+      if (rec.status !== 0) process.stderr.write(`run-file override ${def.override.gate} failed: ${(rec.stderr || rec.stdout).trim()}\n`);
+    }
   }
   const counts = await prepareViews(manifest, outDir, { rows: renderRows, cells: created });
-  return finish(args, outDir, manifest, { letters: letterList(manifest), words_note: wordsNote, default_letter: def, instore_dominant: instore, ...counts, reason: 'variant-sheet build' });
+  return finish(args, outDir, manifest, { letters: letterList(manifest), words_note: wordsNote, default_letter: def, default_flag: manifest.default_flag, instore_dominant: instore, dark_ground: darkGround, deeper_grounds: manifest.deeper_grounds, panel, second_chroma: secondChroma, cut_rows: cutRows.map((r) => r.key), ...counts, reason: 'variant-sheet build' });
+}
+
+/**
+ * Pure: the second brand chroma, when the site or the store shows a consistent non-neutral color at least
+ * 40 degrees of hue from both the primary and the chosen secondary that is not already a column. Site tokens first
+ * (theme-authored, by count), then the in-store dominant. Returns { hex, from, source } or null.
+ */
+export function secondChromaFor({ evidence, instore, primary, chosen, columns }) {
+  const hueOf = (hex) => rgbToHsl(hexToRgb(hex)).h * 360;
+  const farFrom = (hex) => [primary, chosen].filter(Boolean).every((ref) => chromaOf(ref) < 0.15 || hueDistance(hueOf(hex), hueOf(ref)) >= SECOND_CHROMA_MIN_HUE_DISTANCE);
+  const isColumn = (hex) => columns.some((c) => colorDistance(c.hex, hex) < 24);
+  const ok = (hex) => hex && chromaOf(hex) >= 0.15 && rgbToHsl(hexToRgb(hex)).l <= 0.93 && colorDistance(hex, primary) >= 24 && farFrom(hex) && !isColumn(hex);
+  const tokens = (evidence?.website?.authored_color_tokens ?? []).filter((t) => t.evidence_class === 'theme_authored').sort((a, b) => (b.semantic_count ?? 0) - (a.semantic_count ?? 0));
+  for (const token of tokens) {
+    const hex = normalizeHex(token.hex);
+    if (ok(hex)) return { hex, from: `site token x${token.semantic_count ?? token.count ?? 0}`, source: 'site_token' };
+  }
+  const store = instore?.hex ? normalizeHex(instore.hex) : null;
+  if (ok(store) && (instore.share ?? 0) >= INSTORE_MIN_SHARE) return { hex: store, from: `in-store sample, ${Math.round(instore.share * 100)}% of the saturated pixels`, source: 'instore' };
+  return null;
 }
 
 // ---- add-row / add-column / add-cell ----------------------------------------
+/** Shared tail of add-row / add-cell / add-row --all-treatments: gate the cells, append, prepare, finish. */
+async function appendRows(args, manifest, outDir, rows, columns, { refusedLabel }) {
+  const force = Boolean(args.forceViability);
+  const pairs = await gateCells(manifest, rows.flatMap((row) => columns.map((column) => ({ row, column }))), { force, command: args.command });
+  const kept = rows.filter((row) => pairs.some((p) => p.row.key === row.key));
+  if (!kept.length) {
+    const manifestFile = await saveManifest(outDir, manifest);
+    const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: `variant-sheet ${args.command} refused ${refusedLabel} on the card` }) : null;
+    const refused = manifest.skipped.filter((s) => s.kind === 'cell' && rows.some((r) => r.key === s.row));
+    process.stdout.write(`${JSON.stringify({ ok: true, command: args.command, added: false, refused, manifest: manifestFile, run_file: recorded ? recorded.file : null, rows: manifest.rows.length, cells: Object.keys(manifest.cells).length, skipped: manifest.skipped, rendered: { cards: 0, stickers: 0, pops: 0 } }, null, 2)}\n`);
+    return null;
+  }
+  for (const row of kept) {
+    await gateStickerRow(manifest, row, { force, command: args.command });
+    await finalizeRowUploads(manifest, row, outDir);
+    manifest.rows.push(row);
+  }
+  const created = appendCells(manifest, pairs);
+  const counts = await prepareViews(manifest, outDir, { rows: kept, cells: created });
+  return finish(args, outDir, manifest, { rows_added: kept.map((r) => r.key), row: kept[0].key, added: true, viability: kept[0].viability, sticker_viability: kept[0].sticker_viability ?? null, new_cells: created.map((c) => `${c.letter}=${c.row}/${c.secondary}`), letters: letterList(manifest), ...counts });
+}
+function refusedOutput(args, manifest, manifestFile, recorded) {
+  const refused = manifest.skipped[manifest.skipped.length - 1];
+  process.stdout.write(`${JSON.stringify({ ok: true, command: args.command, added: false, refused, manifest: manifestFile, run_file: recorded ? recorded.file : null, rows: manifest.rows.length, cells: Object.keys(manifest.cells).length, skipped: manifest.skipped, rendered: { cards: 0, stickers: 0, pops: 0 } }, null, 2)}\n`);
+}
+/**
+ * add-row --primary <hex> --all-treatments: the three treatments (and the white-ink twin on a dark
+ * ground) from the sheet's own knockout / color / words assets, each gated like any row. --key names the set
+ * (default: the label slug); --label is the ground's name on the row headers (default: the hex).
+ */
+async function addTreatmentSet(args) {
+  const runDir = path.resolve(args.runDir);
+  const outDir = resolveOut(args, runDir);
+  const manifest = await loadManifest(outDir);
+  if (args.logo) throw new Error('--all-treatments builds the rows from the sheet\'s own assets; drop --logo or drop --all-treatments');
+  if (!args.primary) throw new Error('add-row --all-treatments needs --primary <hex>');
+  const primary = requireHex(args.primary, '--primary');
+  const label = args.label ?? primary;
+  const setKey = slug(args.key ?? label);
+  if (manifest.rows.some((r) => r.key === setKey)) throw new Error(`Row key "${setKey}" already exists; pass --key <other>`);
+  if (!manifest.logo_knockout || !existsSync(manifest.logo_knockout)) throw new Error('the sheet has no knockout asset on record (logo_knockout); pass --logo for a single row instead');
+  const { rows } = await treatmentRows({ setKey, label, primary, primarySource: args.source ?? 'override', primaryLabel: args.note ?? `add-row ${primary}`, text: args.text ? requireHex(args.text, '--text') : null, sheetPrimary: manifest.primary, sheetText: manifest.text, logoKnockout: manifest.logo_knockout, logoColor: manifest.logo_color && existsSync(manifest.logo_color) ? manifest.logo_color : null, logoWords: manifest.logo_words && existsSync(manifest.logo_words) ? manifest.logo_words : null, outDir, extra: { note: args.note ?? null, added_at: new Date().toISOString(), added_by: args.command } });
+  const kept = [];
+  for (const row of rows) {
+    const source = row.treatment === 'words_only' ? wordsCutSource(row.logo, outDir, runDir) : null;
+    if (await gateRow(manifest, row, { force: Boolean(args.forceViability), command: args.command, outDir, runDir, source, expected: args.expected ?? null })) kept.push(row);
+  }
+  if (!kept.length) {
+    const manifestFile = await saveManifest(outDir, manifest);
+    const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: `variant-sheet ${args.command} refused ${setKey}` }) : null;
+    refusedOutput(args, manifest, manifestFile, recorded);
+    return null;
+  }
+  const columns = args.secondaries
+    ? args.secondaries.split(',').map((s) => requireHex(s, '--secondaries')).map((hex) => { const c = manifest.columns.find((x) => x.hex === hex); if (!c) throw new Error(`--secondaries ${hex} is not a column on the sheet`); return c; })
+    : manifest.columns.filter((c) => !c.one_off);
+  return appendRows(args, manifest, outDir, kept, columns, { refusedLabel: setKey });
+}
+
 async function addRow(args, { single = false } = {}) {
+  if (args.allTreatments && !single) return addTreatmentSet(args);
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
@@ -1330,8 +1791,10 @@ async function addRow(args, { single = false } = {}) {
   const key = args.key ? slug(args.key) : slug(args.label);
   if (manifest.rows.some((r) => r.key === key)) throw new Error(`Row key "${key}" already exists; pass --key <other>`);
   const primary = args.primary ? requireHex(args.primary, '--primary') : null;
-  const text = args.text ? requireHex(args.text, '--text') : null;
+  let text = args.text ? requireHex(args.text, '--text') : null;
   const effectivePrimary = primary ?? manifest.primary;
+  // text flip on any row primary: white that fails on the row ground becomes black unless --text says otherwise
+  if (primary && !text && contrast(manifest.text ?? '#FFFFFF', effectivePrimary) < 3.0) text = contrast('#FFFFFF', effectivePrimary) >= 3.0 ? '#FFFFFF' : '#000000';
   const effectiveText = text ?? manifest.text;
   let label = args.label;
   let knockoutInk = null;
@@ -1347,6 +1810,7 @@ async function addRow(args, { single = false } = {}) {
     logo,
     logo_sha256: await fileSha256(logo),
     primary,
+    primary_source: primary ? (args.source && !existsSync(path.resolve(args.source)) ? args.source : 'override') : null,
     text,
     knockout: Boolean(args.knockout),
     knockout_ink: knockoutInk,
@@ -1356,6 +1820,7 @@ async function addRow(args, { single = false } = {}) {
     print_secondary: args.printSecondary ? requireHex(args.printSecondary, '--print-secondary') : null,
     pop_logo: args.popLogo ? path.resolve(args.popLogo) : null,
     pop_ground: args.popGround ? requireHex(args.popGround, '--pop-ground') : null,
+    expected_words: args.expected ?? null,
     note: args.note ?? null,
     added_at: new Date().toISOString(),
     added_by: args.command,
@@ -1364,14 +1829,14 @@ async function addRow(args, { single = false } = {}) {
   if ((row.pop_logo || row.pop_ground) && !single) throw new Error('--pop-logo / --pop-ground are add-cell options (one cell, one POP treatment)');
   if (row.sticker_logo && !existsSync(row.sticker_logo)) throw new Error(`--sticker-logo not found: ${row.sticker_logo}`);
   if (row.pop_logo && !existsSync(row.pop_logo)) throw new Error(`--pop-logo not found: ${row.pop_logo}`);
-  if (args.source && !existsSync(path.resolve(args.source))) throw new Error(`--source not found: ${args.source}`);
+  const sourceFile = args.source && existsSync(path.resolve(args.source)) ? path.resolve(args.source) : null;
+  if (args.source && !sourceFile && !single) throw new Error(`--source not found: ${args.source}`);
   // SHEET VIABILITY: the asset is checked before any cell exists; a refusal is recorded, printed, and not rendered.
-  const keep = await gateRow(manifest, row, { force: Boolean(args.forceViability), command: args.command, outDir, runDir, source: args.source ? path.resolve(args.source) : null, note: args.note ?? null });
+  const keep = await gateRow(manifest, row, { force: Boolean(args.forceViability), command: args.command, outDir, runDir, source: sourceFile, note: args.note ?? null, expected: args.expected ?? null });
   if (!keep) {
     const manifestFile = await saveManifest(outDir, manifest);
     const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: `variant-sheet ${args.command} refused ${key}` }) : null;
-    const refused = manifest.skipped[manifest.skipped.length - 1];
-    process.stdout.write(`${JSON.stringify({ ok: true, command: args.command, added: false, refused, manifest: manifestFile, run_file: recorded ? recorded.file : null, rows: manifest.rows.length, cells: Object.keys(manifest.cells).length, skipped: manifest.skipped, rendered: { cards: 0, stickers: 0, pops: 0 } }, null, 2)}\n`);
+    refusedOutput(args, manifest, manifestFile, recorded);
     return null;
   }
 
@@ -1394,19 +1859,58 @@ async function addRow(args, { single = false } = {}) {
     columns = manifest.columns.filter((c) => !c.one_off);
   }
   // CELL ON CARD: a column whose cell would vanish on this row's primary takes no letter; a row with no cell left is not added.
-  const pairs = await gateCells(manifest, columns.map((column) => ({ row, column })), { force: Boolean(args.forceViability), command: args.command });
-  if (!pairs.length) {
+  return appendRows(args, manifest, outDir, [row], columns, { refusedLabel: key });
+}
+
+/**
+ * swap-asset: replace one row's card asset IN PLACE after gating it exactly like a new row (sheet-viability
+ * with --expected, then every column the row has cells in on the card). Letters, statuses and the recorded pick
+ * survive; row.asset_history keeps the replaced sha. A refusal changes nothing but the skip record.
+ */
+async function swapAsset(args) {
+  const runDir = path.resolve(args.runDir);
+  const outDir = resolveOut(args, runDir);
+  const manifest = await loadManifest(outDir);
+  if (!args.row || !args.logo) throw new Error('swap-asset needs --row <key> --logo <png> [--expected "<words>"] [--sticker-logo <png>]');
+  const row = manifest.rows.find((r) => r.key === args.row);
+  if (!row) throw new Error(`Row "${args.row}" is not on the sheet (${manifest.rows.map((r) => r.key).join(', ')})`);
+  let logo = path.resolve(args.logo);
+  if (!existsSync(logo)) throw new Error(`--logo not found: ${logo}`);
+  // a knockout row on a light ground keeps its ink: the replacement is tinted the same way (LIGHT PRIMARY rule)
+  if (row.knockout && row.knockout_ink && row.knockout_ink !== '#FFFFFF') logo = await tintKnockout(logo, path.join(outDir, `${row.key}-ink-${(await fileSha256(logo)).slice(0, 8)}.png`), row.knockout_ink);
+  const stickerLogo = args.stickerLogo ? path.resolve(args.stickerLogo) : null;
+  if (stickerLogo && !existsSync(stickerLogo)) throw new Error(`--sticker-logo not found: ${stickerLogo}`);
+  const previous = { logo: row.logo, logo_sha256: row.logo_sha256, sticker_logo: row.sticker_logo ?? null, viability: row.viability ?? null, sticker_viability: row.sticker_viability ?? null, sticker_logo_used: row.sticker_logo_used ?? null };
+  const cells = Object.values(manifest.cells).filter((c) => c.row === row.key);
+  const columns = cells.map((c) => manifest.columns[c.column_index]).filter(Boolean);
+  // gate first, on the row itself (the viability cache is keyed by sha, so the new asset is measured fresh)
+  Object.assign(row, { logo, logo_sha256: await fileSha256(logo), viability: null, viability_source: null, sticker_viability: null, sticker_logo_used: null, ...(stickerLogo ? { sticker_logo: stickerLogo } : {}) });
+  const sourceFile = args.source && existsSync(path.resolve(args.source)) ? path.resolve(args.source) : null;
+  const keep = await gateRow(manifest, row, { force: false, command: 'swap-asset', outDir, runDir, source: sourceFile, expected: args.expected ?? null });
+  const before = manifest.skipped.length;
+  const pairs = keep ? await gateCells(manifest, columns.map((column) => ({ row, column })), { force: false, command: 'swap-asset' }) : [];
+  if (!keep || pairs.length < columns.length) {
+    Object.assign(row, previous);
+    const refused = manifest.skipped.slice(keep ? before : before - 1);
     const manifestFile = await saveManifest(outDir, manifest);
-    const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: `variant-sheet ${args.command} refused ${key} on the card` }) : null;
-    const refused = manifest.skipped.filter((s) => s.kind === 'cell' && s.row === key);
-    process.stdout.write(`${JSON.stringify({ ok: true, command: args.command, added: false, refused, manifest: manifestFile, run_file: recorded ? recorded.file : null, rows: manifest.rows.length, cells: Object.keys(manifest.cells).length, skipped: manifest.skipped, rendered: { cards: 0, stickers: 0, pops: 0 } }, null, 2)}\n`);
+    const recorded = args.run ? await recordVariantsBlock(path.resolve(args.run), manifestFile, manifest, { reason: `variant-sheet swap-asset refused ${row.key}` }) : null;
+    process.stdout.write(`${JSON.stringify({ ok: true, command: 'swap-asset', row: row.key, swapped: false, refused, manifest: manifestFile, run_file: recorded ? recorded.file : null, rendered: { cards: 0, stickers: 0, pops: 0 } }, null, 2)}\n`);
     return null;
   }
-  await gateStickerRow(manifest, row, { force: Boolean(args.forceViability), command: args.command });
-  manifest.rows.push(row);
-  const created = appendCells(manifest, pairs);
-  const counts = await prepareViews(manifest, outDir, { rows: [row], cells: created });
-  return finish(args, outDir, manifest, { row: key, added: true, viability: row.viability, sticker_viability: row.sticker_viability ?? null, new_cells: created.map((c) => `${c.letter}=${c.row}/${c.secondary}`), letters: letterList(manifest), ...counts });
+  row.asset_history = [...(row.asset_history ?? []), { logo: previous.logo, sha256: previous.logo_sha256, sticker_logo: previous.sticker_logo, replaced_at: new Date().toISOString(), by: args.by ?? 'swap-asset', expected: args.expected ?? null }];
+  if (args.expected) row.expected_words = args.expected;
+  if (manifest.logo_knockout === previous.logo) manifest.logo_knockout = logo;
+  if (manifest.logo_color === previous.logo) manifest.logo_color = logo;
+  if (manifest.logo_words === previous.logo) manifest.logo_words = logo;
+  await gateStickerRow(manifest, row, { force: false, command: 'swap-asset' });
+  delete row.upload_sha256; delete row.sticker_upload_sha256;
+  await finalizeRowUploads(manifest, row, outDir);
+  for (const pair of pairs) {
+    const cell = cells.find((c) => c.column_index === pair.column.index);
+    if (cell) Object.assign(cell, { logo, ink_on_card: pair.ink_on_card, viability: pair.viability ?? cellViability(row), card: null, cache: null });
+  }
+  const counts = await prepareViews(manifest, outDir, { rows: [row], cells });
+  return finish(args, outDir, manifest, { row: row.key, swapped: true, previous_sha256: previous.logo_sha256, logo_sha256: row.logo_sha256, cells_refreshed: cells.map((c) => c.letter), upload_bytes: row.upload_bytes ?? null, letters: letterList(manifest), ...counts, reason: `variant-sheet swap-asset ${row.key}` });
 }
 
 async function addColumn(args) {
@@ -1456,20 +1960,50 @@ export function applyMark(manifest, letter, status, { note = null, by = null, at
   cell.marked_by = by;
   if (status === 'fable_pick') manifest.fable_default_letter = letter;
   else if (manifest.fable_default_letter === letter && status !== 'fable_pick' && status !== 'travisse_pick') manifest.fable_default_letter = null;
-  if (status === 'hold') manifest.hold = { letter, note, at };
-  else if (manifest.hold?.letter === letter) manifest.hold = null;
+  if (manifest.default_flag?.letter === letter && (status === 'rejected' || status === 'none')) manifest.default_flag = null;
   manifest.marks = [...(manifest.marks ?? []), { letter, status, note, by, at }];
   return { cell, superseded };
+}
+
+/**
+ * Pure: record a web/print split as the pick itself. Cell `letter` keeps its web card; its print roles
+ * become print cell A's palette (print_primary / print_secondary / print_text_secondary and the print digit), and
+ * its web text turns white when it equals its own band (the taste-pass resolveText rule: web text white, print
+ * gets the pick). Returns { cell, print_cell }.
+ */
+export function applyPrintCell(manifest, letter, printLetter) {
+  const cell = manifest.cells[letter];
+  const print = manifest.cells[printLetter];
+  if (!cell) throw new Error(`Cell "${letter}" is not on the sheet (${Object.keys(manifest.cells).join(', ')})`);
+  if (!print) throw new Error(`--print-cell "${printLetter}" is not on the sheet (${Object.keys(manifest.cells).join(', ')})`);
+  const printTextSecondary = print.badge_digit_print?.fix ?? print.print_text_secondary ?? print.text;
+  Object.assign(cell, {
+    print_cell: printLetter,
+    print_primary: print.print_primary ?? print.primary,
+    print_secondary: print.print_secondary ?? print.secondary,
+    print_text_secondary: printTextSecondary,
+    badge_digit_print: badgeDigit(print.print_secondary ?? print.secondary, printTextSecondary),
+  });
+  if (normalizeHex(cell.text) === normalizeHex(cell.secondary)) {
+    cell.web_text_was = cell.text;
+    cell.text = '#FFFFFF';
+    cell.badge_digit_web = badgeDigit(cell.secondary, cell.text);
+  }
+  cell.view = cellView(manifest, cell);
+  return { cell, print_cell: print };
 }
 
 async function mark(args) {
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
-  if (!args.cell || !args.status) throw new Error('mark needs --cell <letter> --status <fable_pick|travisse_pick|rejected|none>');
+  if (!args.cell || !args.status) throw new Error(`mark needs --cell <letter> --status <${STATUSES.join('|')}>`);
   const letter = args.cell.toUpperCase();
   const by = args.by ?? (args.status === 'travisse_pick' ? 'Travisse' : args.status === 'fable_pick' ? 'Fable' : 'variant-sheet');
+  const printLetter = args.printCell ? args.printCell.toUpperCase() : null;
+  if (printLetter && args.status !== 'travisse_pick') throw new Error('--print-cell goes with --status travisse_pick (a web/print split is a pick)');
   const { superseded } = applyMark(manifest, letter, args.status, { note: args.note ?? null, by });
+  const split = printLetter ? applyPrintCell(manifest, letter, printLetter) : null;
   // No render: the sheet html is rewritten from the views with the tag on the cell.
   const sheetFile = await composeSheet(manifest, outDir, { raster: Boolean(args.raster) });
   let manifestFile = await saveManifest(outDir, manifest);
@@ -1479,7 +2013,8 @@ async function mark(args) {
     const dir = path.resolve(args.run);
     recorded = await recordVariantsBlock(dir, manifestFile, manifest, { reason: `variant-sheet mark ${letter} ${args.status}` });
     if (args.status === 'travisse_pick') {
-      const select = runFile(['select', dir, letter, '--by', by, ...(args.note ? ['--reason', args.note] : [])]);
+      const cell = manifest.cells[letter];
+      const select = runFile(['select', dir, letter, '--by', by, ...(args.note ? ['--reason', args.note] : []), ...(printLetter ? ['--print-letter', printLetter] : [])]);
       if (select.status !== 0) throw new Error(`run-file select failed: ${(select.stderr || select.stdout).trim()}`);
       selection = JSON.parse(select.stdout);
       manifest.applied_letter = selection.applied_letter;
@@ -1492,6 +2027,8 @@ async function mark(args) {
     cell: letter,
     status: args.status,
     superseded,
+    print_cell: printLetter,
+    print: split ? { primary: split.cell.print_primary, secondary: split.cell.print_secondary, text_secondary: split.cell.print_text_secondary, web_text: split.cell.text } : null,
     sheet: sheetFile,
     manifest: manifestFile,
     run_file: recorded ? recorded.file : null,
@@ -1558,6 +2095,7 @@ async function main() {
     case 'mark': return mark(args);
     case 'restitch': return restitch(args);
     case 'render': return render(args);
+    case 'swap-asset': return swapAsset(args);
     default: throw new Error(`Unknown subcommand ${args.command}`);
   }
 }

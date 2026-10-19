@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { circleLayout, keyGround, parseArgs, run } from './sticker-panel.mjs';
+import { boxLayout, circleLayout, keyGround, parseArgs, run } from './sticker-panel.mjs';
 
 const require = createRequire(path.resolve(import.meta.dirname, '..', 'harness', 'package.json'));
 const sharp = require('sharp');
@@ -39,7 +39,7 @@ function inkStats(img: { data: Buffer; width: number; height: number }) {
 
 test('parseArgs: mode is required and validated; size floor is 1000', () => {
   assert.throws(() => parseArgs(['--logo', 'a.png', '--out', 'b.png']), /--mode/);
-  assert.throws(() => parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'blob']), /circle\|strip/);
+  assert.throws(() => parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'blob']), /circle\|strip\|box/);
   assert.throws(() => parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'circle', '--size', '800']), />= 1000/);
   const args = parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'circle', '--bg', '1a1a1a', '--pad', '0.1']);
   assert.equal(args.bg, '#1A1A1A');
@@ -126,6 +126,57 @@ test('strip mode: the ground is keyed to transparent with a soft edge, the ink k
     assert.equal(opaqueBlack, 0);
     // trimmed: the word block starts at the left edge of the file
     assert.ok(ink.minX <= 2, `trimmed to the ink (minX ${ink.minX})`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('parseArgs: box mode defaults pad to 0.28 of the ink height and radius to 0.2 of the box height; circle keeps 0.12', () => {
+  const box = parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'box', '--bg', '#1B2A4A']);
+  assert.equal(box.pad, 0.28);
+  assert.equal(box.radius, 0.2);
+  assert.equal(box.bg, '#1B2A4A');
+  assert.equal(parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'circle']).pad, 0.12);
+  assert.throws(() => parseArgs(['--logo', 'a.png', '--out', 'b.png', '--mode', 'box', '--radius', '0.7']), /--radius/);
+});
+
+test('boxLayout: pad is a share of the ink height on every side, radius a share of the box height', () => {
+  const layout = boxLayout({ width: 1200, height: 400 }, { pad: 0.28, radius: 0.2 });
+  assert.equal(layout.pad, 112);
+  assert.deepEqual([layout.width, layout.height], [1424, 624]);
+  assert.equal(layout.radius, Math.round(0.2 * 624));
+  assert.deepEqual([layout.left, layout.top], [112, 112]);
+});
+
+test('box mode: a transparent words cut lands centered in a rounded box of the card ground, nothing keyed, corners transparent', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sticker-panel-'));
+  try {
+    const logo = path.join(dir, 'words.png');
+    const out = path.join(dir, 'box.png');
+    // gold words on transparent, off-center in a larger transparent frame
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="500"><rect x="100" y="150" width="900" height="200" fill="#F2C927"/></svg>';
+    await sharp(Buffer.from(svg)).png().toFile(logo);
+    const summary = await run(parseArgs(['--logo', logo, '--out', out, '--mode', 'box', '--bg', '#000000']));
+    assert.equal(summary.mode, 'box');
+    assert.equal(summary.key, null, 'box mode keys nothing by default');
+    assert.deepEqual(summary.bbox, { left: 100, top: 150, width: 900, height: 200 });
+    // the mark is below 1000px on its longest side, so it is upscaled to 1000 first
+    assert.equal(summary.mark.width, 1000);
+    assert.ok(Math.abs(summary.mark.height - 222) <= 1);
+    const pad = Math.round(0.28 * summary.mark.height);
+    const img = await raw(out);
+    assert.equal(img.width, 1000 + 2 * pad);
+    assert.equal(img.height, summary.mark.height + 2 * pad);
+    for (const [x, y] of [[0, 0], [img.width - 1, 0], [0, img.height - 1], [img.width - 1, img.height - 1]]) assert.equal(img.px(x, y)[3], 0, `corner ${x},${y} is transparent (rounded)`);
+    assert.deepEqual(img.px(Math.round(img.width / 2), 2), [0, 0, 0, 255], 'the top edge mid-point is the opaque ground');
+    assert.deepEqual(img.px(2, Math.round(img.height / 2)), [0, 0, 0, 255], 'the left edge mid-point is the opaque ground');
+    const [r, g, b, a] = img.px(Math.round(img.width / 2), Math.round(img.height / 2));
+    assert.ok(a === 255 && Math.hypot(r - 242, g - 201, b - 39) < 8, `the gold mark sits in the middle (${[r, g, b, a]})`);
+    assert.deepEqual(img.px(pad - 3, Math.round(img.height / 2)), [0, 0, 0, 255], 'ground just left of the mark');
+    const meta = await sharp(out).metadata();
+    assert.equal(meta.channels, 4);
+    assert.equal(meta.paletteBitDepth, undefined, 'truecolor RGBA');
+    assert.deepEqual(summary.panel, { hex: '#000000', pad_share_of_mark_height: 0.28, radius_share_of_box_height: 0.2 });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

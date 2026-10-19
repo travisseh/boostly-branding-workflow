@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CUSTOM_LINK_PRESENTATION,
+  appListingMatchesBusiness,
   buildFulfillmentPlan,
   canonicalLinkUrl,
   parseFulfillmentPlan,
@@ -42,13 +44,13 @@ test("canonical link URLs remove content queries but preserve functional provide
   );
 });
 
-test("review-only URLs retain functional IDs without becoming writable", () => {
+test("review-only and unmatched-app URLs retain functional IDs without becoming writable", () => {
   const base = minimalPlan();
+  // apps with a store listing that does not name the business hold; loyalty and generic app pages are review-only
   const cases = [
     ["android_app", "https://play.google.com/store/apps/details?id=com.foxspizza.foxspizza"],
     ["ios_app", "https://apps.apple.com/app?id=123"],
     ["app_downloads", "https://example.com/app?location=42"],
-    ["gift_cards", "https://example.com/gift?merchant_id=42"],
     ["loyalty_rewards", "https://example.com/rewards?location=42"],
   ];
   const plan = buildFulfillmentPlan({
@@ -225,6 +227,7 @@ test("plan writes only deterministic high-confidence links and holds challenges,
       result("events", "found_verified", "https://example.com/events"),
       result("careers_jobs", "found_verified", "https://example.com/jobs"),
       result("gift_cards", "found_verified", "https://example.com/gift"),
+      result("loyalty_rewards", "found_verified", "https://example.com/rewards"),
     ],
     proposed_location_updates: [
       locationProposal("instagram", "branding.instagram_url", "https://instagram.com/pilonis", verified()),
@@ -236,6 +239,7 @@ test("plan writes only deterministic high-confidence links and holds challenges,
       touchpointProposal("events", "https://example.com/events", verified({ event_timing: { has_upcoming_event: false, upcoming_event_dates: [] } }), { custom_destination_specific: true }),
       touchpointProposal("careers_jobs", "https://example.com/jobs", verified()),
       touchpointProposal("gift_cards", "https://example.com/gift", verified()),
+      touchpointProposal("loyalty_rewards", "https://example.com/rewards", verified()),
     ],
     manual_review_items: [],
   };
@@ -259,10 +263,12 @@ test("plan writes only deterministic high-confidence links and holds challenges,
     branding: { status: "hold", confidence: "medium", flags: ["neutral_mark_composition"] },
   });
 
-  assert.deepEqual(plan.links.filter((link) => link.action === "write").map((link) => link.category), ["instagram", "careers_jobs"]);
+  assert.deepEqual(plan.links.filter((link) => link.action === "write").map((link) => link.category), ["instagram", "careers_jobs", "gift_cards"]);
   assert.equal(plan.links.find((link) => link.category === "ordering")?.reason, "challenge_or_timeout_requires_review");
   assert.equal(plan.links.find((link) => link.category === "events")?.reason, "events_missing_upcoming_structured_date");
-  assert.equal(plan.links.find((link) => link.category === "gift_cards")?.reason, "category_requires_human_review");
+  // gift cards are a standing write (Link write gate, 2026-10-19); loyalty stays review-only
+  assert.deepEqual(plan.links.find((link) => link.category === "gift_cards")?.presentation, CUSTOM_LINK_PRESENTATION.gift_cards);
+  assert.equal(plan.links.find((link) => link.category === "loyalty_rewards")?.reason, "category_requires_human_review");
   assert.deepEqual(plan.links.find((link) => link.category === "careers_jobs")?.presentation, {
     title: "Careers",
     display_title: "Join Our Team",
@@ -270,7 +276,7 @@ test("plan writes only deterministic high-confidence links and holds challenges,
     button_text: "Apply Now",
   });
   assert.equal(plan.writes.at(-1)?.kind, "linktree_defaults");
-  assert.deepEqual(plan.writes.map((write) => write.sequence), [1, 2, 3]);
+  assert.deepEqual(plan.writes.map((write) => write.sequence), [1, 2, 3, 4]);
   assert.equal(plan.writes.some((write) => String(write.kind) === "badges"), false);
   assert.deepEqual(plan.badges, {
     action: "none",
@@ -664,6 +670,67 @@ function minimalPlan() {
     discovery_report: { category_results: [], proposed_location_updates: [], proposed_touchpoint_events: [], manual_review_items: [] },
   });
 }
+
+test("first-party app store links write when the listing names the business, hold otherwise (standing default)", () => {
+  const base = minimalPlan();
+  const report = (iosTitle: string, androidEvidence: string[]) => ({
+    category_results: [
+      result("ios_app", "found_verified", "https://apps.apple.com/us/app/foxs-pizza-den/id123"),
+      result("android_app", "found_verified", "https://play.google.com/store/apps/details?id=com.foxspizza"),
+    ],
+    proposed_location_updates: [
+      locationProposal("ios_app", "branding.apple_app_url", "https://apps.apple.com/us/app/foxs-pizza-den/id123", verified({ source_type: "search", page_evidence: { title: iosTitle } })),
+      locationProposal("android_app", "branding.google_app_url", "https://play.google.com/store/apps/details?id=com.foxspizza", verified({ source_type: "search", location_match_evidence: androidEvidence })),
+    ],
+    proposed_touchpoint_events: [],
+    manual_review_items: [],
+  });
+  const matched = buildFulfillmentPlan({
+    request: base.request,
+    location: { ...base.location, location_name: "Fox's Pizza Den - Coraopolis", account_name: "Fox's Pizza Den" },
+    discovery_report: report("Fox's Pizza Den on the App Store", ["app_store_metadata_names_business"]),
+  });
+  assert.equal(matched.links.find((link) => link.category === "ios_app")?.action, "write");
+  assert.equal(matched.links.find((link) => link.category === "android_app")?.action, "write");
+  const branding = matched.writes.find((write) => write.kind === "branding");
+  assert.equal(branding?.payload?.apple_app_url, "https://apps.apple.com/us/app/foxs-pizza-den/id123");
+  assert.equal(branding?.payload?.google_app_url, "https://play.google.com/store/apps/details?id=com.foxspizza");
+  assert.deepEqual(validateFulfillmentPlan(matched), []);
+
+  const mismatched = buildFulfillmentPlan({
+    request: base.request,
+    location: { ...base.location, location_name: "Fox's Pizza Den - Coraopolis", account_name: "Fox's Pizza Den" },
+    discovery_report: report("Pizza Rewards Club on the App Store", ["official_website_links_to_candidate=true"]),
+  });
+  assert.equal(mismatched.links.find((link) => link.category === "ios_app")?.reason, "app_listing_name_mismatch");
+  assert.equal(mismatched.links.find((link) => link.category === "android_app")?.reason, "app_listing_name_mismatch");
+  assert.ok(!mismatched.writes.some((write) => write.kind === "branding"));
+
+  assert.equal(appListingMatchesBusiness({ page_evidence: { title: "Mick's Pub & Crabs - Apps on Google Play" } }, ["Mick's Pub & Crabs"]), true);
+  assert.equal(appListingMatchesBusiness({ page_evidence: { title: "Olo Ordering" } }, ["Mick's Pub & Crabs"]), false);
+});
+
+test("visible upcoming events on the page clear the events write gate (verify-core visible_text timing)", () => {
+  const base = minimalPlan();
+  const plan = buildFulfillmentPlan({
+    request: base.request,
+    location: base.location,
+    discovery_report: {
+      category_results: [result("events", "found_verified", "https://example.com/events")],
+      proposed_location_updates: [],
+      proposed_touchpoint_events: [touchpointProposal(
+        "events",
+        "https://example.com/events",
+        verified({ event_timing: { has_upcoming_event: true, upcoming_event_dates: ["2099-11-02"], source: "visible_text" } }),
+        { custom_destination_specific: true },
+      )],
+      manual_review_items: [],
+    },
+  });
+  assert.equal(plan.links.find((link) => link.category === "events")?.action, "write");
+  assert.ok(plan.writes.some((write) => write.kind === "touchpoint" && write.category === "events"));
+  assert.deepEqual(validateFulfillmentPlan(plan), []);
+});
 
 function result(category: string, categoryStatus: string, url: string) {
   return { category, category_status: categoryStatus, selected_link: { input_url: url } };

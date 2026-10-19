@@ -150,12 +150,18 @@ test("override is refused for a gate the registry marks override_allowed=false; 
 test("select records the human letter as data and appends a Fable-default override when it differs", () => {
   const dir = tmpRun();
   assert.throws(() => selectLetter(dir, "B", { by: "Travisse" }), /No variants block/);
-  setBlock(dir, "variants", { sheet_png: "variants/variant-sheet.png", sheet_json: "variants/variant-sheet.json", fable_default_letter: "A", applied_letter: null, cells: { A: { letter: "A" }, B: { letter: "B" } } });
+  setBlock(dir, "variants", { sheet_png: "variants/variant-sheet.png", sheet_json: "variants/variant-sheet.json", fable_default_letter: "A", applied_letter: null, cells: { A: { letter: "A", row: "knockout", column_index: 0 }, B: { letter: "B", row: "knockout", column_index: 1 } } });
   assert.throws(() => selectLetter(dir, "Z", { by: "Travisse" }), /not a cell/);
+  assert.throws(() => selectLetter(dir, "B", { by: "Travisse", printLetter: "Z" }), /not a cell/);
   const run = selectLetter(dir, "B", { by: "Travisse", reason: "black band reads better" });
   const variants = run.variants as Record<string, unknown>;
   assert.equal(variants.applied_letter, "B");
-  assert.deepEqual((variants.selection as Record<string, unknown>).decided_by, "Travisse");
+  // The pick is recorded by row key + column too, so an in-place asset swap keeps it resolvable.
+  const selection = variants.selection as Record<string, unknown>;
+  assert.equal(selection.decided_by, "Travisse");
+  assert.equal(selection.row_key, "knockout");
+  assert.equal(selection.column_index, 1);
+  assert.equal(selection.print_letter, null);
   const overrides = run.overrides as Array<Record<string, unknown>>;
   assert.equal(overrides.length, 1);
   assert.equal(overrides[0].gate, "fable_default_letter");
@@ -164,6 +170,12 @@ test("select records the human letter as data and appends a Fable-default overri
   // Choosing Fable's own letter appends nothing.
   const again = selectLetter(dir, "A", { by: "Travisse" });
   assert.equal((again.overrides as unknown[]).length, 1);
+  // A web/print split is a first-class pick: web = B, print = A, recorded in the same selection.
+  const split = selectLetter(dir, "B", { by: "Travisse", reason: "web B, print A", printLetter: "A" });
+  const splitSelection = (split.variants as Record<string, unknown>).selection as Record<string, unknown>;
+  assert.equal((split.variants as Record<string, unknown>).applied_letter, "B");
+  assert.equal(splitSelection.print_letter, "A");
+  assert.equal(splitSelection.row_key, "knockout");
 });
 
 test("decision block is the decision file verbatim plus its sha256; the six keys are never retyped", () => {

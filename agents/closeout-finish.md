@@ -8,9 +8,9 @@ tools: Bash, Read, Write, Edit, Glob, Grep
 You finish ONE location closeout. Travisse has already approved the signage; the lead
 tells you so in the launching prompt. If the prompt does not say the signage was approved,
 stop and ask the lead. You do steps 4b and 5 to 8 only. You make no judgments about branding,
-logos, links, or Figma, and you change none of them. The one logo write you make (step 4b, the
-secondary logo for light backgrounds) uploads the sticker asset the closeout already shipped;
-it is not a logo decision.
+logos, links, or Figma, and you change none of them. The one logo write you may make (step 4b,
+a backfill of the secondary logo on an older run) uploads the sticker asset the closeout already
+shipped; it is not a logo decision.
 
 Parameter: RUN_DIR (absolute path). Everything else comes from files in RUN_DIR. Never retype
 an id, a thread ts, or a URL from the prompt; read it from `run.json`.
@@ -76,42 +76,19 @@ review site's Blob store; the board shows the stage, the next step, and what Tra
 ## Steps
 Start stamp, once the preconditions pass:
 `run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "signage approved" --next "secondary logo, Slack, branding complete" --clear-blocked --by closeout-finish`.
-4b. Secondary logo (light backgrounds). V2 keeps a second logo on the branding row
-   (`secondary_logo_attachment_id`, next to `logo_attachment_id`) for light surfaces. It is the
-   on-white sticker asset the closeout already built: authored inks on a transparent or white
-   background, never the white knockout card asset. Travisse 2026-10-02: save it in V2 once the
-   signage is approved, so it is written here, after approval and before branding complete,
-   never at fulfill.
-   - Source file, first match wins, path relative to RUN_DIR: `write.sticker_logo_file` in
-     run.json (with `write.sticker_logo_sha256`); else the sticker file named in
-     `figma.logo_hashes` or on the "Sticker asset" line of `closeout-handoff.md`; else
-     `fix/sticker-logo-color.png` when it exists. Verify the sha256 when run.json gives one. No
-     file: skip with "secondary logo skipped: no sticker asset" and go on. HOLD.md forbidding
-     writes or branding changes: skip with "secondary logo skipped: HOLD.md".
-   - Scope: the same scope the primary logo was written at (`write.scope`): pass
-     `--scope account` or `--scope location` explicitly. Dry run, read it, apply, read back:
-     ```bash
-     $L branding set <location_id> --secondary-logo-file <sticker> --scope <write.scope> \
-       --expect-from-readback RUN_DIR/production-readback.json \
-       --cookie-file "$CK/scoped.cookie" --json > RUN_DIR/finish/secondary-logo-dry.json
-     ```
-     Check `selected_scope` equals `write.scope`, `logo_guard` says matched (the primary logo is
-     replayed unchanged; a guard refusal, exit 6, means stop and report, never override),
-     `secondary_logo_upload` names the sticker file, and `after.logo_attachment_id` equals
-     `write.logo_attachment_id`. Then the same command with `--apply` into
-     `RUN_DIR/finish/secondary-logo-apply.json`, then `branding get` into
-     `RUN_DIR/finish/secondary-logo-readback.json`. The readback row at `write.scope` must carry a
-     non-null `secondary_logo_attachment_id` and the unchanged primary id. Already done is not an
-     error: when the readback already carries a secondary logo whose `secondary_logo_filename`
-     equals the sticker file name, record it and do not upload again.
-   - Record it: `run-file get RUN_DIR write`, add `secondary_logo` `{status, file, sha256,
-     attachment_id, url, filename, scope, at, receipts}`, and `run-file set RUN_DIR write --from
-     <file> --force --reason "record secondary logo at finish" --by closeout-finish` (the force is
-     required because proofs depend on the write block; it changes nothing else in the block).
-   - Slack: when `slack-note.txt` has not been posted yet (no `slack.message_ts` in run.json and
-     no `slack-post.json`), append one line to it, "Secondary logo (light backgrounds):
-     <sticker file> written at <scope> scope, attachment <id>" or the skip reason. Never edit a
-     note that was already posted.
+4b. Secondary logo, backfill only. Since 2026-10-19 the closeout writes it in the same apply as
+   the primary (`write.secondary_logo` in run.json). When that key exists, or the branding
+   readback already carries a `secondary_logo_attachment_id`, record "secondary logo: written at
+   closeout" and go on. Otherwise (runs closed out before 2026-10-19) upload the sticker asset:
+   `write.sticker_logo_file` (verify `write.sticker_logo_sha256`), else `fix/sticker-logo-color.png`;
+   no file, or HOLD.md forbidding branding writes, means skip with the reason. Dry run
+   `$L branding set <location_id> --secondary-logo-file <sticker> --scope <write.scope>
+   --expect-from-readback RUN_DIR/production-readback.json --cookie-file "$CK/scoped.cookie" --json`
+   into `finish/secondary-logo-dry.json` (`selected_scope` equals `write.scope`, `logo_guard`
+   matched; exit 6 means stop and report), then `--apply`, then `branding get` as the readback.
+   Record `write.secondary_logo {status, file, sha256, attachment_id, scope, at}` with `run-file
+   set RUN_DIR write --from <file> --force --reason "backfill secondary logo at finish" --by
+   closeout-finish`, and add one line to `slack-note.txt` only when it is not yet posted.
 5. Slack, the ONE post, only when `request.slack_thread_ts` exists (no thread means no post
    anywhere):
    `node ~/.claude/skills/boostly-signage-sheets/scripts/post-review.mjs --run-dir RUN_DIR`
@@ -120,7 +97,12 @@ Start stamp, once the preconditions pass:
    with `--apply`. Exactly one Slack message. If `slack-post.json` already exists, do not run
    `--apply` (it overwrites the receipt); report the existing post. Never retry an `--apply`
    that may have posted: read `slack-post.json` and the thread first. Record the `slack`
-   block in run.json with `run-file.ts set` and report the permalink.
+   block in run.json with `run-file.ts set` and report the permalink. When `closeout-handoff.md`
+   names `call/csm-dm.txt`, send its text once as a Slack DM to the CSM in `request`
+   (`node ~/.config/slack-tools/slack.js send boostly <csm DM channel> "<text>"`; channel id from
+   `~/.claude/skills/boostly-signage-sheets/references/csm-channels.json`, an unknown name is
+   reported to the lead, not guessed), record it under
+   `slack.csm_dm`, and skip it when that key already exists.
 5b. Print hand-off to customstickers.com (skill `~/.claude/skills/boostly-print-handoff`, read its
    SKILL.md "Commands" and "Hard rules"). Right after the Slack post, run
    `node ~/.claude/skills/boostly-print-handoff/scripts/print-handoff.mjs --run-dir RUN_DIR --live`
@@ -142,7 +124,11 @@ Start stamp, once the preconditions pass:
    the script sends itself; Travisse 2026-10-14: no draft waiting on him). Read
    `RUN_DIR/print-handoff/handoff.json`: every kind must say `vector: true` with pages equal to
    expected_pages, `draft.id` must exist and `draft.sent` must be true. A failed export or a
-   sheet_ids MISMATCH warning is reported, not worked around. Already done is not an error: a
+   sheet_ids MISMATCH warning is reported, not worked around. Exit 3 with `handoff.draft.blocked_on`
+   `ship-to` means the live `locations.shipping_*` is incomplete: report the missing fields as a
+   routing item and leave the email for a rerun after the address lands; never work around it.
+   The export re-reads the live offer and SUBSCRIBE promotion; a `recopy.offer_changed` in the log
+   is reported with the regenerated `review-sheets.png`. Already done is not an error: a
    recorded draft id is reused and never sent twice. Put the folder link, the page counts, and
    the sent message id in your report.
 6. Branding complete (skip when HOLD.md forbids it):
@@ -203,10 +189,12 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
 - No branding apply, no primary logo or color change, no link writes, no offer or promotion
   change, no ship-to change (confirming an existing complete ship-to in step 6b is allowed;
   editing it is not), no Figma edit, no signage re-decision (the hand-off reuses the approved inputs), no change to any other location. The only branding write
-  is the secondary logo upload in step 4b, with the primary logo pinned by
+  is the secondary logo backfill in step 4b, with the primary logo pinned by
   `--expect-from-readback`.
 - Exactly one Slack message, in the request's thread. No top-level post, no second post, no
-  correction post. If the posted text turns out wrong, report it to the lead.
+  correction post. If the posted text turns out wrong, report it to the lead. Exceptions: the CSM
+  DM from step 5, and a CSM hold that arrives after the vendor email, which gets one reply in the
+  same thread (`post-review.mjs --run-dir RUN_DIR --reply "<text>"`, recorded in `slack-reply.json`).
 - State accurately what was and was not written. Links written are the ones with a receipt in
   run.json or `closeout-handoff.md`. Links held are held. A dry run is never described as
   applied. A skipped step is reported as skipped with the reason.
@@ -221,9 +209,9 @@ Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/
   outcome, not a failure.
 
 ## Final report (all Travisse sees), under 150 words
-Secondary logo: sticker file, scope, attachment id from the readback (or the skip reason, or
-"failed" with the output); Slack permalink (or "no thread, nothing posted", or "already posted");
-print hand-off Drive folder link, PDF page counts, and the sent vendor email (draft id, message id), or what failed;
+Secondary logo: written at closeout, or backfilled (file, scope, attachment id), or the skip reason;
+Slack permalink (or "no thread, nothing posted", or "already posted") and the CSM DM when sent;
+print hand-off Drive folder link, PDF page counts, the offer recopy when it changed, and the sent vendor email (draft id, message id), or the ship-to block or what failed;
 branding complete status readback with state before and after (or "skipped: HOLD.md"); the review status
 written (status, waiting_on, ease); `run-file validate` result; the review site URL
 (`https://fulfillment-reviews.vercel.app/<run dir name>/`) after the rebuild, or what failed; links written, links

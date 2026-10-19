@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { collectEvidence, decide, extractStructuredEventDates, parseFollowerCount, SOCIAL_BUSINESS_SIGNAL_THRESHOLDS } from "./verify-core.mjs";
+import { collectEvidence, decide, eventTimingDecision, extractStructuredEventDates, isLoginWallOrEmptyShell, parseFollowerCount, SOCIAL_BUSINESS_SIGNAL_THRESHOLDS, visibleTextEventDates } from "./verify-core.mjs";
 
 const link = {
   input_url: "https://example.com/event",
@@ -395,16 +395,31 @@ assert(namelessInstagram.location_match_evidence.includes("social_followers=32")
 assert(namelessInstagram.location_match_evidence.includes("social_reject_reason=identity_mismatch"));
 assert.match(namelessInstagram.rejection_reason, /no business signal/);
 
-// A login wall exposes nothing: still needs_manual_review (held), never auto-rejected.
-const loginWalledInstagram = decide(socialLink("https://www.instagram.com/example.restaurant/", "instagram"), chuysLocation, {
+// A login wall exposes nothing. Anchored from the official site it is verified_by_anchor (Link write
+// gate, 2026-10-19); without the anchor it is still held, never auto-rejected.
+const loginWallEvidence = {
   ok: true,
   http_status: 200,
   final_url: "https://www.instagram.com/accounts/login/",
   title: "Instagram",
-  text: "Log in",
+  text: "Log in Phone number, username, or email Password Log in Forgot password? Sign up",
   links: [],
-}, new Map());
-assert.equal(loginWalledInstagram.status, "needs_manual_review");
+};
+const loginWalledInstagram = decide(socialLink("https://www.instagram.com/example.restaurant/", "instagram"), chuysLocation, loginWallEvidence, new Map());
+assert.equal(loginWalledInstagram.status, "verified");
+assert.equal(loginWalledInstagram.status_basis, "verified_by_anchor");
+assert.equal(loginWalledInstagram.liveness, "live");
+assert.equal(loginWalledInstagram.relevance, "match");
+assert(loginWalledInstagram.location_match_evidence.includes("verified_by_anchor=true"));
+assert(loginWalledInstagram.location_match_evidence.includes("official_website_links_to_candidate=true"));
+const unanchoredLoginWall = decide({ ...socialLink("https://www.instagram.com/example.restaurant/", "instagram"), officialWebsiteLinksCandidate: false }, chuysLocation, loginWallEvidence, new Map());
+assert.equal(unanchoredLoginWall.status, "needs_manual_review");
+assert.equal(unanchoredLoginWall.status_basis, "evidence");
+// A readable profile stands on its own evidence: the anchor never overrides what the page says.
+assert.equal(isLoginWallOrEmptyShell(loginWallEvidence), true);
+assert.equal(isLoginWallOrEmptyShell({ ok: true, http_status: 200, title: "Log in to Facebook", text: "Log in to Facebook Email or phone number Password Forgot account? Create new account", meta: { "og:title": "Log in or sign up to view" } }), true);
+assert.equal(isLoginWallOrEmptyShell({ ok: true, http_status: 200, final_url: "https://www.instagram.com/accounts/login/?next=%2Fmickscrabhouse%2F", title: "Mick's Crab House (@mickscrabhouse) - Instagram photos and videos", meta: { "og:url": "https://www.instagram.com/mickscrabhouse/", description: "Mick's Crab House serves exceptional seafood." } }), false);
+assert.equal(isLoginWallOrEmptyShell({ ok: false, error: "fetch failed" }), false);
 
 // A small real business page with an address match is never rejected by the follower floor.
 const smallBusinessFacebook = decide(socialLink("https://www.facebook.com/chuyshenderson", "facebook"), chuysLocation, {
@@ -447,3 +462,22 @@ assert.equal(parseFollowerCount("no counts here"), null);
 assert.equal(SOCIAL_BUSINESS_SIGNAL_THRESHOLDS.min_followers, 100);
 
 console.log("verify-core: ok");
+
+// ---- visible upcoming events in readable text (Link write gate, 2026-10-19) ----
+const eventsNow = new Date("2026-10-19T12:00:00Z");
+const visible = visibleTextEventDates({
+  title: "Events | Example Restaurant",
+  text: "Trivia Night Thursday, October 22 at 7pm. Halloween Bash Oct. 31st. Our Sept 5 party was a blast. New Year's Eve 12/31/2026. Open Mon-Fri 11/2 price special.",
+}, eventsNow);
+assert.deepEqual(visible.map((item) => item.raw), ["2026-10-22", "2026-10-31", "2026-12-31"], "past and numeric-without-year dates are ignored");
+const visibleTiming = eventTimingDecision({ event_dates: [], text: "Live music Saturday, November 14" }, eventsNow);
+assert.equal(visibleTiming.has_upcoming_event, true);
+assert.equal(visibleTiming.source, "visible_text");
+assert.deepEqual(visibleTiming.upcoming_event_dates, ["2026-11-14"]);
+assert(visibleTiming.evidence.includes("upcoming_event_source=visible_text"));
+const structuredTiming = eventTimingDecision({ event_dates: ["2026-11-20"], text: "Live music Saturday, November 14" }, eventsNow);
+assert.equal(structuredTiming.source, "structured", "a future structured date wins over readable text");
+assert.deepEqual(structuredTiming.upcoming_event_dates, ["2026-11-20"]);
+const pastOnly = eventTimingDecision({ event_dates: ["2026-09-01"], text: "Thanks for coming on September 1!" }, eventsNow);
+assert.equal(pastOnly.has_upcoming_event, false);
+assert.equal(pastOnly.source, null);

@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 // Create the Gmail draft to customstickers.com from the boostly account and SEND it (Travisse 2026-10-14:
 // "on the closeout now just send the email rather than creating a draft that waits on me").
-// Usage: node draft-email.mjs --run-dir <dir> [--redraft] [--print-only] [--no-send]
+// Usage: node draft-email.mjs --run-dir <dir> [--redraft] [--print-only] [--no-send] [--offline]
 // --no-send leaves the draft unsent (the pre-2026-10-14 behaviour). A recorded draft that is not yet sent is sent on rerun.
+// SHIP-TO GATE: no vendor email until locations.shipping_* is complete (Pig & Parrot 2026-10-15 went out with an empty
+// ship-to). An incomplete ship-to exits 3 with handoff.draft = { blocked_on: 'ship-to', missing: [...] } and no draft; the
+// next --live run (after the address lands) drafts and sends. --offline skips the live field read (missing from handoff facts).
+// Zero quantities are stated plainly ("No table stickers in this order") instead of a bare 0.
 // After a successful send the summary sheet's "Order placed (email sent)" column (N) gets the send date (vendor request,
 // Gracie 2026-10-14); a sent draft whose stamp is missing (stamp failed, or sent before the column existed) is stamped on rerun.
 import fs from "node:fs";
@@ -10,8 +14,9 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, MASTER_REF, log } from "./lib/common.mjs";
-import { stampSummaryOrderDate, orderDate } from "./lib/drive.mjs";
+import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, MASTER_REF, log, liveShipTo, shipToMissing } from "./lib/common.mjs";
+// lib/drive.mjs loads Google auth at import; it is imported only when a send actually gets stamped, so the
+// ship-to gate and --print-only need no credentials.
 
 export const VENDOR_TO = "ckbrandsmktg@gmail.com";
 export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>"];
@@ -27,7 +32,27 @@ const f = h.facts;
 const q = f.quantities || {};
 const name = h.location_name || run.request?.location_name;
 
-const pdfLine = (kind) => { const s = h.sheets[kind]; return s ? `${s.pages} page${s.pages === 1 ? "" : "s"}` : "not included"; };
+if (!f.ship_to_complete) {
+  let missing;
+  if (args.offline) missing = f.shipping ? shipToMissing(f.shipping) : f.ship_to?.length ? ["unknown (facts recorded without field detail; rerun without --offline)"] : shipToMissing(null);
+  else { try { missing = shipToMissing(liveShipTo(run.request?.location_id)); } catch (e) { missing = [`unknown (live read failed: ${e.message})`]; } }
+  if (!missing.length) missing = ["unknown (handoff facts say incomplete; rerun drive-upload.mjs to refresh)"];
+  h.draft = { ...(h.draft?.id ? { previous_blocked: h.draft } : {}), blocked_on: "ship-to", missing, checked_at: new Date().toISOString(), sent: false };
+  writeHandoff(runDir, h);
+  log(JSON.stringify({ blocked_on: "ship-to", missing, location: name, hint: "no vendor email until locations.shipping_* is complete; rerun print-handoff.mjs --live after the address lands" }));
+  process.exit(3);
+}
+
+// Zero of a unit is said plainly, never as a bare "0" the vendor has to interpret.
+export function quantityLines(q) {
+  const n = (v) => (v === undefined || v === null ? "?" : Number(v));
+  return [
+    n(q.tables) === 0 ? `- No table stickers in this order` : `- Tables: ${n(q.tables)} (one promo sticker and one review sticker per table)`,
+    n(q.bathroom_stalls) === 0 ? `- No bathroom strips in this order` : `- Bathroom stalls: ${n(q.bathroom_stalls)} (one promo strip and one review strip per stall)`,
+    n(q.to_go_rolls) === 0 ? `- No to-go label rolls in this order` : `- To-go label rolls: ${n(q.to_go_rolls)}`,
+    `- POP sign sets: ${n(q.signage)}`,
+  ];
+}
 const subject = `Boostly print order: ${name}`;
 const body = [
   `Hi Gracie,`,
@@ -37,15 +62,12 @@ const body = [
   `Location folder: ${h.drive.folder_link}`,
   ``,
   `Quantities:`,
-  `- Tables: ${q.tables ?? "?"} (one promo sticker and one review sticker per table)`,
-  `- Bathroom stalls: ${q.bathroom_stalls ?? "?"} (one promo strip and one review strip per stall)`,
-  `- To-go label rolls: ${q.to_go_rolls ?? "?"}`,
-  `- POP sign sets: ${q.signage ?? "?"}`,
+  ...quantityLines(q),
   ``,
   `Offer on the signage: ${f.offer_text || "(none)"}`,
   ``,
   `Ship to:`,
-  ...(f.ship_to?.length ? f.ship_to : ["(ship-to not on file yet, I will send it separately)"]),
+  ...f.ship_to,
   ``,
   `Master folder with every Boostly order and the Boostly roll-binding logos: ${h.drive.master_link}`,
   `The "Print order summary" sheet in the master folder has this location's row with the same quantities and ship-to.`,
@@ -61,6 +83,7 @@ if (args["print-only"]) { log(body); process.exit(0); }
 // Stamp column N of the summary row with the send date. The send is already recorded in handoff.json,
 // so a failure here never loses it; it is recorded under draft.order_placed_error and the rerun retries.
 async function stampOrderDate() {
+  const { stampSummaryOrderDate, orderDate } = await import("./lib/drive.mjs");
   const sheetId = h.drive?.summary?.id || (fs.existsSync(MASTER_REF) ? JSON.parse(fs.readFileSync(MASTER_REF, "utf8")).summary_sheet_id : null);
   const key = h.drive?.folder_name;
   const date = orderDate(h.draft.sent_at);
@@ -88,6 +111,7 @@ async function sendRecordedDraft() {
   await stampOrderDate();
 }
 
+if (h.draft?.blocked_on && !h.draft.id) { log(`ship-to block cleared (${h.draft.missing?.join(", ")}); drafting now`); h.draft = h.draft.previous_blocked || undefined; }
 if (h.draft?.id && !args.redraft) {
   log("draft already recorded", h.draft.id, h.draft.body_sha256 === bodySha ? "(body unchanged)" : "(body differs; pass --redraft to make a new draft)");
   if (!h.draft.sent && !args["no-send"]) await sendRecordedDraft();

@@ -42,43 +42,57 @@ review site's Blob store; the board shows the stage, the next step, and what Tra
 
 Steps, in order:
 1. Pick: `variant-sheet.mjs mark --run-dir RUN_DIR --run RUN_DIR --cell LETTER --status
-   travisse_pick --note "<his reason>"` (it records the letter and the override of Fable's default
-   in run.json itself; never call `run-file select` by hand). Stamp:
+   travisse_pick --note "<his reason>"`, plus `--print-cell <A>` when he named a web/print split
+   ("web = N, print = A"; it records the letter, the print letter and the override of Fable's
+   default in run.json itself; never call `run-file select` or write a split override by hand).
+   Then `gates.ts check --asset <row sticker_logo> --color #FFFFFF --surface sticker`; when
+   upload-size is the only failing gate, record `run-file override --gate upload-size
+   --decided-by travisse --reason "pick LETTER also OKs the sticker size (<bytes>)"` (the pick
+   notice covered it; never ask). Stamp:
    `run-progress.mjs set --run RUN_DIR --stage closeout --last "letter LETTER marked" --next "gates and branding write" --clear-blocked --by closeout-location`. Record any lead-named gate override
    with `run-file override` and its evidence; a refused override means the asset changes, not
    the rule. Then render the previews for the chosen letter only: the signage preview spec
    (`node ~/.claude/skills/boostly-brand-design/scripts/signage-preview.mjs --run-dir RUN_DIR
-   --cell LETTER --offer "<sign copy>"`, writes `review/signage-preview-LETTER.json`, drawn by the
-   canvas and the public site from the vendored template; no dev server, no screenshot) and
-   the AI mockups (`node ~/.claude/skills/boostly-brand-design/harness/mockups/ai-mockup.mjs
-   --run-dir RUN_DIR --letter LETTER --scene box`, then `--scene scan --phone
-   review/link-tree-<short_id>.png` after capturing tp.boostly.com/<short_id> in the live Chrome
-   tab; SKILL.md rule 2d; QR modules drift and scan is unverified, so previews, not proofs), then
-   rebuild the canvas (`review-canvas.mjs --run RUN_DIR --skip-google`) so they land in its
-   Previews section instead of living as loose files.
-2. Gates: `gates.ts check --run RUN_DIR --asset <cell logo> --color <cell primary>` must be SHIP
-   or SHIP-WITH-OVERRIDE (edge-quality included; a `binary_alpha` or `stair_stepped` verdict
-   means re-render the asset, it has no override). Gate the sticker asset on white too:
-   `gates.ts check --asset <sticker_logo> --color #FFFFFF --surface sticker`.
+   --cell LETTER --offer "<sign copy>"`, writes `review/signage-preview-LETTER.json`; drawn by
+   the canvas and the site, no dev server, no screenshot) and the AI mockups (`node
+   ~/.claude/skills/boostly-brand-design/harness/mockups/ai-mockup.mjs --run-dir RUN_DIR --letter
+   LETTER --scene box`, then `--scene scan --phone review/link-tree-<short_id>.png` after
+   capturing tp.boostly.com/<short_id> in the live Chrome tab; SKILL.md rule 2d; previews, not
+   proofs), then rebuild the canvas (`review-canvas.mjs --run RUN_DIR --skip-google`) so they
+   land in its Previews section.
+2. Gates: when the decision carries `traced_from_small_source`, first record `run-file override
+   --gate edge-quality --decided-by travisse --reason "standing acceptance of small-source traces,
+   2026-10-19"`. Then `gates.ts check --run RUN_DIR --asset <cell logo> --color <cell primary>`
+   must be SHIP or SHIP-WITH-OVERRIDE (a `binary_alpha` or `stair_stepped` verdict means
+   re-render the asset, it has no override). The sticker asset was gated on white in step 1.
 3. Link writes: every run.json `links` candidate with `action: "ready"` is written at this step
    without another look (socials through `branding set` alongside the branding apply, the
    website bootstrap and custom events through the settings CLI, dry-run then apply, readback).
    Only `action: "hold"` candidates wait for Travisse; list them as held with their question.
-   Branding apply through `boostly-links branding set`: dry-run, `--apply`, readback, with the
-   cell's logo, primary, secondary, text, and print digit, `--expect-from-readback
-   RUN_DIR/production-readback.json`, account scope for a single non-General location. The
+   The sheet already finalized both uploads: `cell.upload_path` (card) and
+   `cell.sticker_upload_path` (sticker, boxed when `sticker_panel.hex` is set). When either is
+   null, run `finalize-asset.mjs --in <asset> --out RUN_DIR/fix/<card|sticker>-upload.png
+   --surface <card|sticker> --json` (exit 3 still writes the best under-cap copy). Branding apply
+   through `boostly-links branding set`: dry-run, `--apply`, readback, `--logo-file <cell
+   upload_path>` (the finalized copy the sheet label measured; `cell.logo` only when it is null),
+   the cell's primary, secondary, text and print digit, `--secondary-logo-file <cell sticker_upload_path>` in
+   the same apply (the dry run shows `secondary_logo_upload`); `write` records the logo sha256
+   plus `sticker_logo_file`, `sticker_logo_sha256`, `sticker_logo_bytes`; on a split pick the cell's `print_*` roles as
+   `--print-primary-color --print-secondary-color --print-text-color --print-text-secondary-color`,
+   `--expect-from-readback RUN_DIR/production-readback.json`, account scope for a single
+   non-General location. The
    cookie file path comes from the lead or `BOOSTLY_COOKIE_FILE`; pass `--cookie-file`. NEVER
    print, echo, cat, log, or paste the cookie or any token, anywhere. Receipts under
    `fix/live-LETTER/`. Stamp:
    `run-progress.mjs set --run RUN_DIR --stage closeout --last "branding written" --next "proofs and signage PDFs" --by closeout-location`.
    Render the effective proof and download one badge PDF and look at it.
-4. Signage (direct PDF render, THE DEFAULT since 2026-10-15; Travisse: "flip it" after the
-   Scoops, Pig & Parrot and Slice parity proofs). No Figma file, no MCP, no network:
-   `node ~/.claude/skills/boostly-signage-sheets/scripts/plan.mjs ...` as before (it gates the
-   sticker logo on white and refuses a HOLD, writes `signage/plan.json`, the QR SVG masters and
-   the alpha knockout), then decide the POP primary logo exactly as before (the color logo when
-   it holds >= 3.0:1 on the band, the knockout only for line/text marks, a card asset when the
-   lead names one; Palio's lesson), then
+4. Signage (direct PDF render, the default since 2026-10-15; no Figma file, no MCP, no network):
+   `node ~/.claude/skills/boostly-signage-sheets/scripts/plan.mjs --run-dir RUN_DIR ...` (the band
+   is the applied cell's `sticker_band`, `--band` only as an explicit override; it gates the
+   sticker logo on white, writes `signage/plan.json` with `logo_panel`, the QR SVG masters and
+   the alpha knockout), then the POP primary logo: the fullest full-color authored lockup at
+   native resolution when it holds >= 3.0:1 on the band, the knockout only for line/text marks,
+   a card asset when the lead names one (Palio's lesson), then
    `node ~/.claude/skills/boostly-print-handoff/scripts/export-direct.mjs --run-dir RUN_DIR --pop-primary-logo <png> [--tables N --stalls N] [--offer "<offer_text>"] [--date YYYY-MM-DD]`
    (tee to `signage/direct-pdf.log`; it runs `boostly-signage-sheets/scripts/direct-pdf` with the
    same flags and also writes `print-handoff/handoff.json` with the `sheets` and `direct.inputs`
@@ -90,8 +104,7 @@ Steps, in order:
    (kind, headline, sticker layout, POP title size), `trim` (pages and stickers removed to the
    live counts), `togo` sizes, `build.qr` (every holder placed), `build.logos`, and
    `copy_check.pop_title` equal to plan.json `copy.pop.title`. QR masters were decoded at plan
-   time (`signage/qr-decode.json`); the to-go labels are style "A framed QR" (text only, no
-   logo, Figtree Bold auto-fit in the 860x500 box, 3px-stroked r28 tile). Copy the preview to
+   time (`signage/qr-decode.json`); the to-go labels are style "A framed QR". Copy the preview to
    `signage/shots/review-sheets.png` and record the run.json `signage` block through
    `run-file.ts set RUN_DIR signage --from <file>`:
    `{"direct": {"status": "built", "out_dir": "print-handoff", "preview_png": "print-handoff/review-sheets.png", "pages": <n>, "kinds": {<kind>: <pages>}, "inputs": <build-log.json inputs>, "approved": null, "generated_at": <iso>}}`.
@@ -118,10 +131,11 @@ Steps, in order:
    Drive folder link (`drive.folder_link`, where Travisse reviews the PDFs), the page counts
    per kind, and the gate/branding/link results so far. Your job ends here. Steps 5 to 8 are NOT
    yours (2026-09-29): after Travisse approves the signage (the PDFs in the Drive folder), the lead launches a fresh
-   `closeout-finish` agent (Sonnet) with RUN_DIR, which works only from the run dir and
+   `closeout-finish` agent with RUN_DIR, which works only from the run dir and
    run.json. If Travisse asks for changes, the lead messages you: apply them (rerun
-   export-direct.mjs with the new inputs (`--force` is not needed for a direct render), then
-   drive-upload.mjs `--skip-summary` again so the Drive files are replaced in place), refresh the
+   `signage-preview.mjs --cell` when the pick changed, then export-direct.mjs with the new inputs
+   (`--force` is not needed for a direct render), then drive-upload.mjs `--skip-summary` again so
+   the Drive files are replaced in place, then `review-canvas.mjs --skip-google`), refresh the
    handoff files, and stop again. Never report the location as done.
    Before you stop, write the handoff the finish agent depends on, because it has none of
    your context:
@@ -137,11 +151,10 @@ Steps, in order:
      and whether `HOLD.md` exists and what it forbids.
    - run.json blocks `write`, `proofs`, `links`, and `signage` (or `figma` on the fallback) written through `run-file.ts`,
      and `run-file validate RUN_DIR` run once so the finish agent starts from a valid file.
-     The `write` block must carry `sticker_logo_file` (path relative to RUN_DIR, for example
-     `fix/sticker-logo-color.png`) and `sticker_logo_sha256` for the on-white sticker asset you
-     shipped on the sheets: the finish agent uploads that exact file as the V2 secondary logo
-     (light backgrounds) after Travisse approves the signage. Do not write the secondary logo
-     yourself.
+     The `write` block must carry `sticker_logo_file` (relative to RUN_DIR), `sticker_logo_sha256`
+     and `secondary_logo {status, file, sha256, attachment_id, scope}` from the same apply.
+   - When `call/csm-dm.txt` exists (quantities or offer conflict, identical sibling quantities),
+     name it in `closeout-handoff.md`; the finish agent sends it as a Slack DM to the CSM.
    Then update your own line in `<parent of RUN_DIR>/checklist/notes.json` (key: the run dir
    name; one true sentence, for example "Signage PDFs rendered, waiting for your review";
    edit only your key), write the interim site status
@@ -154,8 +167,8 @@ Steps, in order:
    every 5 minutes without a model), then rebuild and push the location's site page so it shows
    the Print files (Drive folder) link and the branding status (the push is part of publishing, no separate go):
    `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
-Steps 4b and 5 to 8 (the secondary logo write, the ONE Slack post, `fulfillment branding
---complete`, the final site status, the final `run-file validate`) belong to the `closeout-finish` agent
+Steps 5 to 8 (the ONE Slack post, `fulfillment branding --complete`, the final site status,
+the final `run-file validate`; 4b only backfills the secondary logo on pre-2026-10-19 runs) belong to the `closeout-finish` agent
 (`~/.claude/agents/closeout-finish.md`). Do not run them, even when the lead tells you the
 signage is approved: reply that the lead should launch `closeout-finish` with RUN_DIR.
 
@@ -192,10 +205,7 @@ Figma: the target file, the Munchie template section to clone-and-retarget, and 
    touch a section that is not yours. Retired files (`previous_files`) are read-only. `plan.mjs` (it gates the
    sticker logo on white and refuses a HOLD), `figma-recopy`, `figma-trim`, QR verification, shots
    under `signage/shots/`. Record the section node id and URL in the run.json `figma` block.
-   To-go labels (2026-10-05, style "A framed QR"): text only, no logo. The SUBSCRIBE
-   headline is the offer (plan.json copy.togoPromo, table promo title, no arrow), the REVIEW
-   headline is "Let us know how we did"; Figtree Bold auto-fit in the 860x500 box, QR in
-   the 3px-stroked r28 tile; layout in SHEET_FORMAT.togoLabel.
+   To-go labels are style "A framed QR" (signage-sheets SKILL.md; layout in SHEET_FORMAT.togoLabel).
 
    **Image transport (2026-09-29): logo and QR images go into Figma with
    `mcp__plugin_figma_figma__upload_assets`, never as typed base64.** For a logo PNG: call

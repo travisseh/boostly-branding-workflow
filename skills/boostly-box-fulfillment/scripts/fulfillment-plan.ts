@@ -10,10 +10,15 @@ export const CUSTOM_LINK_PRESENTATION = {
   catering: { title: "Catering", display_title: "Catering", description: "Food for your gathering", button_text: "View Options" },
   events: { title: "Events", display_title: "Events", description: "See what's happening", button_text: "View Events" },
   reservations: { title: "Reservations", display_title: "Reservations", description: "Save your table", button_text: "Reserve Now" },
+  gift_cards: { title: "Gift Cards", display_title: "Gift Cards", description: "Give the gift of a great meal", button_text: "Buy Gift Cards" },
 } as const;
 export const CAREERS_DISPLAY_TITLE = CUSTOM_LINK_PRESENTATION.careers_jobs.display_title;
 export const CAREERS_BUTTON_TEXT = CUSTOM_LINK_PRESENTATION.careers_jobs.button_text;
 
+// Link write gate (box-fulfillment SKILL "Link write gate", 2026-10-19): gift cards and first-party
+// app store links are standing writes, reported as written or skipped, never a question. Apps still
+// need the store listing to name the business (appListingMatchesBusiness); loyalty and generic
+// app-download pages stay review-only.
 const AUTO_WRITE_CATEGORIES = new Set([
   "ordering",
   "order",
@@ -22,6 +27,9 @@ const AUTO_WRITE_CATEGORIES = new Set([
   "reservations",
   "careers_jobs",
   "catering",
+  "gift_cards",
+  "ios_app",
+  "android_app",
   "instagram",
   "facebook",
   "tiktok",
@@ -29,12 +37,11 @@ const AUTO_WRITE_CATEGORIES = new Set([
   "x_twitter",
 ]);
 const REVIEW_ONLY_CATEGORIES = new Set([
-  "gift_cards",
   "loyalty_rewards",
-  "ios_app",
-  "android_app",
   "app_downloads",
 ]);
+const APP_STORE_CATEGORIES = new Set(["ios_app", "android_app"]);
+const SOCIAL_WRITE_FIELDS: Record<string, string> = { facebook: "facebook_url", instagram: "instagram_url", x_twitter: "x_url", tiktok: "tiktok_url", youtube: "youtube_url", ios_app: "apple_app_url", android_app: "google_app_url" };
 const QUERY_IDENTITY_CATEGORIES = new Set([
   "menu",
   "careers_jobs",
@@ -48,6 +55,8 @@ const QUERY_IDENTITY_CATEGORIES = new Set([
   "youtube",
   "x_twitter",
   "reservations",
+  "gift_cards",
+  ...APP_STORE_CATEGORIES,
   ...REVIEW_ONLY_CATEGORIES,
 ]);
 const VALID_WRITE_KINDS = new Set<WriteOperation["kind"]>([
@@ -230,7 +239,7 @@ export type PlanInput = {
 
 export function buildFulfillmentPlan(input: PlanInput): FulfillmentPlan {
   const links = applyModelExceptionHolds(
-    buildLinkDecisions(input.discovery_report),
+    buildLinkDecisions(input.discovery_report, { business_names: [input.location.location_name, input.location.account_name] }),
     input.model_exceptions ?? [],
   );
   for (const hold of input.safety_holds ?? []) {
@@ -289,7 +298,8 @@ export function parseFulfillmentPlan(value: unknown): FulfillmentPlan {
   return plan;
 }
 
-export function buildLinkDecisions(discoveryReport: JsonObject): LinkDecision[] {
+export function buildLinkDecisions(discoveryReport: JsonObject, options: { business_names?: string[] } = {}): LinkDecision[] {
+  const businessNames = (options.business_names ?? []).filter((name): name is string => typeof name === "string" && name.trim().length > 0);
   const results = asArray(discoveryReport.category_results);
   const proposals = [
     ...asArray(discoveryReport.proposed_location_updates),
@@ -344,7 +354,7 @@ export function buildLinkDecisions(discoveryReport: JsonObject): LinkDecision[] 
       stringValue(proposal.proposed_value) ?? stringValue(proposal.url) ?? url,
       category,
     );
-    const gateFailure = deterministicGateFailure(category, verification, writeGate);
+    const gateFailure = deterministicGateFailure(category, verification, writeGate, businessNames);
     if (gateFailure) {
       decisions.push({
         category,
@@ -436,8 +446,7 @@ export function validateFulfillmentPlan(plan: FulfillmentPlan): string[] {
       errors.push(`non_branding_account_scope_${write.sequence}`);
     }
     if (write.kind === "social") {
-      const socialFields: Record<string, string> = { facebook: "facebook_url", instagram: "instagram_url", x_twitter: "x_url", tiktok: "tiktok_url", youtube: "youtube_url" };
-      const field = socialFields[write.category ?? ""];
+      const field = SOCIAL_WRITE_FIELDS[write.category ?? ""];
       if (!field || Object.keys(write.payload ?? {}).length !== 1 || write.payload?.[field] !== write.url || !write.url?.startsWith("https://") || write.scope !== plan.location.branding_scope || !plan.links.some(link => link.action === "write" && link.category === write.category && link.url === write.url)) {
         errors.push(`invalid_social_write_${write.sequence}`);
       }
@@ -539,6 +548,8 @@ function presentationForCategory(category: string): LinkDecision["presentation"]
     reservation: "reservations",
     reservations: "reservations",
     reserve: "reservations",
+    giftcard: "gift_cards",
+    giftcards: "gift_cards",
   };
   const key = aliases[normalized];
   return key ? { ...CUSTOM_LINK_PRESENTATION[key] } : null;
@@ -695,9 +706,11 @@ function deterministicGateFailure(
   category: string,
   verification: JsonObject,
   writeGate: JsonObject,
+  businessNames: string[] = [],
 ): string | null {
   if (REVIEW_ONLY_CATEGORIES.has(category)) return "category_requires_human_review";
   if (!AUTO_WRITE_CATEGORIES.has(category)) return "category_not_auto_writable";
+  if (APP_STORE_CATEGORIES.has(category) && !appListingMatchesBusiness(verification, businessNames)) return "app_listing_name_mismatch";
   if (stringValue(verification.status) !== "verified") return "verification_status_not_verified";
   if (stringValue(verification.liveness) !== "live") return "destination_not_live";
   if (stringValue(verification.relevance) !== "match") return "location_relevance_not_matched";
@@ -717,6 +730,8 @@ function deterministicGateFailure(
     return "hard_negative_destination_evidence";
   }
   if (category === "events") {
+    // Upcoming evidence is a future structured startDate/time[datetime], a validated Luna review, or
+    // (verify-core eventTimingDecision, source "visible_text") a future date readable on the page.
     const eventTiming = asObject(verification.event_timing);
     if (eventTiming.has_upcoming_event !== true || !asArray(eventTiming.upcoming_event_dates).length) {
       return "events_missing_upcoming_structured_date";
@@ -725,13 +740,32 @@ function deterministicGateFailure(
       return "events_invalid_luna_review";
     }
   }
-  if (["menu", "events", "careers_jobs", "catering", "reservations"].includes(category) && stringValue(verification.source_type) !== "website") {
+  if (["menu", "events", "careers_jobs", "catering", "reservations", "gift_cards"].includes(category) && stringValue(verification.source_type) !== "website") {
     return "first_party_evidence_required";
   }
   if (["events", "catering", "reservations"].includes(category) && writeGate.custom_destination_specific !== true) {
     return "destination_not_category_specific";
   }
   return null;
+}
+
+/** A store listing is first-party when its title (or the verifier's app_store_metadata_names_business line) names the business. */
+export function appListingMatchesBusiness(verification: JsonObject, businessNames: string[]): boolean {
+  if (stringArray(verification.location_match_evidence).includes("app_store_metadata_names_business")) return true;
+  const page = asObject(verification.page_evidence);
+  const title = normalizeName(stringValue(page.title) ?? stringValue(asObject(page.meta)["og:title"]) ?? "");
+  if (!title) return false;
+  return businessNames.some((name) => {
+    const normalized = normalizeName(name);
+    if (!normalized) return false;
+    if (title.includes(normalized)) return true;
+    const tokens = normalized.split(" ").filter((token) => token.length >= 3 && !NAME_STOPWORDS.has(token));
+    return tokens.length > 0 && tokens.every((token) => title.includes(token));
+  });
+}
+const NAME_STOPWORDS = new Set(["the", "and", "restaurant", "restaurants", "cafe", "bar", "grill", "kitchen", "pizza", "pizzeria", "app", "inc", "llc"]);
+function normalizeName(value: string): string {
+  return value.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function badgeDecision(request: FulfillmentPlan["request"]): FulfillmentPlan["badges"] {

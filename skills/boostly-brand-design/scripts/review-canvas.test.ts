@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { approvedWebsiteSwap, buildLinkRows, candidateSource, collectPreviews, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
+import { approvedWebsiteSwap, buildLinkRows, candidateSource, collectPreviews, compareDefaultLetters, defaultFlag, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
 
 test('parsePreviewName reads scene and letter and tolerates suffixes', () => {
   assert.deepEqual(parsePreviewName('signage-preview-K.png'), { kind: 'signage', scene: 'signage preview', letter: 'K', suffix: null, name: 'signage-preview-K' });
@@ -266,4 +266,33 @@ test('buildLinkRows: execution skipped_existing is a decided no-write, never hel
   assert.equal(by.gift_cards, 'rejected');
   assert.equal(by.facebook, 'written');
   assert.equal(by.tiktok, 'held');
+});
+
+test('compareDefaultLetters: the default first, then the strongest passing cell of every other row (dark-step and site-token columns included), ties to the column nearest the default, rejected cells never', () => {
+  const cell = (letter, row, column_index, contrast, extra = {}) => ({ letter, row, column_index, badge_digit_web: { contrast_with_text: contrast, pass: contrast >= 3 }, ...extra });
+  const sheet = {
+    fable_default_letter: 'B',
+    rows: [{ key: 'knockout' }, { key: 'full_color' }, { key: 'dark_ground', primary_source: 'dark_ground' }, { key: 'empty_row' }, { key: 'all_fail' }],
+    columns: [{ index: 0, source: 'fable_chosen' }, { index: 1, source: 'depth_darker_10' }, { index: 2, source: 'site_token' }],
+    cells: {
+      A: cell('A', 'knockout', 0, 4.1), B: cell('B', 'knockout', 1, 5.2), C: cell('C', 'knockout', 2, 6.0),
+      D: cell('D', 'full_color', 0, 4.1), E: cell('E', 'full_color', 1, 2.5), F: cell('F', 'full_color', 2, 7.3), // site-token column wins
+      G: cell('G', 'dark_ground', 0, 5.0), H: cell('H', 'dark_ground', 2, 5.0), // tie: column 0 is nearer the default's column 1
+      I: cell('I', 'all_fail', 0, 2.1), J: cell('J', 'all_fail', 1, 2.8), // nothing passes: the best failing one
+      K: cell('K', 'full_color', 1, 9.9, { status: 'rejected' }),
+    },
+  };
+  assert.deepEqual(compareDefaultLetters(sheet, 'B'), ['B', 'F', 'G', 'J']);
+  assert.deepEqual(compareDefaultLetters(sheet, null), []);
+  assert.deepEqual(compareDefaultLetters(sheet, 'Z'), []);
+});
+
+test('defaultFlag: a small-source trace is a flag on the default (sheet.default_flag, else the decision marks), never without a default; an old hold manifest has no default and no flag', () => {
+  const marks = { traced_from_small_source: true, source_native_longest_px: 499 };
+  assert.deepEqual(defaultFlag({ decision_marks: marks }, {}, 'A'), { letter: 'A', flag: 'traced_from_small_source', native_px: 499, words: 'traced from 499px' });
+  assert.deepEqual(defaultFlag({}, { decision: { marks } }, 'A')?.words, 'traced from 499px');
+  assert.equal(defaultFlag({ default_flag: { letter: 'A', flag: 'traced_from_small_source', native_px: 300 } }, {}, 'A')?.native_px, 300);
+  assert.equal(defaultFlag({ default_flag: { letter: 'B', flag: 'traced_from_small_source', native_px: 300 }, decision_marks: { traced_from_small_source: false } }, {}, 'A'), null);
+  assert.equal(defaultFlag({ decision_marks: { traced_from_small_source: false } }, {}, 'A'), null);
+  assert.equal(defaultFlag({ hold: { letter: 'A', native_px: 499 }, decision_marks: marks }, {}, null), null, 'old manifest: hold, no default');
 });

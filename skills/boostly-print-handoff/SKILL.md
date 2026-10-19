@@ -183,10 +183,14 @@ incorrect postal values require comparison with the source address and a separat
 
 ## Hard rules
 
-- The vendor email is sent by draft-email.mjs itself (Gmail draft, then `drafts send`) since 2026-10-14.
-  Before that, drafts waited for Travisse; `--no-send` restores that only when he asks for it. A recorded
-  draft that is still unsent is sent on the next run; a sent one is never sent twice (`draft.sent`).
-- Vector PDFs only, from the REST export. No PNG round trips.
+- The vendor email is sent by draft-email.mjs itself (Gmail draft, then `drafts send`) since 2026-10-14;
+  `--no-send` only when Travisse asks for a draft. A recorded unsent draft is sent on the next
+  run; a sent one is never sent twice (`draft.sent`).
+- No vendor email until `locations.shipping_*` is complete: draft-email.mjs exits 3 with
+  `handoff.draft = {blocked_on: 'ship-to', missing: [...]}` and no draft, and the finish agent
+  reports the missing fields as a routing item. A zero-table order is stated plainly ("No table
+  stickers in this order") and absent sheet kinds are tolerated.
+- Vector PDFs only (direct renderer or the REST export). No PNG round trips.
 - Never delete anything in Drive. Strays are reported.
 - No production writes: the skill reads V2 and writes only Drive, Gmail (one draft, sent), and the run dir.
 - Never print a token or cookie. Never commit.

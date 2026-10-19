@@ -144,9 +144,10 @@ export const COUNT_FAMILIES = [
 // family's existing "- Page N" convention, and the last sheet is cut back to the exact count.
 // Sheets short of the grid before the last page (the template's 2-sticker page 3) are refilled
 // from the family's full-sheet prototype at the grid slot that is empty.
-export function trim(sec, tables, stalls, { allowZero = false } = {}) {
+export function trim(sec, tables, stalls) {
   if (!Number.isInteger(tables) || !Number.isInteger(stalls) || tables < 0 || stalls < 0) throw new Error('tables and stalls must be non-negative integers');
-  if (tables === 0 && !allowZero) throw new Error('tables=0 would delete every table and review sheet; pass allowZero to confirm');
+  // Zero tables (or stalls) is a normal order (POP-only ad hoc runs, Craft by Smoke and Fire
+  // 2026-10-16): the whole family is removed and reported in `absent`.
   const counts = { tables, stalls };
   const removedSheets = [], removedStickers = [], addedSheets = [], addedStickers = [], errors = [], remaining = {};
   const stallPages = Math.ceil(stalls / PER_SHEET);
@@ -202,7 +203,9 @@ export function trim(sec, tables, stalls, { allowZero = false } = {}) {
   // the section's own box grows with the tallest column (metadata only; the renderer draws sheets)
   const bottom = Math.max(...sheetsOf(sec).map((s) => s.y + s.h));
   if (Number.isFinite(bottom)) sec.h = Math.max(sec.h, Math.ceil(bottom + PAGE_Y0));
-  return { removedSheets, removedStickers, addedSheets, addedStickers, remaining };
+  const absent = COUNT_FAMILIES.filter((f) => counts[f.count] === 0).map((f) => f.key);
+  const note = tables === 0 ? 'no table stickers in this order' : null;
+  return { removedSheets, removedStickers, addedSheets, addedStickers, remaining, absent, note };
 }
 
 export function recopy(sec, offerText, mode = 'auto') {
@@ -356,8 +359,69 @@ export function placeLogos(sec, { sticker, popPrimary, header }) {
   return placed;
 }
 
+// PNG pixel size from the IHDR chunk (no image library needed); null for anything else.
+export function pngSize(file) {
+  try {
+    const fd = fs.openSync(file, 'r');
+    const b = Buffer.alloc(24);
+    fs.readSync(fd, b, 0, 24, 0);
+    fs.closeSync(fd);
+    if (b.readUInt32BE(0) !== 0x89504e47) return null;
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+  } catch { return null; }
+}
+
+export const PANEL_PAD = 0.28; // of the mark height, every side
+export const PANEL_RADIUS = 0.2; // of the box height
+export const PANEL_STEPS = 48; // gradient stripes (the renderer has no shading primitive)
+
+// Authored panel or gradient behind the mark on LIGHT surfaces (table stickers, light POP):
+// the asset stays transparent; a rounded box filled with the panel colour sits under the logo
+// holder, padded 28% of the mark height on every side, radius 20% of the box height. The logo
+// rectangle shrinks to the fitted mark so the box hugs the mark, centred in the template holder.
+// panel: { hex } | { gradient: [top, bottom] } | null. Dark grounds (POP primary) and the
+// unprinted section header are left alone.
+export function placeLogoPanels(sec, panel, logos = {}) {
+  if (!panel) return { placed: 0 };
+  const top = panel.gradient ? hex(panel.gradient[0]) : hex(panel.hex);
+  const bottom = panel.gradient ? hex(panel.gradient[1]) : null;
+  const src = logos.sticker ? pngSize(logos.sticker) : null;
+  let placed = 0;
+  for (const r of findAll(sec, (n) => n.t === 'RECTANGLE' && n.n === 'logo' && (n.f || []).some((f) => f.img !== undefined || f.imgFile))) {
+    const owner = findAll(sec, (n) => (n.k || []).includes(r))[0];
+    if (owner === sec) continue;
+    const unit = owner.unitName || owner.n;
+    if (unit === 'pop-sign-primary') continue;
+    const ar = src && src.w && src.h ? src.w / src.h : r.w / r.h;
+    // fitted mark height: height-bound h/(1+2p), width-bound w/(ar+2p); the smaller wins
+    const dh = Math.min(r.h / (1 + 2 * PANEL_PAD), r.w / (ar + 2 * PANEL_PAD));
+    const dw = dh * ar;
+    const pad = PANEL_PAD * dh;
+    const bw = dw + 2 * pad, bh = dh + 2 * pad;
+    const bx = r.x + (r.w - bw) / 2, by = r.y + (r.h - bh) / 2;
+    const box = { t: 'RECTANGLE', n: 'logo-panel', x: bx, y: by, w: bw, h: bh, cr: PANEL_RADIUS * bh, f: [{ c: top }] };
+    if (bottom) {
+      // vertical gradient as clipped stripes: a FRAME with clip + rounded corners, no fill
+      box.t = 'FRAME'; box.f = []; box.clip = true; box.k = [];
+      const c1 = rgb(top), c2 = rgb(bottom);
+      const stepH = bh / PANEL_STEPS;
+      for (let i = 0; i < PANEL_STEPS; i += 1) {
+        const t = PANEL_STEPS === 1 ? 0 : i / (PANEL_STEPS - 1);
+        const c = '#' + [0, 1, 2].map((k) => Math.round(c1[k] + (c2[k] - c1[k]) * t).toString(16).padStart(2, '0')).join('');
+        box.k.push({ t: 'RECTANGLE', n: `stripe-${i}`, x: 0, y: i * stepH, w: bw, h: stepH + (i < PANEL_STEPS - 1 ? 0.5 : 0), f: [{ c }] });
+      }
+    }
+    Object.assign(r, { x: bx + pad, y: by + pad, w: dw, h: dh });
+    owner.k.splice(owner.k.indexOf(r), 0, box);
+    placed += 1;
+  }
+  return { placed, panel: bottom ? { gradient: [top, bottom] } : { hex: top }, surfaces: ['table-sticker-promo', 'table-sticker-review', 'pop-sign-light'] };
+}
+
+function rgb(h) { return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); }
+
 // The whole retarget. opts: { name, status, date, band, offer, mode, tables, stalls, qrFiles,
-// logos: { sticker, popPrimary, header }, togo: { togoPromo, togoReview }, allowZero }
+// logos: { sticker, popPrimary, header }, togo: { togoPromo, togoReview }, logoPanel }
 export function buildSection(opts, spec = loadTemplateSpec()) {
   const sec = expandRefs(spec);
   const band = hex(opts.band);
@@ -370,7 +434,7 @@ export function buildSection(opts, spec = loadTemplateSpec()) {
   log.recolored = recolor(sec, TEMPLATE_BAND, band).n;
   const copy = offerCopy(opts.offer, opts.mode || 'auto');
   log.togo = rebuildTogo(sec, { togoPromo: opts.togo?.togoPromo ?? copy.togoPromo, togoReview: opts.togo?.togoReview ?? 'Let us know how we did' });
-  log.trim = trim(sec, opts.tables, opts.stalls, { allowZero: !!opts.allowZero });
+  log.trim = trim(sec, opts.tables, opts.stalls);
   log.recopy = recopy(sec, opts.offer, opts.mode || 'auto').summary;
   log.strokeGateFixed = strokeGate(sec);
   // re-measure every remaining text box the passes above did not touch (template heights are
@@ -378,6 +442,7 @@ export function buildSection(opts, spec = loadTemplateSpec()) {
   for (const t of findAll(sec, (n) => n.t === 'TEXT')) measureText(t);
   log.qr = placeQrs(sec, opts.qrFiles);
   log.logos = placeLogos(sec, opts.logos);
+  log.logoPanel = placeLogoPanels(sec, opts.logoPanel || null, opts.logos);
   return { section: sec, log };
 }
 

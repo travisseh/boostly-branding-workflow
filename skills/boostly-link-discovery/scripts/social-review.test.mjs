@@ -90,3 +90,33 @@ test("a website-linked social the verifier rejected (no business signal) is foun
   assert.equal(instagram.proposed_action, "noop");
   assert.equal(JSON.stringify(buildProposals(results, [])).includes("instagram.com/Chuys"), false);
 });
+
+test("an official-site-anchored social verified by anchor (login wall) is found_verified and proposed (Link write gate, 2026-10-19)", () => {
+  const anchored = {
+    category: "instagram",
+    input_url: "https://www.instagram.com/thatsawrapeats/",
+    final_url: "https://www.instagram.com/accounts/login/",
+    source_type: "website",
+    source_url: "https://thatsawrapeats.com/",
+    status: "verified",
+    status_basis: "verified_by_anchor",
+    liveness: "live",
+    relevance: "match",
+    validity_evidence: ["final_url=https://www.instagram.com/accounts/login/", "http_status=200", "title=Instagram", "liveness_by_anchor=true"],
+    location_match_evidence: ["official_website_links_to_candidate=true", "social_login_wall=true", "verified_by_anchor=true"],
+  };
+  const results = resolveCategories({
+    location: { website_url: "https://thatsawrapeats.com" },
+    existingByCategory: new Map(),
+    candidatesByCategory: new Map([["instagram", [anchored]]]),
+    hiddenExisting: false,
+    touchpoint_events: [],
+  });
+  const instagram = results.find(row => row.category === "instagram");
+  assert.equal(instagram.category_status, "found_verified");
+  assert.equal(instagram.proposed_action, "create");
+  const proposals = buildProposals(results, []);
+  const proposal = proposals.locationUpdates.find(item => item.field_name === "branding.instagram_url");
+  assert.equal(proposal.proposed_value, "https://www.instagram.com/thatsawrapeats/");
+  assert.equal(proposal.verification.status_basis, "verified_by_anchor");
+});

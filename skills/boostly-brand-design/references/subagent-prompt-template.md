@@ -1,4 +1,4 @@
-# Fable judgment prompt — production proposal
+# Fable judgment prompt: production proposal
 
 Launch one fresh Fable context per location at medium reasoning effort (an interactive subagent
 from the session, never an API call: Travisse steers it and overrides it by hand). The
@@ -87,22 +87,28 @@ explicit theme value, visible authored site region, logo, or collateral.
 near-white (the validator rejects anything under 1.3:1 against white; That's a Wrap C white card
 was rejected for K black). Only white and near-white are banned: a brand's own authored cream or
 tan is a valid card when text reads black on it (Chubby's tan). A neutral-ink mark takes a black
-card with a white knockout. The band (`web_secondary_color`) is an ink of the chosen mark (a
-saturated non-text ink with at least 3% share that reads on the primary) before any site theme
-accent or neutral; for a gradient ink use the family center from `gradient_families`, never the
-dark pole. When the real ink is too light to carry a band or a white digit, you may propose a
+card with a white knockout. The same dark card is the default when the mark is a single BRIGHT
+ink (under 7:1 on white) or a light badge, the site header or footer is black, or the mark sits
+on its own black disc or is a one-ink neutral mark: propose that dark as `web_primary_color` and the mark's chroma as the band. The band
+(`web_secondary_color`) is an ink
+of the chosen mark (a saturated non-text ink with at least 3% share that reads on the primary)
+before any site theme accent or neutral; prefer a contrasting authored accent over a same-hue step
+or tint of the primary; for a gradient ink use the family center from `gradient_families`, never
+the dark pole. When the real ink is too light to carry a band or a white digit, you may propose a
 DARKER step of that same brand hue and say so in `rationale` (Fresho: sage -20%; That's a Wrap:
 #1A1A1A over black); never a LIGHTER tint of a brand color, the validator rejects it as
-`band_lighter_synthetic` (Coloradough's +10% red was "from nowhere real").
+`band_lighter_synthetic` (Coloradough's +10% red was "from nowhere real"). When white on the real
+ink is under 3:1, propose the darker step as the secondary itself, not the raw token.
 EMBLEM KNOCKOUTS: when the chosen mark carries an illustrated emblem that would lose its interior
 detail in a knockout (filled counters, a mug or mountain turned into a blob), your default card is
-WORDS-ONLY: add `mark_element_omitted`, direct the words-only cut in `composition`, and note that
+the full lockup when it reads on the chosen ground, else WORDS-ONLY: add `mark_element_omitted`, direct the words-only cut in `composition`, and note that
 the full emblem lives on the sticker and POP (Katy). You may describe an open or outline knockout
 as a second option, never as the default; a solid silhouette is never a candidate (Coloradough). Read `logo_sources.ladder`: a traced or upscaled candidate is only choosable when
-`complete_for_trace` is true, and a best source under 700px makes the pick a hold, not a default.
+`complete_for_trace` is true, and a best source under 700px is a flag on the pick, not a hold.
 An opaque white or near-white rectangular ground on a colored card is not a neutral preservation
 choice. Flag it as an opaque-panel risk and recommend a transparent treatment when the mark can be
 preserved mechanically. Existing production use of that asset does not make the treatment valid.
+Name the panel color in `rationale` so the sheet can key the lockup and offer the panel as the card.
 
 When `brand_environment.status` is `available`, inspect its labeled `contact_sheet` and selected
 `detail_images`, then follow `brand_environment.judgment_policy`. Treat physical branding as
@@ -186,15 +192,17 @@ STICKER LOGO (ON-WHITE VARIANT): besides the card asset, direct a sticker logo t
 WHITE field (physical signage places the logo on white below a colored band). If your chosen card
 treatment is a knockout or card-locked dark variant, direct the on-white cut from the same verified
 source with its authored dark inks, in your composition text. Two sticker-specific rules: (1) BAND
-COLOR is the highest-contrast-on-white authored role (>= 3.0), web primary only when it passes —
+COLOR is the highest-contrast-on-white authored role (>= 3.0), web primary only when it passes;
 a light primary moves the band to the darkest authored role without a reviewer round-trip; flag
-only when nothing clears 3.0. (2) STICKERS PRINT AT ~3in: do not cascade card-size simplifications —
+only when nothing clears 3.0. (2) STICKERS PRINT AT ~3in: do not cascade card-size simplifications;
 direct the fullest authored lockup that passes on white (ring text and decorative elements stay;
 card OCR gates don't apply; non-text decorative components may sit as low as 1.8:1, below that
 strip and flag). (3) TRANSPARENT GROUND: the sticker asset is the mark without any panel; an
 authored panel (The Place Pizza's copper ground) is still a panel on a white sticker and the
-`sticker-ground` gate blocks it. When the on-white cut fails contrast, direct the authored DARK
-variant of the same mark (Arnold's navy badge), never a recolor.
+`sticker-ground` gate blocks it; an authored panel or gradient is kept as a drawn box behind the
+mark on light surfaces (the runner's `logo_panel`), the asset itself stays transparent. When the
+on-white cut fails contrast, direct the authored DARK variant of the same mark (Arnold's navy
+badge), never a recolor.
 
 ---
 

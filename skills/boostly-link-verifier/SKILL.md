@@ -70,6 +70,10 @@ Status precedence:
 5. `needs_manual_review` when `liveness = unknown` or `relevance = uncertain`
 6. `verified` only when the destination is functional, live, and relevant
 
+`status_basis: evidence | verified_by_anchor`: an official-site-anchored social whose page is a
+login wall or empty shell is `verified` by the anchor (evidence line `verified_by_anchor=true`);
+a readable page is never overridden by the anchor.
+
 Destination-state checks inspect rendered copy and actionable controls, not only HTTP status.
 They reject soft 404/error pages and removed social content, mark temporarily unavailable
 ordering, careers pages with no openings, and dormant social profiles as

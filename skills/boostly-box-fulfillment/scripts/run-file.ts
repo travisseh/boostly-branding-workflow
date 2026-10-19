@@ -8,7 +8,8 @@
 //   run-file get <run_dir> [block] [--path a.b.c]
 //   run-file validate <run_dir>
 //   run-file migrate <run_dir> [--force]        build run.json from manifest.json/STATE/ledger/receipts (lossless)
-//   run-file select <run_dir> <letter> --by <who> [--reason "<why>"]      record the chosen variant letter
+//   run-file select <run_dir> <letter> --by <who> [--reason "<why>"] [--print-letter <A>]
+//       record the chosen variant letter (row key + column) and, for a web/print split, the print cell
 //   run-file override <run_dir> --gate <g> --asset <a> --decided-by <who> --reason "<why>"   append an override record
 //       (refused when gates.json marks the gate override_allowed=false; overrides never change a rule)
 //
@@ -309,16 +310,31 @@ export function getBlock(runDir: string, block?: string, dotPath?: string): unkn
   return value;
 }
 
-export function selectLetter(runDir: string, letter: string, options: { by: string; reason?: string }): RunFile {
+export function selectLetter(runDir: string, letter: string, options: { by: string; reason?: string; printLetter?: string }): RunFile {
   const run = readRun(runDir);
   const variants = asObject(run.variants);
   if (!isNonEmpty(variants)) throw new Error("No variants block yet; render the variant sheet first");
   const cells = asObject(variants.cells);
-  if (Object.keys(cells).length && !(letter in cells)) {
-    throw new Error(`Letter "${letter}" is not a cell on the sheet (${Object.keys(cells).join(", ")})`);
+  for (const candidate of [letter, options.printLetter]) {
+    if (candidate && Object.keys(cells).length && !(candidate in cells)) {
+      throw new Error(`Letter "${candidate}" is not a cell on the sheet (${Object.keys(cells).join(", ")})`);
+    }
   }
   const at = nowIso();
-  const next = { ...variants, applied_letter: letter, selection: { letter, decided_by: options.by, reason: options.reason ?? null, at } };
+  // The pick is recorded by row key + column as well as by letter, so an in-place asset swap
+  // (variant-sheet.mjs swap-asset) keeps the letter and the pick stays resolvable. A web/print
+  // split ("web = N, print = A") is the pick itself: print_letter names the print cell.
+  const cell = asObject(cells[letter]);
+  const selection = {
+    letter,
+    print_letter: options.printLetter ?? null,
+    row_key: stringOrNull(cell.row),
+    column_index: typeof cell.column_index === "number" ? cell.column_index : null,
+    decided_by: options.by,
+    reason: options.reason ?? null,
+    at,
+  };
+  const next = { ...variants, applied_letter: letter, selection };
   // Selection is the human choice and does not invalidate downstream work by itself.
   run.variants = next;
   const stages = asObject(asObject(run.state).stages);
@@ -578,6 +594,7 @@ export function variantsBlockFromSheet(sheetJsonPath: string, runDir: string, ex
       letter,
       row: cell.row ?? null,
       row_label: cell.row_label ?? null,
+      column_index: cell.column_index ?? null,
       logo: rel(cell.logo),
       primary: cell.primary ?? null,
       secondary: cell.secondary ?? null,
@@ -806,8 +823,12 @@ export function migrateRun(runDir: string, options: { force?: boolean } = {}): R
       variants.applied_letter = appliedLetter;
       variants.note = stringOrNull(variantSpec.note);
       if (appliedLetter) {
+        const appliedCell = asObject(variants.cells?.[appliedLetter]);
         variants.selection = {
           letter: appliedLetter,
+          print_letter: null,
+          row_key: stringOrNull(appliedCell.row),
+          column_index: typeof appliedCell.column_index === "number" ? appliedCell.column_index : null,
           decided_by: pickerFrom(applied.decision) ?? "unknown",
           reason: stringOrNull(applied.decision),
           at: dateFrom(appliedKeys[appliedKeys.length - 1]) ?? stringOrNull(manifest.generated_at) ?? "unknown",
@@ -1296,7 +1317,7 @@ const USAGE = [
   "run-file get <run_dir> [block] [--path a.b.c]",
   "run-file validate <run_dir>",
   "run-file migrate <run_dir> [--force]",
-  "run-file select <run_dir> <letter> --by <who> [--reason \"<why>\"]",
+  "run-file select <run_dir> <letter> --by <who> [--reason \"<why>\"] [--print-letter <A>]   (print cell of a web/print split)",
   "run-file override <run_dir> --gate <gate> --asset <asset> --decided-by <who> --reason \"<why>\" [--shipped] [--at <iso>]   (--by is accepted too; --shipped only for an asset already live)",
 ].join("\n");
 
@@ -1367,8 +1388,8 @@ export function main(argv: string[]): number {
       const [dir, letter] = rest;
       const by = flagString(flags, "by");
       if (!dir || !letter || !by) throw new Error(`select needs <run_dir> <letter> --by <who>\n${USAGE}`);
-      const run = selectLetter(dir, letter, { by, reason: flagString(flags, "reason") ?? undefined });
-      out({ ok: true, applied_letter: asObject(run.variants).applied_letter, overrides: (run.overrides ?? []).length });
+      const run = selectLetter(dir, letter, { by, reason: flagString(flags, "reason") ?? undefined, printLetter: flagString(flags, "print-letter") ?? undefined });
+      out({ ok: true, applied_letter: asObject(run.variants).applied_letter, selection: asObject(run.variants).selection, overrides: (run.overrides ?? []).length });
       return 0;
     }
     case "override": {

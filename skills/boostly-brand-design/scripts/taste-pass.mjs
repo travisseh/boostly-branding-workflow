@@ -152,7 +152,7 @@ export function collectColors({ packet = {}, sheet = {}, decision = {}, cssVars 
   }
   for (const v of cssVars) addColor(colors, v.hex, 'site_css_var', `${v.name} in ${v.file}`);
   const instore = asObject(sheet.instore_dominant);
-  if (instore.hex) addColor(colors, instore.hex, 'instore_sampled', `dominant saturated hue across ${instore.images ?? '?'} in-store photos, ${((instore.share ?? 0) * 100).toFixed(0)}% share${instore.added ? ' (already a sheet row)' : ''}`);
+  if (instore.hex) addColor(colors, instore.hex, 'instore', `dominant saturated hue across ${instore.images ?? '?'} in-store photos, ${((instore.share ?? 0) * 100).toFixed(0)}% share${instore.added ? ' (already a sheet row)' : ''}`);
   for (const ig of instagramColors(packet)) addColor(colors, ig.hex, 'instagram_recurring', ig.detail);
   for (const col of asArray(sheet.columns)) addColor(colors, col.hex, 'sheet_column', `${col.label ?? col.source ?? 'column'} (already a band column)`);
   if (sheet.primary) addColor(colors, sheet.primary, 'sheet_primary', 'the sheet card primary');
@@ -373,8 +373,17 @@ export function colorSource(hex, colors) {
     if (!step || Math.abs(delta) < Math.abs(step.delta)) step = { of: c, delta };
   }
   if (!step) return { ok: false, hex: norm, reason: 'color_not_in_evidence' };
-  if (step.delta > 0) return { ok: false, hex: norm, reason: 'color_lighter_synthetic', note: `a lighter tint of ${step.of.hex} (${step.of.source}); never a pick` };
-  return { ok: true, hex: norm, matched: step.of.hex, source: step.of.source, detail: step.of.detail, synthetic: { direction: 'darker', of: step.of.hex, lightness_delta: Number(step.delta.toFixed(3)) } };
+  // A lighter step is allowed only off a SAMPLED base (a photo sample is shadowed; the lift de-shadows it:
+  // Koshari, Mad Fish, Creamer). Off an authored token or a measured ink it stays refused.
+  if (step.delta > 0 && !isSampledSource(step.of)) return { ok: false, hex: norm, reason: 'color_lighter_synthetic', note: `a lighter tint of ${step.of.hex} (${step.of.source}); never a pick` };
+  return { ok: true, hex: norm, matched: step.of.hex, source: step.of.source, detail: step.of.detail, synthetic: { direction: step.delta > 0 ? 'lighter' : 'darker', of: step.of.hex, lightness_delta: Number(step.delta.toFixed(3)) } };
+}
+/** Photo or site samples (never a logo palette, which is a mark ink): same five names as validate-fable-decision.ts SAMPLED_COLOR_SOURCES. */
+export const SAMPLED_SOURCES = ['instore', 'instagram_recurring', 'sampled', 'second_chroma_sampled', 'second_chroma_lifted'];
+export function isSampledSource(color) {
+  if (!color) return false;
+  const sources = [color.source, ...asArray(color.also).map((a) => a.source)];
+  return sources.some((s) => SAMPLED_SOURCES.includes(String(s ?? '')));
 }
 
 /**
@@ -453,6 +462,8 @@ export function validateProposals(brief, proposals, { cap = brief.cap ?? DEFAULT
     if (!str(p?.label)) reasons.push('missing_key:label');
     if (!str(p?.rationale)) reasons.push('missing_key:rationale');
     if (p?.pattern && !PATTERNS.includes(p.pattern)) reasons.push(`unknown_pattern:${p.pattern}`);
+    // expected_words (rule 7): the exact words an intentional drop keeps; add-cell --expected makes sheet-viability read for them
+    if (p?.expected_words != null && !str(p.expected_words)) reasons.push('expected_words_not_text');
     const primary = colorSource(p?.primary, colors);
     const secondary = colorSource(p?.secondary, colors);
     if (!primary.ok) reasons.push(`primary_${primary.reason}:${p?.primary ?? ''}${primary.note ? ` (${primary.note})` : ''}`);
@@ -489,7 +500,7 @@ export function validateProposals(brief, proposals, { cap = brief.cap ?? DEFAULT
     accepted.push({
       id, pattern: p.pattern ?? 'other', label: lightGround ? `LIGHT GROUND: ${p.label}` : p.label, rationale: p.rationale,
       logo, primary: primary.hex, secondary: secondary.hex, text: resolved.text, print_digit: resolved.print_digit, knockout,
-      sticker_band: optional.sticker_band?.hex ?? null, escalation,
+      sticker_band: optional.sticker_band?.hex ?? null, escalation, expected_words: str(p.expected_words) ?? null,
       sources: { primary, secondary, text: optional.text ?? null, print_digit: optional.print_digit ?? null, sticker_band: optional.sticker_band ?? null },
       contrast: { card: resolved.card_contrast, web_digit: resolved.web_digit_contrast, primary_vs_white: Number(contrast(primary.hex, '#FFFFFF').toFixed(2)) },
       note: noteBits.join(' | '),
@@ -497,7 +508,7 @@ export function validateProposals(brief, proposals, { cap = brief.cap ?? DEFAULT
   });
   return { errors, accepted, refused };
 }
-function sourceText(c) { return `${c.hex} ${c.synthetic ? `darker step of ${c.synthetic.of} (${c.source})` : `${c.source}${c.detail ? `, ${c.detail}` : ''}`}`; }
+function sourceText(c) { return `${c.hex} ${c.synthetic ? `${c.synthetic.direction} step of ${c.synthetic.of} (${c.source}${c.synthetic.direction === 'lighter' ? ', sampled; lifted to de-shadow the sample' : ''})` : `${c.source}${c.detail ? `, ${c.detail}` : ''}`}`; }
 function primaryFloor() {
   try { return Number(readJson(GATES_REGISTRY).gates.find((g) => g.id === 'primary-too-light')?.thresholds?.min_contrast_vs_white) || 1.3; } catch { return 1.3; }
 }
@@ -600,6 +611,12 @@ export async function buildDerived(recipe, out) {
 // ---- apply: gates and the sheet --------------------------------------------------------------------
 function registry() { try { return readJson(GATES_REGISTRY).gates; } catch { return []; } }
 /** Failing gates the registry lets a human override later (upload-size, an allowed ink-retention verdict) versus hard holds. Exported for tests. */
+/** The cell note for one overridable failing gate: upload-size is folded into the pick notice; every other gate names the closeout override. */
+export function overrideNote(f) {
+  return f.gate === 'upload-size'
+    ? 'over the upload cap: folded into the pick notice (picking this letter also OKs the sticker size)'
+    : `needs override at closeout: ${f.gate} (${f.verdict ?? 'failed'}) (registry allows it)`;
+}
 export function splitFailing(failing, gates = registry(), { tolerate = [] } = {}) {
   const hard = []; const overridable = [];
   for (const f of asArray(failing)) {
@@ -623,6 +640,7 @@ function addCell(runDir, a, logo) {
   const argv = [VARIANT_SHEET, 'add-cell', '--run-dir', runDir, '--run', runDir, '--logo', logo, '--primary', a.primary, '--secondary', a.secondary, '--text', a.text, '--label', a.label, '--key', `taste_${slug(a.id)}_${slug(a.label)}`.slice(0, 60), '--note', `Taste pass (${a.model}): ${a.rationale} | ${a.note}`];
   if (a.print_digit) argv.push('--digit', a.print_digit);
   if (a.knockout) argv.push('--knockout');
+  if (a.expected_words) argv.push('--expected', a.expected_words);
   const r = run('node', argv);
   const json = lastJson(r.stdout);
   if (r.status !== 0 || !json) return { ok: false, error: (r.stderr || r.stdout).trim().slice(-500) };
@@ -687,7 +705,8 @@ async function apply(args) {
     const { hard, overridable } = splitFailing(gate.failing, registry(), { tolerate: a.logo.kind === 'derive' ? TOLERATED_BY_OP[a.logo.recipe.op] ?? [] : [] });
     if (gate.error && !gate.failing.length) { skipped.push({ id: a.id, label: a.label, reason: `gates check failed: ${gate.error}` }); continue; }
     if (hard.length) { skipped.push({ id: a.id, label: a.label, reason: `gate hold: ${hard.map((f) => `${f.gate} (${f.verdict ?? 'failed'})`).join(', ')}`, gates: gate }); continue; }
-    const withNote = overridable.length ? { ...a, note: `${a.note} | needs override at closeout: ${overridable.map((f) => `${f.gate} (${f.verdict ?? 'failed'})`).join(', ')} (registry allows it; human call${a.logo.kind === 'derive' && a.logo.recipe.op === 'stack' ? '; stacking changes the silhouette aspect, prove ink retention piecewise' : ''})` } : a;
+    const stackNote = a.logo.kind === 'derive' && a.logo.recipe.op === 'stack' ? ' (stacking changes the silhouette aspect, prove ink retention piecewise)' : '';
+    const withNote = overridable.length ? { ...a, note: `${a.note} | ${overridable.map(overrideNote).join('; ')}${stackNote}` } : a;
     const cell = addCell(runDir, { ...withNote, model: args.model }, logo);
     if (!cell.ok) { skipped.push({ id: a.id, label: a.label, reason: `add-cell failed: ${cell.error}` }); continue; }
     if (!cell.added) { skipped.push({ id: a.id, label: a.label, reason: `sheet-viability refused: ${cell.skipped?.verdict ?? 'refused'}${cell.skipped?.reasons?.length ? ` (${cell.skipped.reasons[0]})` : ''}` }); continue; }

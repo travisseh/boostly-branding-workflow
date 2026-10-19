@@ -67,7 +67,8 @@ Hard rules (the validator refuses anything else):
 
 - Every color is a hex from `colors[]` (within a hair of it) or black/white. The one allowed
   synthetic step is a DARKER step (-10% or -20% lightness) of a listed color when the real color is
-  too light to carry a band or a digit; say so in `sources`. A lighter tint is never allowed.
+  too light to carry a band or a digit; say so in `sources`. A lighter tint is never allowed,
+  except one lifted step of a SAMPLED color (store photo or site sample, the sample is shadowed).
 - The card primary is never white or near-white (floor 1.3:1 against white). A light ground
   (under 3:1 against white: cream, pastel pink, tan) is allowed but is flagged for escalation:
   component contrast and the on-white sticker gate have no override, so say in the rationale why
@@ -78,9 +79,8 @@ Hard rules (the validator refuses anything else):
   trims, rearranges (stacks) or drops components of one existing asset.
 - At most {CAP} proposals. Fewer is better. Do not repeat an existing cell (same logo, same
   card, same band).
-- Dropping a descriptor is a `cut_words` recipe; the sheet-viability gate may refuse an
-  intentional drop (it counts letters against the source), so put the exact words to keep in the
-  rationale: the runner re-adds it by hand without `--source` when the cut is right.
+- Dropping a descriptor is a `cut_words` recipe; put the exact words kept in `expected_words` so
+  the runner passes them to `add-cell --expected`.
 
 Write ONE JSON object to `{RUN_DIR}/taste/proposals.json` (overwrite; the Write tool; nothing else
 in the file; no code fence) and then reply with the single line `proposals written`. Shape:

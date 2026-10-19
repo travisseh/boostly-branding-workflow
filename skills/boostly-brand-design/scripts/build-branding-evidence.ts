@@ -230,6 +230,7 @@ export async function buildBrandingEvidencePacket(
     website: {
       content_hash: input.website_content_hash,
       authored_color_tokens: authoredColors,
+      meta_theme_color: extractMetaThemeColor(input.website_html_files ?? []),
       visual_evidence: websiteVisual,
     },
     logo_candidates: uniqueLogos,
@@ -725,6 +726,21 @@ export type AuthoredColorToken = {
 };
 
 const COMMON_FRAMEWORK_DEFAULT_COLORS = new Set(["#1976D2", "#1565C0"]);
+
+/** The site's `<meta name="theme-color">` hex (first file that declares one), so the validator can tell a theme-color token from a brand accent (rule 4). */
+export function extractMetaThemeColor(files: string[]): string | null {
+  for (const file of files) {
+    const resolved = path.resolve(file);
+    if (!fs.existsSync(resolved)) continue;
+    const content = fs.readFileSync(resolved, "utf8");
+    for (const tag of content.matchAll(/<meta\b[^>]*>/gi)) {
+      if (!/name\s*=\s*["']theme-color["']/i.test(tag[0])) continue;
+      const hex = /content\s*=\s*["']\s*(#[0-9a-fA-F]{6})\b/.exec(tag[0]);
+      if (hex) return hex[1].toUpperCase();
+    }
+  }
+  return null;
+}
 
 export function extractAuthoredColorTokens(files: string[]): AuthoredColorToken[] {
   const tokens = new Map<string, {

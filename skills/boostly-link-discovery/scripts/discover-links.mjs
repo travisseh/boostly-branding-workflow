@@ -180,7 +180,7 @@ async function discoverLocation(locationId, args = {}) {
   const identityContext = args.fulfillmentMode || args["fulfillment-mode"]
     ? fulfillmentLocationContext(loaded.location_context)
     : loaded.location_context;
-  const websiteBootstrap = await bootstrapMissingWebsite(identityContext, args);
+  const websiteBootstrap = await bootstrapMissingWebsite(identityContext, args, searchProvider);
   const location_context = websiteBootstrap.location;
   const touchpoint_events = loaded.touchpoint_events;
   const existingLinks = buildExistingLinks(location_context, touchpoint_events).map((link) => ({
@@ -216,6 +216,16 @@ async function discoverLocation(locationId, args = {}) {
 
   const sourcePages = [];
   const discoveredCandidates = await discoverCandidates(location_context, categoriesToDiscover, fixtureStore, { ...args, stageMetrics: metrics }, sourcePages, searchProvider);
+  // A dead stored host whose apex/www sibling answered is a standing website write (Link write gate).
+  const siblingRecovery = websiteSiblingRecoveryFromSourcePages(location_context, sourcePages);
+  if (siblingRecovery) {
+    websiteBootstrap.audit = { ...websiteBootstrap.audit, attempted: true, verdict: "ready", reason: "apex_www_sibling_live", source: "website_crawl", stored_website_url: siblingRecovery.from, website_url: siblingRecovery.to, persisted: false };
+    if (!args.replay && !args["skip-website-bootstrap"]) {
+      const persisted = persistWebsiteUrl(location_context, siblingRecovery.to, args);
+      websiteBootstrap.audit = { ...websiteBootstrap.audit, website_url: persisted, persisted: true, readback_verified: true };
+      location_context.website_url = persisted;
+    }
+  }
   const dedupedCandidates = dedupeCandidates(discoveredCandidates)
     .filter((candidate) => candidateRelevantForDiscovery(candidate.category, categoriesToDiscover));
   const candidatesToVerify = rankCandidatesForVerification(dedupedCandidates, location_context, args);
@@ -353,7 +363,106 @@ async function discoverLocation(locationId, args = {}) {
   return report;
 }
 
-async function bootstrapMissingWebsite(location, args = {}) {
+// Website bootstrap verdicts (box-fulfillment SKILL "Link write gate", 2026-10-19). These are standing
+// defaults the agent reports as written or skipped, never as a question: `ready` writes (or accepts a
+// null website), `hold` is only for sources that disagree, `noop` leaves a configured site alone.
+const WEBSITE_BOOTSTRAP_VERDICTS = Object.freeze({ ready: "ready", hold: "hold", noop: "noop" });
+const TRACKING_QUERY_PARAM = /^(?:utm_.+|fbclid|gclid|dclid|msclkid|mc_.+|_ga|_gl)$/i;
+const NON_OFFICIAL_SEARCH_HOSTS = ["facebook.com", "instagram.com", "tiktok.com", "youtube.com", "x.com", "twitter.com", "linkedin.com", "google.com", "yelp.com", "doordash.com", "ubereats.com", "grubhub.com", "toasttab.com", "slicelife.com", "seamless.com", "postmates.com", "opentable.com", "resy.com", "tripadvisor.com", "mapquest.com", "foursquare.com", "zomato.com", "menupages.com", "allmenus.com", "restaurantji.com", "wikipedia.org", ...LINK_IN_BIO_HOSTS];
+
+function stripTrackingParams(url) {
+  try {
+    const u = new URL(ensureProtocol(url));
+    for (const key of [...u.searchParams.keys()]) if (TRACKING_QUERY_PARAM.test(key)) u.searchParams.delete(key);
+    return u.toString();
+  } catch {
+    return String(url || "");
+  }
+}
+
+/**
+ * Pure verdict for the website bootstrap. `stored` is the V2 website_url, `places` the Places websiteUri
+ * (or null), `searchWebsite` is { status: "none" | "found" | "unavailable", url } from searchOfficialWebsite.
+ */
+function websiteBootstrapVerdict({ stored = "", places = null, searchWebsite = null } = {}) {
+  if (stored) {
+    const stripped = stripTrackingParams(stored);
+    if (stripped !== stored && normalizeUrlForCompare(stripped) === normalizeUrlForCompare(stored)) {
+      return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.ready, reason: "tracking_params_only", website_url: stripped };
+    }
+    return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.noop, reason: "website_already_configured", website_url: stored };
+  }
+  if (places) return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.ready, reason: "google_places_api", website_url: places };
+  if (searchWebsite?.status === "none") {
+    return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.ready, reason: "no_website_places_and_search_agree", website_url: null };
+  }
+  if (searchWebsite?.status === "found") {
+    return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.hold, reason: "website_sources_disagree", website_url: null, search_website_url: searchWebsite.url };
+  }
+  return { verdict: WEBSITE_BOOTSTRAP_VERDICTS.hold, reason: "no_website_unconfirmed", website_url: null };
+}
+
+/** Does the search provider surface a plausible official site for this business? Agreement with Places' null answer makes the null website `ready`. */
+async function searchOfficialWebsite(location, searchProvider) {
+  if (!searchProvider || typeof searchProvider.search !== "function") return { status: "unavailable", url: null };
+  const name = cleanSearchName(location.location_name) || location.account_name || "";
+  if (!name) return { status: "unavailable", url: null };
+  const query = normalizedSearchQuery(`${name} ${location.shipping_city || ""} ${location.shipping_state || ""}`);
+  let result;
+  try {
+    result = await searchProvider.search(query);
+  } catch {
+    return { status: "unavailable", url: null, query };
+  }
+  if (!result || result.error || !["ok", "empty"].includes(result.status)) return { status: "unavailable", url: null, query };
+  const nameTokens = normalizeText(`${name} ${location.account_name || ""}`).split(" ").filter((token) => token.length >= 4 && !/^(?:restaurant|pizza|pizzeria|grill|kitchen|cafe|the|and)$/.test(token));
+  for (const item of (result.results || []).slice(0, 10)) {
+    const host = domain(item.url);
+    if (!host || NON_OFFICIAL_SEARCH_HOSTS.some((needle) => host === needle || host.endsWith(`.${needle}`)) || isAggregatorDomain(host)) continue;
+    const label = host.split(".").slice(0, -1).join("");
+    if (nameTokens.some((token) => label.includes(token))) return { status: "found", url: cleanCandidateUrl(item.url), query };
+  }
+  return { status: "none", url: null, query };
+}
+
+/** A stored host that never answered, followed by its www/apex sibling answering, inside the website crawl. */
+function websiteSiblingRecoveryFromSourcePages(location, sourcePages) {
+  const stored = location.website_url;
+  if (!stored) return null;
+  let storedHost;
+  try { storedHost = new URL(ensureProtocol(stored)).hostname.toLowerCase(); } catch { return null; }
+  const sibling = storedHost.startsWith("www.") ? storedHost.slice(4) : `www.${storedHost}`;
+  const hostOf = (value) => { try { return new URL(ensureProtocol(value)).hostname.toLowerCase(); } catch { return ""; } };
+  const pages = sourcePages.filter((page) => page.source_type === "website");
+  const deadIndex = pages.findIndex((page) => hostOf(page.url) === storedHost && page.http_status == null && !(page.links_extracted > 0));
+  if (deadIndex < 0 || pages.some((page) => hostOf(page.url) === storedHost && (page.http_status != null || page.links_extracted > 0))) return null;
+  const live = pages.slice(deadIndex + 1).find((page) => hostOf(page.url) === sibling &&
+    ((page.http_status != null && page.http_status !== 429 && page.http_status < 500) || page.links_extracted > 0));
+  if (!live) return null;
+  const to = (() => { try { const u = new URL(ensureProtocol(stored)); u.hostname = sibling; return u.toString(); } catch { return `https://${sibling}/`; } })();
+  return { from: stored, to };
+}
+
+/** boostly-instore-link-settings location set: dry run, apply, readback. Returns the persisted website_url. */
+function persistWebsiteUrl(location, websiteUrl, args = {}) {
+  const runSettings = args.runLinkSettingsCommand || runLinkSettingsCommand;
+  const commonArgs = ["location", "set", location.location_id, "--website-url", websiteUrl, "--ensure-location-scope", "--json"];
+  if (args["cookie-file"]) commonArgs.push("--cookie-file", args["cookie-file"]);
+  const dryRun = runSettings(commonArgs, args);
+  if (normalizeUrlForCompare(dryRun?.after?.website_url) !== normalizeUrlForCompare(websiteUrl)) {
+    throw new Error("Boostly location-settings dry run did not produce the expected website URL; refusing to apply.");
+  }
+  runSettings([...commonArgs, "--apply"], args);
+  const readArgs = ["location", "get", location.location_id, "--ensure-location-scope", "--json"];
+  if (args["cookie-file"]) readArgs.push("--cookie-file", args["cookie-file"]);
+  const persisted = runSettings(readArgs, args);
+  if (normalizeUrlForCompare(persisted?.website_url) !== normalizeUrlForCompare(websiteUrl)) {
+    throw new Error("Boostly location-settings readback did not match the written website URL; discovery stopped before verification.");
+  }
+  return persisted.website_url;
+}
+
+async function bootstrapMissingWebsite(location, args = {}, searchProvider = null) {
   const overrideUrl = args["website-url-override"] || args.websiteUrlOverride || "";
   if (!location.website_url && overrideUrl) {
     // Supervised diagnostics only: crawl a known site without the Places bootstrap write.
@@ -365,13 +474,17 @@ async function bootstrapMissingWebsite(location, args = {}) {
       audit: { attempted: false, reason: "website_url_override_unwritten", override_url: overrideUrl, persisted: false }
     };
   }
-  if (location.website_url || args.replay || args["skip-website-bootstrap"]) {
+  if (args.replay || args["skip-website-bootstrap"]) {
+    return { location, audit: { attempted: false, reason: args.replay ? "replay_mode" : "explicitly_skipped" } };
+  }
+  if (location.website_url) {
+    const verdict = websiteBootstrapVerdict({ stored: location.website_url });
+    if (verdict.verdict !== WEBSITE_BOOTSTRAP_VERDICTS.ready) return { location, audit: { attempted: false, reason: verdict.reason } };
+    // The stored site differs from its canonical form only by tracking params: write the clean URL.
+    const persisted = persistWebsiteUrl(location, verdict.website_url, args);
     return {
-      location,
-      audit: {
-        attempted: false,
-        reason: location.website_url ? "website_already_configured" : args.replay ? "replay_mode" : "explicitly_skipped"
-      }
+      location: { ...location, website_url: persisted },
+      audit: { attempted: true, verdict: verdict.verdict, reason: verdict.reason, source: "stored_website_url", stored_website_url: location.website_url, website_url: persisted, persisted: true, readback_verified: true }
     };
   }
   if (!location.google_place_id) {
@@ -379,37 +492,29 @@ async function bootstrapMissingWebsite(location, args = {}) {
   }
 
   const place = await fetchGooglePlaceWebsite(location.google_place_id, args);
-  const websiteUrl = cleanCandidateUrl(place.websiteUri);
-  if (!websiteUrl || !/^https?:\/\//i.test(websiteUrl)) {
-    throw new Error(`Google Places returned no usable websiteUri for ${location.google_place_id}; discovery stopped before verification.`);
+  const placesUrl = cleanCandidateUrl(place.websiteUri);
+  const places = placesUrl && /^https?:\/\//i.test(placesUrl) ? placesUrl : null;
+  const searchWebsite = places ? null : await searchOfficialWebsite(location, searchProvider);
+  const verdict = websiteBootstrapVerdict({ stored: "", places, searchWebsite });
+  const audit = {
+    attempted: true,
+    verdict: verdict.verdict,
+    reason: verdict.reason,
+    source: "google_places_api",
+    google_place_id: location.google_place_id,
+    website_url: verdict.website_url,
+    ...(searchWebsite ? { search_website: searchWebsite } : {}),
+    persisted: false
+  };
+  if (!places) {
+    // Null website: `ready` when Places and the search provider agree there is none (discovery goes
+    // on search-only); `hold` when they disagree or the search provider is unavailable. No throw.
+    return { location, audit };
   }
-
-  const runSettings = args.runLinkSettingsCommand || runLinkSettingsCommand;
-  const commonArgs = ["location", "set", location.location_id, "--website-url", websiteUrl, "--ensure-location-scope", "--json"];
-  if (args["cookie-file"]) commonArgs.push("--cookie-file", args["cookie-file"]);
-  const dryRun = runSettings(commonArgs, args);
-  if (normalizeUrlForCompare(dryRun?.after?.website_url) !== normalizeUrlForCompare(websiteUrl)) {
-    throw new Error("Boostly location-settings dry run did not produce the Google Places website URL; refusing to apply.");
-  }
-  runSettings([...commonArgs, "--apply"], args);
-
-  const readArgs = ["location", "get", location.location_id, "--ensure-location-scope", "--json"];
-  if (args["cookie-file"]) readArgs.push("--cookie-file", args["cookie-file"]);
-  const persisted = runSettings(readArgs, args);
-  if (normalizeUrlForCompare(persisted?.website_url) !== normalizeUrlForCompare(websiteUrl)) {
-    throw new Error("Boostly location-settings readback did not match the Google Places website URL; discovery stopped before verification.");
-  }
-
+  const persisted = persistWebsiteUrl(location, places, args);
   return {
-    location: { ...location, website_url: persisted.website_url },
-    audit: {
-      attempted: true,
-      source: "google_places_api",
-      google_place_id: location.google_place_id,
-      website_url: persisted.website_url,
-      persisted: true,
-      readback_verified: true
-    }
+    location: { ...location, website_url: persisted },
+    audit: { ...audit, website_url: persisted, persisted: true, readback_verified: true }
   };
 }
 
@@ -562,8 +667,8 @@ async function discoverCandidates(location, categoriesToDiscover, fixtureStore, 
     // the same browser and static-fetch timeout.
     if (page.http_status == null && pageLinkEntries(page).length === 0) {
       const failedUrl = new URL(ensureProtocol(url));
-      if (seen.size === 1 && failedUrl.hostname.startsWith("www.")) {
-        failedUrl.hostname = failedUrl.hostname.slice(4);
+      if (seen.size === 1) {
+        failedUrl.hostname = failedUrl.hostname.startsWith("www.") ? failedUrl.hostname.slice(4) : `www.${failedUrl.hostname}`;
         queue.length = 0;
         queue.push(failedUrl.toString());
         continue;
@@ -3933,6 +4038,7 @@ function toCandidateRecord(link) {
     liveness: link.liveness,
     relevance: link.relevance,
     status: link.status,
+    status_basis: link.status_basis || "evidence",
     validity_evidence: link.validity_evidence || [],
     location_match_evidence: link.location_match_evidence || [],
     rejection_reason: link.rejection_reason,
@@ -4143,6 +4249,12 @@ export {
   buildExistingLinks,
   buildProposals,
   bootstrapMissingWebsite,
+  WEBSITE_BOOTSTRAP_VERDICTS,
+  websiteBootstrapVerdict,
+  websiteSiblingRecoveryFromSourcePages,
+  searchOfficialWebsite,
+  stripTrackingParams,
+  persistWebsiteUrl,
   candidatesFromPage,
   categoryForTouchpoint,
   categoryForUrl,

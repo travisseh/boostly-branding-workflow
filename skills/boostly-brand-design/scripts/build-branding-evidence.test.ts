@@ -9,6 +9,7 @@ import {
   BRAND_ENVIRONMENT_JUDGMENT_POLICY,
   buildBrandingEvidencePacket,
   extractAuthoredColorTokens,
+  extractMetaThemeColor,
 } from "./build-branding-evidence.ts";
 import { validateFableDecision } from "./validate-fable-decision.ts";
 
@@ -366,4 +367,16 @@ test("the packet records the source ladder as tried rungs with the best source a
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("meta theme-color: the first <meta name=\"theme-color\"> hex is recorded uppercase; attribute order and a missing tag are handled", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "boostly-meta-theme-"));
+  const a = path.join(root, "a.html"); const b = path.join(root, "b.html"); const none = path.join(root, "none.html");
+  fs.writeFileSync(a, '<html><head><meta content="#db594b" name="theme-color"><meta name="theme-color" content="#111111"></head></html>');
+  fs.writeFileSync(b, "<html><head><meta name='theme-color' content='rgb(1,2,3)'></head></html>");
+  fs.writeFileSync(none, "<html><head><meta name=\"viewport\" content=\"#FFFFFF\"></head></html>");
+  assert.equal(extractMetaThemeColor([none, a]), "#DB594B");
+  assert.equal(extractMetaThemeColor([b]), null);
+  assert.equal(extractMetaThemeColor([none]), null);
+  assert.equal(extractMetaThemeColor([]), null);
 });

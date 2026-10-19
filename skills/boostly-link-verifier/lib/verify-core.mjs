@@ -557,7 +557,21 @@ function decide(link, location, evidence, evidenceByUrl) {
     relevance.reason = `Configured link type does not match destination platform: ${typeMismatch}`;
   }
   const destination = destinationStateDecision(link, evidence, validity);
-  const status = deriveStatus(validity.liveness, relevance.relevance, destination.state);
+  let status = deriveStatus(validity.liveness, relevance.relevance, destination.state);
+  let statusBasis = "evidence";
+  // Link write gate (box-fulfillment SKILL "Link write gate", 2026-10-19): a social profile the
+  // official site links to is writable even when the profile itself could not be read (login wall
+  // or an empty shell). The anchor is the evidence; a readable profile still stands on its own
+  // evidence, and a challenge or timeout still holds.
+  if (status === "needs_manual_review" && anchoredUnreadableSocial(link, evidence, validity, relevance, destination)) {
+    status = "verified";
+    statusBasis = "verified_by_anchor";
+    validity.liveness = "live";
+    validity.evidence = [...validity.evidence, "liveness_by_anchor=true"];
+    relevance.relevance = "match";
+    relevance.reason = null;
+    relevance.evidence = [...relevance.evidence, "social_login_wall=true", "verified_by_anchor=true"];
+  }
   const eventTiming = link.category === "events"
     ? eventTimingDecision(evidence)
     : null;
@@ -575,6 +589,7 @@ function decide(link, location, evidence, evidenceByUrl) {
     liveness: validity.liveness,
     relevance: relevance.relevance,
     status,
+    status_basis: statusBasis,
     destination_state: destination.state,
     destination_state_reason: destination.reason,
     destination_state_evidence: destination.evidence,
@@ -593,6 +608,30 @@ function decide(link, location, evidence, evidenceByUrl) {
     page_evidence: compactPageEvidence(evidence, link.category === "events" ? 3000 : 500),
     checked_at: checkedAt()
   };
+}
+
+const LOGIN_WALL_COPY = /\b(?:log ?in|sign ?(?:in|up)|create (?:a )?new account|forgot (?:your )?(?:account|password)\??|phone(?: number)?|username|e-?mail|password|instagram|facebook|tiktok|twitter|youtube|meta|continue|or|with|to|from|the|and|a|on|see photos and videos from your friends|connect with friends and the world around you|get the app|download|privacy|terms|cookies?|policy|help|language|english|\d{4})\b/g;
+const PLATFORM_NAME_ONLY = /^(?:instagram|facebook|tiktok|x|twitter|youtube|log ?in(?: to \w+)?|facebook[^a-z]+log in or sign up)$/i;
+
+/** A social destination that exposed nothing about the profile: a login wall, or a 200 shell with no identity text. */
+function isLoginWallOrEmptyShell(evidence) {
+  if (!evidence || (!evidence.ok && !evidence.http_status)) return false;
+  const meta = evidence.meta || {};
+  const profileMeta = [meta["og:title"], meta["og:description"], meta.description]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .some((value) => !PLATFORM_NAME_ONLY.test(value) && normalizeText(value).replace(LOGIN_WALL_COPY, " ").replace(/\s+/g, " ").trim().length >= 20);
+  if (profileMeta) return false;
+  const text = normalizeText([evidence.title, ...(evidence.h1 || []), evidence.text].filter(Boolean).join(" "));
+  return text.replace(LOGIN_WALL_COPY, " ").replace(/\s+/g, " ").trim().length < 20;
+}
+
+function anchoredUnreadableSocial(link, evidence, validity, relevance, destination) {
+  if (!String(link.link_type || "").startsWith("social_") || !link.officialWebsiteLinksCandidate) return false;
+  if (!["live", "unknown"].includes(validity.liveness)) return false;
+  if (!["unknown", "functional"].includes(destination.state)) return false;
+  if (relevance.relevance === "mismatch") return false;
+  return isLoginWallOrEmptyShell(evidence);
 }
 
 function validityDecision(evidence) {
@@ -798,7 +837,7 @@ function relevanceDecision(link, location, evidence, evidenceByUrl) {
   if (officialWebsite || officialDomainLink || strongNameAndGeo || nonSocialCrossLinked || appNameMatch || sharedBrand || socialHandleInOfficial || socialTitlePlusHandle || urlSlugMatch || link.siblingProviderEvidence) {
     return { relevance: "match", reason: null, evidence: evidenceLines.length ? evidenceLines : ["Loaded page exposed strong location or parent-brand evidence."] };
   }
-  if (!hasIdentityText(evidence)) {
+  if (!hasIdentityText(evidence) || (socialLink && isLoginWallOrEmptyShell(evidence))) {
     return { relevance: "uncertain", reason: "Loaded destination exposed little or no business identity evidence.", evidence: evidenceLines };
   }
   if (matchedNames.length && link.link_type.startsWith("social_")) {
@@ -858,7 +897,7 @@ function socialBio(evidence) {
 
 function socialProfileSignals(link, location, evidence, { matchedNames, matchedGeo, candidateLinksToOfficialDomain }) {
   const t = SOCIAL_BUSINESS_SIGNAL_THRESHOLDS;
-  const readable = hasIdentityText(evidence);
+  const readable = hasIdentityText(evidence) && !isLoginWallOrEmptyShell(evidence);
   const allText = [evidence?.title, evidence?.meta?.description, evidence?.meta?.["og:description"], evidence?.text].filter(Boolean).join(" ");
   const followers = parseFollowerCount(allText);
   // Nothing readable (login wall, challenge, empty shell) → not this gate's call; the hold logic runs.
@@ -1050,15 +1089,60 @@ function eventTimingDecision(evidence, now = new Date()) {
   const parsed = (evidence?.event_dates || [])
     .map((raw) => ({ raw: String(raw), timestamp: eventTimestamp(raw) }))
     .filter((item) => Number.isFinite(item.timestamp));
-  const upcoming = parsed.filter((item) => item.timestamp >= now.getTime());
+  let upcoming = parsed.filter((item) => item.timestamp >= now.getTime());
+  let source = upcoming.length > 0 ? "structured" : null;
+  // Link write gate (2026-10-19): visible upcoming events in readable text count. Only when the
+  // page has no future structured date, and only month-name or full numeric dates.
+  if (upcoming.length === 0) {
+    const visible = visibleTextEventDates(evidence, now);
+    if (visible.length) {
+      upcoming = visible;
+      source = "visible_text";
+    }
+  }
   return {
     has_upcoming_event: upcoming.length > 0,
     upcoming_event_dates: upcoming.map((item) => item.raw).slice(0, 10),
     inspected_event_dates: parsed.map((item) => item.raw).slice(0, 20),
+    source,
     evidence: upcoming.length > 0
-      ? ["upcoming_event_evidence=true", ...upcoming.slice(0, 4).map((item) => `upcoming_event_date=${item.raw}`)]
-      : ["upcoming_event_evidence=false", "No future structured Event startDate or time[datetime] value was found."],
+      ? ["upcoming_event_evidence=true", `upcoming_event_source=${source}`, ...upcoming.slice(0, 4).map((item) => `upcoming_event_date=${item.raw}`)]
+      : ["upcoming_event_evidence=false", "No future structured Event startDate or time[datetime] value and no future date readable on the page."],
   };
+}
+
+const MONTH_NAMES = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const VISIBLE_DATE_PATTERNS = [
+  // "Saturday, October 25", "Oct. 25th, 2026"
+  new RegExp(`\\b(?:(?:mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur|sun)(?:day)?\\.?,?\\s+)?(${MONTH_NAMES})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, "gi"),
+  // "25 October 2026", "25 Oct"
+  new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH_NAMES})\\.?(?:,?\\s+(\\d{4}))?\\b`, "gi"),
+  // "10/25/2026" (a year is required for numeric dates)
+  /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,
+];
+const VISIBLE_DATE_HORIZON_MS = 400 * 24 * 60 * 60 * 1000;
+
+/** Future dates readable on the page (no year means the current year; past dates never roll forward). */
+function visibleTextEventDates(evidence, now = new Date()) {
+  const text = [evidence?.title, ...(evidence?.h1 || []), ...(evidence?.h2 || []), evidence?.text].filter(Boolean).join(" ").replace(/\s+/g, " ");
+  if (!text) return [];
+  const found = new Map();
+  const consider = (raw, year, monthIndex, day) => {
+    if (!(monthIndex >= 0 && monthIndex <= 11 && day >= 1 && day <= 31)) return;
+    const timestamp = Date.UTC(year, monthIndex, day, 23, 59, 59, 999);
+    if (!Number.isFinite(timestamp) || timestamp < now.getTime() || timestamp > now.getTime() + VISIBLE_DATE_HORIZON_MS) return;
+    const iso = new Date(timestamp).toISOString().slice(0, 10);
+    if (!found.has(iso)) found.set(iso, { raw: iso, visible: raw.trim(), timestamp });
+  };
+  const monthIndexOf = (name) => Math.floor(MONTH_NAMES.split("|").findIndex((pattern) => new RegExp(`^(?:${pattern})$`, "i").test(name)));
+  for (const [index, pattern] of VISIBLE_DATE_PATTERNS.entries()) {
+    for (const match of text.matchAll(pattern)) {
+      if (index === 0) consider(match[0], match[3] ? Number(match[3]) : now.getUTCFullYear(), monthIndexOf(match[1]), Number(match[2]));
+      else if (index === 1) consider(match[0], match[3] ? Number(match[3]) : now.getUTCFullYear(), monthIndexOf(match[2]), Number(match[1]));
+      else consider(match[0], Number(match[3]), Number(match[1]) - 1, Number(match[2]));
+    }
+  }
+  return [...found.values()].sort((a, b) => a.timestamp - b.timestamp).slice(0, 10);
 }
 
 function eventTimestamp(value) {
@@ -1556,4 +1640,4 @@ function streetNumber(address) {
   return String(address || "").match(/^\s*\d+/)?.[0] || "";
 }
 
-export { socialProfileSignals, parseFollowerCount, SOCIAL_BUSINESS_SIGNAL_THRESHOLDS, evaluateCsv, verifyLocation, queryLocationLinks, verifyCandidateLinks, collectEvidence, renderedPageExtractor, renderedPageExtractorSource, compactRenderedPage, claudeChromeExtractorSource, claudeChromeChunkReadSource, claudeChromeChecksum, CLAUDE_CHROME_CHUNK_SIZE, decide, classifyLink, normalizeLocation, dedupeLinks, cleanInputUrl, normalizeUrlForCompare, ensureProtocol, domain, parseCsv, toCsv, writeJson, deriveStatus, summarize, checkedAt, extractStructuredEventDates, validityDecision };
+export { socialProfileSignals, parseFollowerCount, visibleTextEventDates, eventTimingDecision, isLoginWallOrEmptyShell, SOCIAL_BUSINESS_SIGNAL_THRESHOLDS, evaluateCsv, verifyLocation, queryLocationLinks, verifyCandidateLinks, collectEvidence, renderedPageExtractor, renderedPageExtractorSource, compactRenderedPage, claudeChromeExtractorSource, claudeChromeChunkReadSource, claudeChromeChecksum, CLAUDE_CHROME_CHUNK_SIZE, decide, classifyLink, normalizeLocation, dedupeLinks, cleanInputUrl, normalizeUrlForCompare, ensureProtocol, domain, parseCsv, toCsv, writeJson, deriveStatus, summarize, checkedAt, extractStructuredEventDates, validityDecision };
