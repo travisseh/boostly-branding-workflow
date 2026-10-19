@@ -1,6 +1,6 @@
 ---
 name: boostly-print-handoff
-description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Renders the six print units as VECTOR PDF with the direct renderer (boostly-signage-sheets/scripts/direct-pdf, the default since 2026-10-15; `--figma` exports the location's Figma section through the REST API instead), uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder, upserts the location's row in the "Print order summary" sheet, emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14), and stamps the row's "Order placed (email sent)" date. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
+description: Hand a closed-out Boostly location's signage and sticker print files to customstickers.com (CK Brands). Renders the six print units as VECTOR PDF with the direct renderer (boostly-signage-sheets/scripts/direct-pdf, the default since 2026-10-15; `--figma` exports the location's Figma section through the REST API instead), uploads the six PDFs plus logos to a per-location Google Drive folder under the vendor master folder (at the closeout's signage-review stop since 2026-10-19, upload only), upserts the location's row in the "Print order summary" sheet, emails the vendor (a Gmail draft that is sent in the same step since 2026-10-14), and stamps the row's "Order placed (email sent)" date. Use at closeout-finish, right after the Slack post, or when Travisse says "send the print files to customstickers" or "print hand-off for <location>".
 ---
 
 # Boostly Print Hand-off (customstickers.com)
@@ -12,11 +12,24 @@ vector PDFs in Drive, a summary row, and the vendor email, sent (Travisse 2026-1
 
 ## When it runs
 
-At `closeout-finish`, after Travisse approved the Figma signage and right after the single
-Slack post (step 5), before or alongside branding complete. The `closeout-finish` agent runs
-it and records the draft id in its report. It can also be run by hand for any run dir whose
-run.json `figma` block is `built`. It never runs before signage approval: the Figma section
-is the print master, and whatever is in it at export time is what the vendor prints.
+Two stages (Karissa 2026-10-19: reviewers approve the real PDFs in Drive, not a contact sheet):
+
+1. **Closeout, signage-review stop (`closeout-location`).** Right after the direct render
+   (`export-direct.mjs`, which writes handoff.json), BEFORE the STOP for signage review:
+   `node $S/drive-upload.mjs --run-dir <RUN_DIR> --skip-summary`. Upload only: the six PDFs and
+   `logos/` go to the location's Drive folder and `drive.folder_link` lands in handoff.json (the
+   review site's Print files section links it). No summary row (`--skip-summary`), no vendor
+   email (drive-upload.mjs never emails). Review edits: rerender and rerun the same command; the
+   files are replaced in place (same ids, same folder link). The vendor does not act on a folder
+   until the email arrives.
+2. **`closeout-finish`, after approval**, right after the single Slack post (step 5), before or
+   alongside branding complete: `print-handoff.mjs --run-dir <RUN_DIR> --live`. Its drive-upload
+   rerun is idempotent (md5 skip, in-place update for changed files), so this stage adds the
+   "Print order summary" row and the vendor email. The finish agent records the draft id in its
+   report. The summary row and the email never happen before signage approval.
+
+It can also be run by hand for any run dir whose run.json `signage.direct` (or `figma`) block
+is `built`.
 
 ## Commands
 
@@ -30,6 +43,8 @@ S=~/.claude/skills/boostly-print-handoff/scripts
 # Drive and email; without it (or with --offline/--dry-run/--scratch) it stops after the export:
 node $S/print-handoff.mjs --run-dir <RUN_DIR> --live
 node $S/print-handoff.mjs --run-dir <RUN_DIR> --live --figma   # a run approved as a Figma section
+# Review stage (closeout, before approval): upload only, no summary row, no email:
+node $S/drive-upload.mjs  --run-dir <RUN_DIR> --skip-summary
 # Steps on their own:
 node $S/export-sheets.mjs --run-dir <RUN_DIR> [--section <id[,id]>] [--file-key <key>] [--force] [--kinds <kind[,kind]>]
 node $S/drive-upload.mjs  --run-dir <RUN_DIR> [--offline] [--skip-summary]

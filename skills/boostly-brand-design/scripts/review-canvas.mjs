@@ -700,6 +700,13 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
     if (url && !row.url) row.url = url;
     const outcome = String(e.outcome ?? '');
     if (/applied|written|created|updated|success/.test(outcome)) { row.status = 'written'; row.reason = e.reason ?? null; }
+    // skipped_existing is a decided no-write (2026-10-19): a ready row already on the location, a rejected
+    // candidate, or nothing found. Only held/blocked (and other skips) still need a human.
+    else if (outcome === 'skipped_existing') {
+      const action = String(e.operation?.action ?? '');
+      row.status = action === 'reject' ? 'rejected' : action === 'none' ? 'none' : 'existing';
+      row.reason = e.reason ?? row.reason;
+    }
     else if (/held|skipped|blocked/.test(outcome)) { row.status = 'held'; row.reason = e.reason ?? row.reason; }
     row.source = 'execution';
   }
@@ -1576,12 +1583,21 @@ async function main() {
   const slackLink = run.slack?.permalink
     ?? (req.slack_channel && req.slack_thread_ts ? `https://slack.com/archives/${req.slack_channel}/p${String(req.slack_thread_ts).replace('.', '')}` : null);
   const figmaLink = run.figma?.section_url ?? run.figma?.url ?? null;
+  // Signage approval (Karissa 2026-10-19): reviewers approve the real vector PDFs in the location's Drive
+  // folder (print-handoff/handoff.json drive.folder_link, uploaded at the closeout stop), not an inline
+  // contact sheet. The review site adds the Print files section; the overview chip links the folder.
+  let printFolderLink = null;
+  try {
+    const d = JSON.parse(await fs.readFile(path.join(runDir, 'print-handoff', 'handoff.json'), 'utf8')).drive ?? {};
+    const u = d.folder_link ?? (d.folder_id ? `https://drive.google.com/drive/folders/${d.folder_id}` : null);
+    if (u && /^https:\/\/drive\.google\.com\//.test(u)) printFolderLink = u;
+  } catch {}
   const overviewLinks = [
     accountId ? { label: 'Boostly account', url: `https://new.boostly.com/admin/accounts/${accountId}` } : null,
     req.request_id && req.source === 'v2-db' ? { label: 'Fulfillment request', url: `https://new.boostly.com/admin/fulfillment/${req.request_id}` } : null,
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
-    run.signage?.direct?.preview_png ? { label: 'Signage sheets', url: '#signage-sheets' } : null,
+    printFolderLink ? { label: 'Print files (Drive)', url: printFolderLink } : null,
   ].filter(Boolean);
   // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
   // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never
@@ -1674,20 +1690,7 @@ async function main() {
   sections.push({ id: 'header', links: overviewLinks, parts: [
     { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, hold: Boolean(hold && !defaultLetter), caption: hold && !defaultLetter ? `HOLD cell ${focusLetter}: traced from a ${hold.native_px ?? '?'}px source` : `Fable's default cell ${defaultLetter}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
   ] });
-  // Signage approval (Travisse 2026-10-16): with the direct PDF default there is no Figma section to
-  // review, so the contact sheet of every print page goes inline right after the overview. The
-  // signage/shots copy lands in the site's design tier (3200 px, lossless PNG); the print-handoff
-  // original is the fallback.
-  const signagePreview = run.signage?.direct?.preview_png
-    ? [path.join(runDir, 'signage', 'shots', 'review-sheets.png'), path.join(runDir, String(run.signage.direct.preview_png))].find((f) => existsSync(f))
-    : null;
-  if (signagePreview) {
-    const d = run.signage.direct;
-    const kinds = d.kinds ? Object.entries(d.kinds).map(([k, n]) => `${k} ${n}`).join(', ') : null;
-    sections.push({ id: 'signage-sheets', title: 'Signage sheets', navLabel: 'Signage sheets', subtitle: `${d.approved ? 'Approved' : 'Awaiting your approval'}. Every print page as it goes to customstickers.com${d.pages ? ` (${d.pages} pages${kinds ? `: ${kinds}` : ''})` : ''}. Click to open full size.`, links: [], parts: [
-      { type: 'image', file: signagePreview, eager: true, bust: true, alt: 'signage print sheets' },
-    ] });
-  }
+  // No inline Signage sheets section (removed 2026-10-19, Karissa): the signage is approved on the Drive PDFs.
 
   // ---- captures (collected first so failures never block the composition) ------------------
   const websitePng = path.join(reviewDir, 'website-desktop.png');

@@ -410,7 +410,7 @@ def derive(req, runs):
     elif not picked:
         item["needs_you"].append("pick a letter")
     elif built and not approved:
-        item["needs_you"].append("approve the signage" + (" (direct PDF preview)" if dstat and not fstat else " (Figma)" if fstat else ""))
+        item["needs_you"].append("approve the signage" + (" (print files in Drive)" if dstat and not fstat else " (Figma)" if fstat else ""))
     if holds and not links_applied:
         item["needs_you"].append(f"{len(holds)} link decision(s)")
     elif ready and not links_applied and built and approved and slack:

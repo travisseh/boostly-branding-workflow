@@ -1,6 +1,6 @@
 ---
 name: closeout-location
-description: Close out ONE Boostly location after Travisse picked a variant letter: mark the pick, gate and apply the branding to production, render proofs, render the signage print sheets directly to PDF (Figma only as a named fallback), write the handoff files, then STOP for Travisse's review of the signage preview. The Slack post, branding complete, site status, and final run.json validation are done afterwards by the closeout-finish agent, which the lead launches after approval. Use when the lead says "close out <location> with <letter>". Production writes are authorized for that location only.
+description: Close out ONE Boostly location after Travisse picked a variant letter: mark the pick, gate and apply the branding to production, render proofs, render the signage print sheets directly to PDF (Figma only as a named fallback), upload the PDFs and logos to the location's vendor Drive folder (no vendor email, no summary-sheet row), write the handoff files, then STOP for Travisse's review of the PDFs in Drive. The Slack post, branding complete, site status, and final run.json validation are done afterwards by the closeout-finish agent, which the lead launches after approval. Use when the lead says "close out <location> with <letter>". Production writes are authorized for that location only.
 model: opus
 tools: Bash, Read, Write, Edit, Glob, Grep, mcp__plugin_figma_figma__use_figma, mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_screenshot, mcp__plugin_figma_figma__upload_assets
 ---
@@ -79,11 +79,14 @@ Steps, in order:
    the alpha knockout), then decide the POP primary logo exactly as before (the color logo when
    it holds >= 3.0:1 on the band, the knockout only for line/text marks, a card asset when the
    lead names one; Palio's lesson), then
-   `node ~/.claude/skills/boostly-signage-sheets/scripts/direct-pdf/direct-pdf.mjs --run-dir RUN_DIR --out RUN_DIR/print-handoff --pop-primary-logo <png> [--tables N --stalls N] [--offer "<offer_text>"] [--date YYYY-MM-DD]`
-   (tee to `signage/direct-pdf.log`). It writes the six vendor PDFs, `_vector-pages/`,
+   `node ~/.claude/skills/boostly-print-handoff/scripts/export-direct.mjs --run-dir RUN_DIR --pop-primary-logo <png> [--tables N --stalls N] [--offer "<offer_text>"] [--date YYYY-MM-DD]`
+   (tee to `signage/direct-pdf.log`; it runs `boostly-signage-sheets/scripts/direct-pdf` with the
+   same flags and also writes `print-handoff/handoff.json` with the `sheets` and `direct.inputs`
+   blocks the Drive upload and the finish rerun need). It writes the six vendor PDFs, `_vector-pages/`,
    `sheets.json`, `section.json`, `build-log.json` and `review-sheets.png` (one contact sheet of
    every page, named) straight into `RUN_DIR/print-handoff/`, which is what the finish agent
-   hands to customstickers.com unchanged. Read `build-log.json`: `all_ok` true, `recopy`
+   hands to customstickers.com unchanged. (A run rendered with `direct-pdf.mjs` by hand has no
+   handoff.json: rerun `export-direct.mjs` with the same inputs before the upload.) Read `build-log.json`: `all_ok` true, `recopy`
    (kind, headline, sticker layout, POP title size), `trim` (pages and stickers removed to the
    live counts), `togo` sizes, `build.qr` (every holder placed), `build.logos`, and
    `copy_check.pop_title` equal to plan.json `copy.pop.title`. QR masters were decoded at plan
@@ -96,16 +99,30 @@ Steps, in order:
    (a run whose approved signage must live in Figma): then follow "Figma fallback" at the end
    of this file, record the `figma` block instead, and the finish agent passes `--figma` to the
    hand-off. Never build both.
+   **Print files to Drive, at the review stage (Karissa 2026-10-19).** Right after the render
+   (and after the run.json `signage` block), upload the PDFs and logos to the location's vendor
+   Drive folder so the reviewer approves the real vector PDFs there:
+   `cd ~/Programming && node ~/.claude/skills/boostly-print-handoff/scripts/drive-upload.mjs --run-dir RUN_DIR --skip-summary`.
+   This uploads ONLY: no "Print order summary" row (`--skip-summary`) and no vendor email
+   (drive-upload.mjs never emails; draft-email.mjs is the finish agent's). It records
+   `drive.folder_link` (and the file ids) in `print-handoff/handoff.json`, which the review site's
+   Print files section reads. The logos uploaded come from run.json `write.logo_file` and
+   `write.sticker_logo_file`: make sure those name the files actually shipped on the sheets (a
+   replaced logo means updating the `write` block first, never uploading the superseded file).
+   Confirm the folder opens without login and lists the PDFs and `logos/`. If Travisse asks for
+   changes, rerender and rerun the same upload: it is idempotent and replaces changed files in
+   place (same file ids, same folder link).
 
    **STOP HERE for Travisse's signage review (Travisse 2026-09-24).** Do not post Slack, do not
    flip branding complete, do not write the final site status yet. End your turn with: the
-   preview path (`signage/shots/review-sheets.png`), the page counts per kind, and the
-   gate/branding/link results so far. Your job ends here. Steps 5 to 8 are NOT
-   yours (2026-09-29): after Travisse approves the preview, the lead launches a fresh
+   Drive folder link (`drive.folder_link`, where Travisse reviews the PDFs), the page counts
+   per kind, and the gate/branding/link results so far. Your job ends here. Steps 5 to 8 are NOT
+   yours (2026-09-29): after Travisse approves the signage (the PDFs in the Drive folder), the lead launches a fresh
    `closeout-finish` agent (Sonnet) with RUN_DIR, which works only from the run dir and
    run.json. If Travisse asks for changes, the lead messages you: apply them (rerun
-   direct-pdf.mjs with the new inputs, it is idempotent), refresh the preview and the handoff
-   files, and stop again. Never report the location as done.
+   export-direct.mjs with the new inputs (`--force` is not needed for a direct render), then
+   drive-upload.mjs `--skip-summary` again so the Drive files are replaced in place), refresh the
+   handoff files, and stop again. Never report the location as done.
    Before you stop, write the handoff the finish agent depends on, because it has none of
    your context:
    - `RUN_DIR/slack-note.txt`: the full text of the ONE Slack post (branding result, link
@@ -135,7 +152,7 @@ Steps, in order:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (box-fulfillment SKILL.md "Status board on the review site"; a launchd job also publishes it
    every 5 minutes without a model), then rebuild and push the location's site page so it shows
-   the signage preview and "Branding applied" (the push is part of publishing, no separate go):
+   the Print files (Drive folder) link and the branding status (the push is part of publishing, no separate go):
    `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
 Steps 4b and 5 to 8 (the secondary logo write, the ONE Slack post, `fulfillment branding
 --complete`, the final site status, the final `run-file validate`) belong to the `closeout-finish` agent

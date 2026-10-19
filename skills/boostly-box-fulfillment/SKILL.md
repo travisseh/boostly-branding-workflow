@@ -287,8 +287,14 @@ real request was processed.
     summary **only if** the request carries a `slack_thread_ts`; otherwise the completion note
     is the site status alone.
 11. **Close out automatically (Travisse, 2026-09-17).** Who runs it (2026-09-29): the
-    `closeout-location` agent stops after the Figma build and writes `slack-note.txt` and
-    `closeout-handoff.md`; after Travisse approves the signage, the lead launches a fresh
+    `closeout-location` agent stops after the signage render (direct PDF by default, Figma on
+    the fallback) and writes `slack-note.txt` and `closeout-handoff.md`. Before that stop it
+    uploads the print PDFs and logos to the location's vendor Drive folder with
+    `boostly-print-handoff/scripts/drive-upload.mjs --run-dir <dir> --skip-summary` (Karissa
+    2026-10-19: upload only, no summary-sheet row, no vendor email; `drive.folder_link` in
+    `print-handoff/handoff.json` is the review site's Print files link, and reviewers approve the
+    real PDFs there; review edits are rerendered and re-uploaded in place). After Travisse
+    approves the signage, the lead launches a fresh
     `closeout-finish` agent (Sonnet) with the run dir, which writes the V2 secondary logo
     (light backgrounds: the on-white sticker asset recorded in run.json `write.sticker_logo_file`,
     uploaded with `branding set --secondary-logo-file` at the primary logo's scope, after Figma
@@ -299,9 +305,9 @@ real request was processed.
     dry run then `--apply`; an empty or partial ship-to is reported, never invented), the
     site status (`review-status.mjs`), and the final `run-file validate` from the run dir and
     run.json alone. Right after the Slack post it also runs the print hand-off
-    (`~/.claude/skills/boostly-print-handoff`, `print-handoff.mjs --run-dir <dir>`): vector PDF
-    export of the section's print sheets, the location's Drive folder under the
-    customstickers.com master folder, the summary-sheet row, and the vendor email, sent by the
+    (`~/.claude/skills/boostly-print-handoff`, `print-handoff.mjs --run-dir <dir> --live`): the
+    vector PDFs, an idempotent re-check of the Drive folder the closeout already filled (changed
+    files replaced in place), then what only happens after approval: the summary-sheet row and the vendor email, sent by the
     script (2026-10-06 skill; sent rather than drafted since 2026-10-14; the vendor rejects rasterized PDFs). It honors `HOLD.md` (no branding complete when the file says so) and
     never wakes the large closeout agent. The rule itself is unchanged: once the applied branding is Travisse's
     approved pick and the Figma signage section is built and QR-verified, do not wait for a
@@ -577,7 +583,7 @@ does around them.
 
 ### Status board on the review site (default, Travisse 2026-10-13)
 The hosted index at https://fulfillment-reviews.vercel.app is the one status board: pipeline
-steps per location, what Travisse owes (pick a letter, approve the Figma signage, link
+steps per location, what Travisse owes (pick a letter, approve the signage in the Print files Drive folder, link
 decisions, store details), the one-line note from `<run root>/checklist/notes.json`, and the
 review status (`waiting|done`, `waiting_on`, `ease`) from `<run dir>/review/status.json`. It
 replaced the Notion review queue page and the Apple Note "Fulfillment reviews: pre-physical

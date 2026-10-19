@@ -1,6 +1,6 @@
 ---
 name: closeout-finish
-description: Finish ONE Boostly location closeout after Travisse approved the signage (the direct PDF preview, or a Figma section on the fallback). Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), sets the location status on the hosted review site (review/status.json, no Notion), validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
+description: Finish ONE Boostly location closeout after Travisse approved the signage (the direct PDFs in the location's Drive folder, or a Figma section on the fallback). Runs closeout steps 4b and 5 to 8 only, in a fresh small context, from the run dir and run.json alone. Writes the V2 secondary logo (light backgrounds, the sticker asset), posts the single Slack result, marks branding complete (unless HOLD.md forbids it), sets the location status on the hosted review site (review/status.json, no Notion), validates run.json, and updates its line in checklist/notes.json. Use when the lead says "finish the closeout for <location>" with a run dir, after approval. It makes no branding, logo, link, or Figma decisions.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 ---
@@ -127,13 +127,17 @@ Start stamp, once the preconditions pass:
    (tee to `RUN_DIR/finish/print-handoff.log`; `--live` is what makes it upload and email, without
    it the script stops after the export). Default since 2026-10-15: it re-renders the six vector
    PDFs with the direct renderer from the inputs the closeout recorded in
-   `print-handoff/handoff.json` (the sheets Travisse approved on `review-sheets.png`). When the
+   `print-handoff/handoff.json` (the sheets Travisse approved in the Drive folder). When the
    approved signage is a FIGMA SECTION instead (run.json has `figma.section_node_id` and no
    `signage.direct` block: Shawarma Inn 14:2, Surfin Betty's Downtown 12:3/12:2, and every run
    closed out before 2026-10-15), add `--figma` so the section's Print Sheet frames are exported
-   through the REST API; never render a direct set for a run approved in Figma. Either way it
-   uploads the PDFs to the location's Drive folder under the vendor master folder,
-   upserts the summary row, and emails ckbrandsmktg@gmail.com with Colin Dunn
+   through the REST API; never render a direct set for a run approved in Figma. Since
+   2026-10-19 (Karissa) the closeout already uploaded the PDFs and logos to the location's Drive
+   folder at the review stop (`drive-upload.mjs --skip-summary`, `drive.folder_link` in
+   handoff.json), so what this step adds is the "Print order summary" row and the vendor email.
+   The drive-upload rerun inside it is idempotent: unchanged files are skipped by md5, files
+   changed after review are replaced in place (same ids, same folder link), and nothing is
+   deleted. So it re-checks the Drive folder, upserts the summary row, and emails ckbrandsmktg@gmail.com with Colin Dunn
    (colin@printiverse.com) and Maren Dunn (maren@customstickers.com) on cc (a Gmail draft that
    the script sends itself; Travisse 2026-10-14: no draft waiting on him). Read
    `RUN_DIR/print-handoff/handoff.json`: every kind must say `vector: true` with pages equal to

@@ -249,3 +249,21 @@ test('buildLinkRows: an approved website swap shows the approved URL as a ready 
   assert.equal(chip.url, 'https://creamerbykay.com/');
   assert.equal(chip.tag, null);
 });
+
+test('buildLinkRows: execution skipped_existing is a decided no-write, never held (Park Avenue BBQ 2026-10-19)', () => {
+  const rows = buildLinkRows({
+    links: {
+      execution: [
+        { outcome: 'skipped_existing', operation: { action: 'ready', category: 'website', url: 'https://www.pabbqgrille.com/' } },
+        { outcome: 'skipped_existing', operation: { action: 'reject', category: 'gift_cards', url: 'https://order.toasttab.com/egiftcards/x' } },
+        { outcome: 'applied', operation: { action: 'ready', category: 'facebook', url: 'https://www.facebook.com/PABBQ' } },
+        { outcome: 'held', operation: { action: 'hold', category: 'tiktok', url: 'https://www.tiktok.com/@x' } },
+      ],
+    },
+  });
+  const by = Object.fromEntries(rows.map((r) => [r.category, r.status.kind ?? r.status]));
+  assert.equal(by.website, 'existing');
+  assert.equal(by.gift_cards, 'rejected');
+  assert.equal(by.facebook, 'written');
+  assert.equal(by.tiktok, 'held');
+});
