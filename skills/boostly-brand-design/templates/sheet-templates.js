@@ -312,8 +312,17 @@
     qr: { x: 412.5, y: 802, w: 675 },
     // the primary (band-ground) sign's logo box as the template carries it (the light sign uses 585/1675 330x245)
     logo: { x: 539.6, y: 1607.6, w: 421, h: 312 },
+    logoLight: { x: 585, y: 1675, w: 330, h: 245 },
     legal: { x: 120, y: 1988, w: 1260, size: 26, lh: 32, weight: 500 },
   };
+  /**
+   * The POP copy/QR ink for a ground: white on a dark ground (the primary sign), black on a light ground
+   * (the light sign, white ground; Mi Corazon 2026-10-20). A white ground with white copy and a white QR is
+   * a blank tile, so the ink follows the ground's luminance instead of the template's fixed white.
+   */
+  function popInkFor(ground) {
+    try { return luminance(ground) > 0.4 ? '#000000' : '#FFFFFF'; } catch { return '#FFFFFF'; }
+  }
   const POP_LEGAL = "Consent not req'd for purchase. Msg & data rates may apply. Freq varies. Text STOP to end & HELP for help. Terms & Privacy: boostly.com/mobile-terms-of-use";
   const POP_BODY_DEFAULT = 'Scan to join our VIP text club\nfor ongoing offers!';
   /**
@@ -324,13 +333,15 @@
     const T = POP;
     const s = width / T.w;
     const px = (v) => `${+(v * s).toFixed(3)}px`;
-    const qrSvg = qrFor(qr, '#FFFFFF', seed == null ? seedFrom(`pop${logoUrl}${ground}`) : seed);
+    const ink = popInkFor(ground);
+    const logoBox = ink === '#000000' ? T.logoLight : T.logo;
+    const qrSvg = qrFor(qr, ink, seed == null ? seedFrom(`pop${logoUrl}${ground}`) : seed);
     const lines = (text) => String(text).split(/\||\n/).map((line) => esc(line)).join('<br>');
-    return `<div class="bs-pop" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${esc(ground)}; overflow: hidden; font-family: ${FIGTREE}; color: #ffffff; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
+    return `<div class="bs-pop" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${esc(ground)}; overflow: hidden; font-family: ${FIGTREE}; color: ${ink}; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
     <div class="bs-pop-title" style="position: absolute; left: ${px(T.title.x)}; top: ${px(T.title.y)}; width: ${px(T.title.w)}; text-align: center; font-size: ${px(T.title.size)}; line-height: ${px(T.title.lh)}; font-weight: ${T.title.weight}; white-space: pre-line;">${esc(offer)}</div>
     <div class="bs-pop-body" style="position: absolute; left: ${px(T.body.x)}; top: ${px(T.body.y)}; width: ${px(T.body.w)}; text-align: center; font-size: ${px(T.body.size)}; line-height: ${px(T.body.lh)}; font-weight: ${T.body.weight};">${lines(body)}</div>
     <div class="bs-pop-qr" style="position: absolute; left: ${px(T.qr.x)}; top: ${px(T.qr.y)}; width: ${px(T.qr.w)}; height: ${px(T.qr.w)};"><img src="${svgDataUri(qrSvg)}" alt="" style="display: block; width: 100%; height: 100%;"></div>
-    <div class="bs-pop-logo" style="position: absolute; left: ${px(T.logo.x)}; top: ${px(T.logo.y)}; width: ${px(T.logo.w)}; height: ${px(T.logo.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
+    <div class="bs-pop-logo" style="position: absolute; left: ${px(logoBox.x)}; top: ${px(logoBox.y)}; width: ${px(logoBox.w)}; height: ${px(logoBox.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
     <div class="bs-pop-legal" style="position: absolute; left: ${px(T.legal.x)}; top: ${px(T.legal.y)}; width: ${px(T.legal.w)}; text-align: center; font-size: ${px(T.legal.size)}; line-height: ${px(T.legal.lh)}; font-weight: ${T.legal.weight};">${esc(POP_LEGAL)}</div>
   </div>`;
   }

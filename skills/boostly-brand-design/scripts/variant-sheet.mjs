@@ -37,7 +37,12 @@
 //   add-column  --run-dir <run> --secondary <hex> [--label "<label>"] [--source override] [--run <run_dir>]
 //   add-cell    --run-dir <run> --logo <png> --primary <hex> --secondary <hex> [--digit <hex>] [--text <hex>]
 //               --label "<treatment>" [--key <row_key>] [--sticker-logo <png>] [--run <run_dir>]
-//               [--print-primary <hex>] [--print-secondary <hex>]
+//               [--print-primary <hex>] [--print-secondary <hex>] [--pop-logo <png>] [--pop-ground <hex>]
+//               pop-logo / pop-ground (Mi Corazon 2026-10-20): the POP tile's own logo asset and ground when
+//               they differ from the card logo and the sticker band (a light-primary row draws the POP on the
+//               band, where a dark-ink lockup vanishes; the fix is a white-words recolor of the lockup, or the
+//               white light-sign ground with the full-color logo). Card and sticker stay as the row has them;
+//               at closeout they map to direct-pdf --pop-primary-logo and plan.mjs --band.
 //               print-primary: the signage ground (sticker band, POP tile) when print_primary_color differs
 //               from the web card primary (Dogwood 2026-09-21: red web card, blue signage); print-secondary
 //               is the print band/badge fill when it differs from the web secondary. Both are recorded on
@@ -933,7 +938,7 @@ export function cellView(manifest, cell) {
     sticker: stickerLogo
       ? { logo: rel(stickerLogo), band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: qrView(links?.table_promo), seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
       : { logo: null, band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: null, seed: null, status: STICKER_NEEDS_FIX },
-    pop: { logo: rel(row.logo), ground: band, offer: copy.pop.title, body: copy.pop.body, qr: qrView(links?.pop) },
+    pop: { logo: rel(row.pop_logo && existsSync(row.pop_logo) ? row.pop_logo : row.logo), ground: row.pop_ground ?? band, offer: copy.pop.title, body: copy.pop.body, qr: qrView(links?.pop) },
     print: { primary: cell.print_primary ?? null, secondary: cell.print_secondary ?? null, text_secondary: cell.print_text_secondary ?? null, fix: cell.badge_digit_print?.fix ?? null, digit_contrast: cell.badge_digit_print?.contrast_with_text ?? null },
     status,
     status_tag: status ? STATUS_STYLE[status].tag : null,
@@ -970,7 +975,7 @@ async function prepareViews(manifest, outDir, { rows: rowsArg, cells }) {
     const stickerOk = stickerRenderable(row);
     const stickerLogo = stickerOk ? stickerLogoFor(manifest, row) : null;
     const stickerFp = stickerOk ? stickerFingerprint({ logoSha: await fileSha256(stickerLogo), band }) : null;
-    const popFp = popFingerprint({ logoSha: await fileSha256(row.logo), band, offer: manifest.offer });
+    const popFp = popFingerprint({ logoSha: await fileSha256(row.pop_logo && existsSync(row.pop_logo) ? row.pop_logo : row.logo), band: row.pop_ground ?? band, offer: manifest.offer });
     const keep = (file) => (file && existsSync(file) ? file : null);
     Object.assign(row, { sticker: stickerOk ? keep(row.sticker) : null, sticker_status: stickerOk ? null : STICKER_NEEDS_FIX, sticker_band: band, sticker_band_note: note, pop: keep(row.pop), sticker_fingerprint: stickerFp, pop_fingerprint: popFp, sticker_logo_used: stickerLogo });
     if (!stickerOk) counts.skipped_stickers = (counts.skipped_stickers ?? 0) + 1;
@@ -1349,12 +1354,16 @@ async function addRow(args, { single = false } = {}) {
     print_text_secondary: args.digit ? requireHex(args.digit, '--digit') : null,
     print_primary: args.printPrimary ? requireHex(args.printPrimary, '--print-primary') : null,
     print_secondary: args.printSecondary ? requireHex(args.printSecondary, '--print-secondary') : null,
+    pop_logo: args.popLogo ? path.resolve(args.popLogo) : null,
+    pop_ground: args.popGround ? requireHex(args.popGround, '--pop-ground') : null,
     note: args.note ?? null,
     added_at: new Date().toISOString(),
     added_by: args.command,
   };
   if ((row.print_primary || row.print_secondary) && !single) throw new Error('--print-primary / --print-secondary are add-cell options (one cell, one print palette)');
+  if ((row.pop_logo || row.pop_ground) && !single) throw new Error('--pop-logo / --pop-ground are add-cell options (one cell, one POP treatment)');
   if (row.sticker_logo && !existsSync(row.sticker_logo)) throw new Error(`--sticker-logo not found: ${row.sticker_logo}`);
+  if (row.pop_logo && !existsSync(row.pop_logo)) throw new Error(`--pop-logo not found: ${row.pop_logo}`);
   if (args.source && !existsSync(path.resolve(args.source))) throw new Error(`--source not found: ${args.source}`);
   // SHEET VIABILITY: the asset is checked before any cell exists; a refusal is recorded, printed, and not rendered.
   const keep = await gateRow(manifest, row, { force: Boolean(args.forceViability), command: args.command, outDir, runDir, source: args.source ? path.resolve(args.source) : null, note: args.note ?? null });
