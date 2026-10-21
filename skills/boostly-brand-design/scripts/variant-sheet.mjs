@@ -468,7 +468,9 @@ export const STICKER_NEEDS_FIX = 'needs panel or strip';
 /** The asset a row's sticker mock renders: the row's own, else the sheet's, else the card logo (full_color always its own). */
 export function stickerLogoFor(manifest, row) {
   const candidate = row.sticker_logo ?? manifest.sticker_logo ?? row.logo;
-  return row.key === 'full_color' || !existsSync(candidate) ? row.logo : candidate;
+  // the full-color row's sticker is its own lockup unless the row names an explicit sticker asset (Colarusso's
+  // 2026-10-21: a white-ink lockup is invisible on the white sticker; swap-asset --sticker-logo sets row.sticker_logo)
+  return (row.key === 'full_color' && !row.sticker_logo) || !existsSync(candidate) ? row.logo : candidate;
 }
 /**
  * Pure: apply the sticker-ground viability of a row's sticker asset. The row itself is kept (its card
