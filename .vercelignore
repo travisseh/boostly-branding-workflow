@@ -1,0 +1,14 @@
+# Deploys of the boostly-review-site project upload the repo root (Root Directory = site), because the app
+# imports skills/boostly-brand-design/templates/sheet-templates.js. Upload only what the build needs.
+/*
+!/site
+!/skills
+/site/node_modules
+/site/.next
+/site/parity
+/site/.env*
+/site/*.tsbuildinfo
+**/node_modules
+**/runs
+**/*.log
+.env*

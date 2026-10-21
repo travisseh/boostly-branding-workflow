@@ -433,8 +433,11 @@ export function collectBundle(rp) {
 }
 
 /** The manifest to push: uploaded files (reusing the store copy when the hash is unchanged) plus Blob references. */
+// Bundle contract version (2026-10-21): the hosted review site (boostly-branding-workflow site/) refuses a
+// manifest whose schema_version it does not know. Bump only on a breaking change to the manifest shape.
+export const BUNDLE_SCHEMA_VERSION = 1;
 export function buildManifest(rp, files, refs, prev, { by, total = 0, now = nowIso() } = {}) {
-  const manifest = { slug: rp.slug, pushed_at: now, by: by || os.hostname(), bytes: total, refs: refs.size, files: {} };
+  const manifest = { schema_version: BUNDLE_SCHEMA_VERSION, slug: rp.slug, pushed_at: now, by: by || os.hostname(), bytes: total, refs: refs.size, files: {} };
   const toUpload = [];
   for (const [rel, buf] of files) {
     const hash = sha256(buf);

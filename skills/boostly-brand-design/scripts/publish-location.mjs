@@ -3,7 +3,7 @@
 // status + bundle. Replaces the three separate steps the agents used to run.
 //
 //   publish-location.mjs --run RUN_DIR [--skip-google ...canvas flags] [--allow-stale] [--no-canvas] [--no-site]
-//                        [--message "<commit message>"] [--by <agent>]
+//                        [--message "<commit message>"] [--by <agent>] [--site-mode old|next|both]
 //
 // 1. run-progress.mjs check: exit 3 "pull first" when the Blob bundle is newer than the last sync here
 //    (--allow-stale bypasses; a run with no Blob bundle is never stale).
@@ -13,6 +13,10 @@
 //    tree is clean; npm run build -- --run-root <parent> --limit 0 --slug <slug>; git add public data;
 //    commit; push. Nothing staged = nothing committed. (--no-site skips.)
 // 4. run-progress.mjs publish --run RUN_DIR: status/<slug>.json (with the soft claim) + the bundle.
+// --site-mode (default BOOSTLY_SITE_MODE, else old): `old` is step 3 above. `next` skips step 3 and feeds the
+//    hosted Next.js site instead: site-data.mjs build (review/site-data.json + downsized images to
+//    site/assets/<slug>/), then step 4 (the bundle carries site-data.json), then site-data.mjs index (the
+//    list page's site/index.json). No git commit per publish. `both` runs the two paths.
 // Never prints the Blob token; the site build and run-progress read it from the clone's .env.local.
 import fs from "node:fs";
 import os from "node:os";
@@ -28,7 +32,9 @@ const SITE = process.env.BOOSTLY_REVIEWS_SITE || "https://fulfillment-reviews.ve
 const TRAILER = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>";
 
 const argv = process.argv.slice(2);
-const opt = { canvas: true, site: true, allowStale: false, passthrough: [] };
+const opt = { canvas: true, site: true, allowStale: false, passthrough: [], siteMode: process.env.BOOSTLY_SITE_MODE || "old" };
+const SITE_DATA = path.join(HERE, "site-data.mjs");
+const NEXT_SITE = process.env.BOOSTLY_SITE_NEXT_URL || null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   const take = () => { if (i + 1 >= argv.length) die(`${a} needs a value`); return argv[++i]; };
@@ -38,13 +44,15 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--no-site") opt.site = false;
   else if (a === "--message") opt.message = take();
   else if (a === "--by") opt.by = take();
-  else if (a === "--help" || a === "-h") { console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 17).join("\n")); process.exit(0); }
+  else if (a === "--site-mode") opt.siteMode = take();
+  else if (a === "--help" || a === "-h") { console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 21).join("\n")); process.exit(0); }
   else if (/^--(scale|google-budget-ms|chrome-profile|png-budget-mb|cells)$/.test(a)) opt.passthrough.push(a, take());
   else if (a.startsWith("--")) opt.passthrough.push(a);
   else die(`unknown argument: ${a}`);
 }
 function die(msg, code = 2) { console.error(`publish-location.mjs: ${msg}`); process.exit(code); }
 if (!opt.run) die("usage: publish-location.mjs --run RUN_DIR [--skip-google] [--allow-stale] [--no-canvas] [--no-site] [--message \"...\"] [--by <agent>]");
+if (!["old", "next", "both"].includes(opt.siteMode)) die(`--site-mode must be old, next or both (got ${opt.siteMode})`);
 const runDir = path.resolve(opt.run);
 if (!fs.existsSync(path.join(runDir, "run.json"))) die(`${runDir} has no run.json`);
 const slug = path.basename(runDir);
@@ -68,8 +76,14 @@ if (opt.canvas) {
   sh(process.execPath, [REVIEW_CANVAS, "--run", runDir, ...opt.passthrough, "--allow-stale"]);
 } else step("review canvas skipped (--no-canvas)");
 
-// 3. site
-if (opt.site) {
+// 3. site (old static path)
+const oldSite = opt.siteMode !== "next";
+const nextSite = opt.siteMode !== "old";
+if (opt.site && nextSite) {
+  step(`site data ${slug} (next)`);
+  sh(process.execPath, [SITE_DATA, "build", "--run", runDir]);
+}
+if (opt.site && oldSite) {
   step(`site page ${slug}`);
   if (!fs.existsSync(path.join(REVIEWS_REPO, "scripts", "build.mjs"))) die(`no fulfillment-reviews clone at ${REVIEWS_REPO} (BOOSTLY_REVIEWS_REPO_DIR)`, 1);
   const git = (...args) => sh("git", args, { cwd: REVIEWS_REPO });
@@ -96,8 +110,15 @@ if (opt.site) {
     console.log(`site: committed "${message}" and pushed`);
   }
   console.log(`page: ${SITE}/${slug}/`);
-} else step("site skipped (--no-site)");
+} else if (!opt.site) step("site skipped (--no-site)");
 
 // 4. status + bundle
 step(`blob status + bundle ${slug}`);
 sh(process.execPath, [RUN_PROGRESS, "publish", "--run", runDir, ...(opt.by ? ["--by", opt.by] : [])]);
+
+// 5. next site: the list page entry (after the bundle, so the page and the list agree)
+if (opt.site && nextSite) {
+  step(`site index ${slug} (next)`);
+  sh(process.execPath, [SITE_DATA, "index", "--run", runDir]);
+  if (NEXT_SITE) console.log(`page: ${NEXT_SITE}/l/${slug}`);
+}
