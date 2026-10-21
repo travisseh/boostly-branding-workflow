@@ -618,16 +618,23 @@ next 5 minute run heals it. Tests: `python3 -m unittest discover -s ~/.claude/sk
   bundle to the Blob store; the board shows stage, next step, blocked-on, and who stamped it.
   The agents stamp it at each step boundary (fulfill-location, closeout-location,
   closeout-finish). `get --run <dir>` reads it back; `list` prints every published status.
-- Resume on another machine: a fresh agent whose run root has no `run.json` for the slug runs
-  `run-progress.mjs resume --slug <slug> --run-root <root>` (the resume brief: stage, last and
-  next step, blocked-on, bundle manifest), then `run-progress.mjs pull --slug <slug> --run-root <root>`
-  to download the bundle into `<root>/<slug>` and continues from `next_step`, never re-running a
-  stage the bundle shows done. The bundle is public read: run.json ship-to and contact fields
-  are redacted, address-looking handoff lines are dropped, and secret-looking files are refused,
-  so steps that need the ship-to read it live from Boostly (closeout-finish 6b already does).
+  Two machines (2026-10-21): the Blob bundle is the source of truth. `run-progress.mjs check --run <dir>`
+  exits 3 ("pull first: Blob bundle is newer") when the Blob was pushed after this machine's last
+  publish or pull (`review/bundle-manifest.json`); the variant-sheet mutations, the canvas and
+  `publish-location.mjs` run it first (`--allow-stale` bypasses; no Blob bundle = never stale) and the
+  mutations push status + bundle afterwards. `set`/`publish` stamp a soft claim `editing: {by, since}`
+  (`BOOSTLY_EDITOR` or hostname, cleared at stage done) that `check` only warns about under two hours.
+  The bundle references the canvas inputs (evidence, GBP photos, candidates, fix and review images)
+  by the Blob URLs in the site's `data/blob-index.json`, so `pull` reproduces them with no uploads;
+  `pull` turns the redaction markers in run.json into validator-safe placeholders. Status and
+  manifests are read from the Blob URLs, never from the site (plain fetches of it 403 since 2026-10-21).
+- Resume on another machine: `run-progress.mjs resume --slug <slug> --run-root <root>` (the brief:
+  stage, last and next step, blocked-on), then `pull --slug <slug> --run-root <root>` into
+  `<root>/<slug>`; continue from `next_step`, never re-running a stage the bundle shows done. The
+  bundle is public read (ship-to and contact fields redacted, address-looking lines dropped,
+  secret-looking files refused), so steps that need the ship-to read it live from Boostly.
   Publishing needs `BLOB_READ_WRITE_TOKEN` in the fulfillment-reviews clone's `.env.local`
-  (`vercel env pull`), the same token the site build uses; without it the local file still
-  writes and the agent reports the publish failure.
+  (`vercel env pull`); without it the local file still writes and the agent reports the failure.
 - Note per run: one true sentence in `checklist/notes.json`, keyed by run dir name; agents
   edit only their own key. The site is public: no ship-to names or addresses in a note, in
   `waiting_on`, or in HOLD.md's first line ("ship-to missing" is fine, a contact name is not).
@@ -644,20 +651,18 @@ project `fulfillment-reviews`; a push to main deploys. Images go to the Vercel B
 `fulfillment-reviews-assets` keyed by content hash (cache committed at `data/blob-index.json`),
 so a rebuild uploads only new assets. The build reads `BLOB_READ_WRITE_TOKEN` from the clone's
 git-ignored `.env.local` (`vercel env pull .env.local --scope boostly` after `vercel link`). As
-soon as `review/review-canvas.html` exists and the status board is published, publish the page:
+soon as the variant sheet exists and the status board is published, publish with the one command (canvas, site page build + push, Blob status + bundle):
 
 ```bash
-cd /Users/travisse/Programming/repos/fulfillment-reviews && git pull --ff-only && \
-  until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && \
-  npm run build -- --run-root <run root> --limit 0 --slug <run dir name> && \
-  git add public data && git commit -m "Add <location> review page" && git push
+node ~/.claude/skills/boostly-brand-design/scripts/publish-location.mjs --run <run dir> [--skip-google]
 ```
 
-Rerun the same command after the Figma section is built (closeout-location) and after the
-finish (closeout-finish) so the page's status and strip move with the run. `--limit 0` rebuilds
-only the named page; a larger limit rewrites every page and two concurrent builds then drop
-pages from the manifest (2026-10-12). The wait loop needs the `[d]` bracket, or the pattern
-matches the waiting shell itself and never clears (2026-10-13). Pushing to this repo is part of publishing and needs no separate go. The
+Rerun it after the signage PDFs (closeout-location) and after the finish (closeout-finish). It exits
+3 when the Blob bundle is newer than this machine's last sync (`run-progress.mjs pull` first, or
+`--allow-stale`); `--no-site` / `--no-canvas` skip a step. Inside, the build runs with `--limit 0`
+(only the named page; a larger limit rewrites every page and concurrent builds then drop pages,
+2026-10-12) after waiting for any other `scripts/buil[d].mjs` (the `[d]` keeps pgrep off the waiting
+shell, 2026-10-13) and a clean tree. Pushing to this repo is part of publishing, no separate go. The
 build strips Boostly admin anchors and internal json/md links from each page; never add
 ship-to data to `data/sites.json`. The build merges into the committed `data/sites.json`: only
 runs found in the given run root are rebuilt, every other page is kept, so pages from another

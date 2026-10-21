@@ -7,12 +7,27 @@
 //                         [--blocked-on "<what Travisse owes>" | --clear-blocked] [--by <agent>]
 //                         [--no-publish] [--no-bundle]
 //   run-progress.mjs get  --run RUN_DIR
-//   run-progress.mjs publish --run RUN_DIR [--no-bundle]      status file + bundle, fields unchanged
+//   run-progress.mjs publish --run RUN_DIR [--no-bundle] [--no-site]   status file + bundle, fields unchanged
+//                                                               (--no-site names what this does: it never builds the
+//                                                               site; publish-location.mjs does canvas + site + this)
+//   run-progress.mjs check --run RUN_DIR [--allow-stale]        exit 3 "pull first" when the Blob bundle is newer than
+//                                                               the last local publish/pull; warns on another machine's claim
 //   run-progress.mjs resume --slug <slug> | --run RUN_DIR      print the resume brief (Blob first, local fallback)
 //   run-progress.mjs pull --slug <slug> --run-root ROOT [--force]   download the bundle into ROOT/<slug>
 //   run-progress.mjs list                                       every status/<slug>.json in the store
 //
 // Stages: intake, fulfill, review, closeout, closeout-finish, done.
+//
+// Two machines (2026-10-21): the Blob bundle is the source of truth for a run. Every publish and pull
+// writes RUN_DIR/review/bundle-manifest.json (the manifest last synced here); `check` compares it with
+// the Blob manifest and refuses (exit 3) when the Blob is newer, so an edit on the other machine is
+// pulled before it is overwritten. `set` and `publish` also stamp a soft claim on status/<slug>.json
+// (`editing: {by, since}`, by = BOOSTLY_EDITOR or the hostname) that `set --stage done` clears;
+// `check` prints a warning, never a failure, when another machine's claim is under two hours old.
+// Files the canvas needs but the bundle never uploads (evidence json, gbp photos, candidates, fix and
+// review images, logo-search manifests) are referenced by the Blob URL the site build already gave
+// them (data/blob-index.json, keyed by content hash; a downsized copy is matched by re-running the
+// site's shrink.py on a temp copy), so `pull` reproduces the canvas inputs with no new uploads.
 //
 // Writes RUN_DIR/review/progress.json. `set` and `publish` then PUT, with the site's
 // BLOB_READ_WRITE_TOKEN (env, or the fulfillment-reviews clone's git-ignored .env.local):
@@ -22,7 +37,11 @@
 //                               links-block.json, slack-post.json, candidates/**, variants/*.json,
 //                               signage/*.svg, signage/shots/*.png, and every image run.json points at
 //                               (write, variants, proofs); never review images, evidence, preflight,
-//                               print-handoff, website or photo caches (2.5 MB per file, 15 MB total)
+//                               print-handoff, website or photo caches (2.5 MB per file, 15 MB total);
+//                               plus evidence/branding-evidence.json, gbp-photos/gbp-photos.json and
+//                               review/logo-search/manifest.json (small json, uploaded), and blob_url
+//                               references (never uploaded, not counted) for every image the site build
+//                               already holds: evidence, gbp-photos, candidates, fix, review images
 // The store is public read: ship-to and request contact data are redacted by key before upload,
 // handoff text lines that look like a street address are dropped, and any file whose name or
 // contents look like a cookie, token or key is refused. Never prints the token.
@@ -32,6 +51,8 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const API = "https://blob.vercel-storage.com";
 const STAGES = ["intake", "fulfill", "review", "closeout", "closeout-finish", "done"];
@@ -47,7 +68,8 @@ const SECRET_TEXT = /xox[abpr]-[0-9A-Za-z-]{10,}|figd_[0-9A-Za-z_-]{20,}|vercel_
 const STREET_LINE = /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,4}\s+(St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Hwy|Highway|Pkwy|Parkway|Ct|Court|Pl|Place|Ste|Suite|Unit)\b\.?/i;
 
 // ---------- args ----------
-const argv = process.argv.slice(2);
+const isEntry = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const argv = isEntry ? process.argv.slice(2) : [];
 const cmd = argv[0];
 const opt = {};
 for (let i = 1; i < argv.length; i++) {
@@ -64,6 +86,8 @@ for (let i = 1; i < argv.length; i++) {
   else if (a === "--by") opt.by = take();
   else if (a === "--no-publish") opt.noPublish = true;
   else if (a === "--no-bundle") opt.noBundle = true;
+  else if (a === "--no-site") opt.noSite = true;
+  else if (a === "--allow-stale") opt.allowStale = true;
   else if (a === "--force") opt.force = true;
   else if (a === "--json") opt.json = true;
   else die(`unknown argument: ${a}`);
@@ -71,7 +95,7 @@ for (let i = 1; i < argv.length; i++) {
 function die(msg, code = 2) { console.error(`run-progress.mjs: ${msg}`); process.exit(code); }
 function usage() {
   die('usage: run-progress.mjs set --run RUN_DIR --stage <intake|fulfill|review|closeout|closeout-finish|done> --last "..." --next "..." [--blocked-on "..."|--clear-blocked] [--by <agent>] [--no-publish] [--no-bundle]\n' +
-      '       run-progress.mjs get|publish --run RUN_DIR\n       run-progress.mjs resume --slug <slug> | --run RUN_DIR\n' +
+      '       run-progress.mjs get|publish [--no-site] --run RUN_DIR\n       run-progress.mjs check --run RUN_DIR [--allow-stale]\n       run-progress.mjs resume --slug <slug> | --run RUN_DIR\n' +
       '       run-progress.mjs pull --slug <slug> --run-root ROOT [--force]\n       run-progress.mjs list');
 }
 
@@ -80,6 +104,36 @@ const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 const exists = (f) => { try { fs.accessSync(f); return true; } catch { return false; } };
 const nowIso = () => new Date().toISOString();
+const CLAIM_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+export const editorId = () => process.env.BOOSTLY_EDITOR || os.hostname();
+export { sha256 };
+
+function loadBlobIndex() {
+  const idx = path.join(REVIEWS_REPO, "data", "blob-index.json");
+  return exists(idx) ? loadJsonOr(idx, {}) : null;
+}
+// The site build's image tiers (fulfillment-reviews scripts/build.mjs tierFor), so a downsized copy hashes the same here.
+function shrinkTier(rel) {
+  if (/^(variants|candidates|signage|fix|review|mockups)\//.test(rel)) return { max_px: 3200, quality: 92, keep_png: true };
+  if (/^evidence\//.test(rel) || /gbp|instagram|website|brand-environment|contact-sheet/i.test(rel)) return { max_px: 1200, quality: 78 };
+  return { max_px: 1600, quality: 82 };
+}
+/** sha256 and basename of the copy the site build would upload for this image (null when shrink.py is unavailable). */
+function downsizedHash(abs, rel) {
+  const shrink = path.join(REVIEWS_REPO, "scripts", "shrink.py");
+  if (!exists(shrink)) return null;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "rp-shrink-"));
+  try {
+    const copy = path.join(tmp, path.basename(rel));
+    fs.copyFileSync(abs, copy);
+    const r = spawnSync("python3", [shrink], { input: JSON.stringify([{ path: copy, ...shrinkTier(rel) }]), encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+    if (r.status !== 0) return null;
+    const out = (() => { try { return JSON.parse(r.stdout || "{}"); } catch { return {}; } })();
+    const final = out[copy] || copy;
+    if (!exists(final)) return null;
+    return { sha256: sha256(fs.readFileSync(final)), basename: path.basename(final) };
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
 
 function loadToken() {
   if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
@@ -190,9 +244,15 @@ function statusPayload(rp) {
     hold: exists(path.join(rp.dir, "HOLD.md")) ? holdFirstLine(path.join(rp.dir, "HOLD.md")) : null,
     site_url: `${SITE}/${rp.slug}/`,
     bundle: progress?.bundle ?? null,
+    editing: progress?.editing ?? null,
   };
   if (typeof payload.picked_letter === "object" && payload.picked_letter) payload.picked_letter = payload.picked_letter.letter ?? null;
   return payload;
+}
+/** Soft claim (2026-10-21): who is editing this run from which machine; kept while the editor is unchanged. */
+function claim(prev) {
+  const by = editorId();
+  return prev?.by === by && prev.since ? prev : { by, since: nowIso() };
 }
 function holdFirstLine(f) {
   const lines = fs.readFileSync(f, "utf8").split("\n").map((l) => l.replace(/^[#\-*\s]+/, "").trim()).filter(Boolean);
@@ -207,7 +267,7 @@ function guardPublic(obj, label) {
 }
 
 // ---------- bundle ----------
-function redactJson(v, depth = 0) {
+export function redactJson(v, depth = 0) {
   if (Array.isArray(v)) return v.map((x) => redactJson(x, depth + 1));
   if (v && typeof v === "object") {
     const out = {};
@@ -223,6 +283,25 @@ function redactValue(val) {
   if (val == null || val === "" || val === false) return val;
   return { redacted: true, note: "read live from Boostly; not stored in the public bundle" };
 }
+const PLACEHOLDER = "[redacted: read live]";
+const isRedacted = (v) => v && typeof v === "object" && !Array.isArray(v) && v.redacted === true && typeof v.note === "string" && Object.keys(v).length === 2;
+/**
+ * Pull-side twin of redactJson (2026-10-21): the redaction markers break the run-file validator
+ * (request.address must be string|null, shipping/csm/requested_by object|null), so every sheet
+ * subcommand and the canvas failed at the run.json write on a pulled run. Markers become
+ * validator-compatible placeholders: the shipping block {complete:false}, csm/requested_by
+ * {name, email:null}, everything else the string "[redacted: read live]". Still no real data.
+ */
+export function restorePlaceholders(v, key = null) {
+  if (Array.isArray(v)) return v.map((x) => restorePlaceholders(x));
+  if (isRedacted(v)) {
+    if (key === "shipping" || key === "ship_to") return { complete: false, note: PLACEHOLDER, redacted: true };
+    if (key === "csm" || key === "requested_by" || key === "contact") return { name: PLACEHOLDER, email: null, redacted: true };
+    return PLACEHOLDER;
+  }
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, restorePlaceholders(x, k)]));
+  return v;
+}
 function redactText(text) {
   let dropped = 0;
   const out = text.split("\n").map((l) => {
@@ -232,16 +311,73 @@ function redactText(text) {
   return { text: out, dropped };
 }
 
-function collectBundle(rp) {
+const CANVAS_INPUT_JSON = ["evidence/branding-evidence.json", "gbp-photos/gbp-photos.json", "review/logo-search/manifest.json"];
+// never walked for references either: ship-to, crawl caches, cookies
+const NEVER_DIR = /^(print-handoff|preflight|searchapi|website|browser-pages|node_modules|\.git)(\/|$)/;
+
+/**
+ * Blob references for the canvas inputs the bundle does not upload: every image under the run dir
+ * (outside the never-bundled dirs and fix/live-*) that the site build already holds in
+ * data/blob-index.json, matched by content hash (exact), else by the hash of the downsized copy the
+ * build would have uploaded. Nothing is uploaded; references do not count toward the caps.
+ */
+export function collectRefs(rp, files, blobIndex, notes = []) {
+  const refs = new Map();
+  if (!blobIndex) { notes.push("no data/blob-index.json in the reviews clone: no Blob references"); return refs; }
+  const prefix = `assets/${rp.slug}/`;
+  const byName = new Map(); // basename -> [{ key, url, bytes, sha12 }]
+  for (const [key, e] of Object.entries(blobIndex)) {
+    if (!key.startsWith(prefix) || !e?.url) continue;
+    const m = key.slice(prefix.length).match(/^([0-9a-f]{12})-(.+)$/);
+    if (!m) continue;
+    const list = byName.get(m[2]) || [];
+    list.push({ key, url: e.url, bytes: e.bytes, sha12: m[1] });
+    byName.set(m[2], list);
+  }
+  if (!byName.size) { notes.push("no site assets for this slug in data/blob-index.json (page not built yet?)"); return refs; }
+  const walk = (rel) => {
+    const abs = path.join(rp.dir, rel);
+    for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+      const r = rel ? path.join(rel, e.name) : e.name;
+      if (NEVER_DIR.test(r) || /^fix\/live-/.test(r) || e.isSymbolicLink()) continue;
+      if (e.isDirectory()) { walk(r); continue; }
+      if (!e.isFile() || !/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(e.name) || files.has(r) || SECRET_NAME.test(r)) continue;
+      const base = path.basename(r);
+      const alt = base.replace(/\.(png|webp|jpeg)$/i, ".jpg");
+      const cands = [...(byName.get(base) || []), ...(alt !== base ? byName.get(alt) || [] : [])];
+      if (!cands.length) continue;
+      const file = path.join(rp.dir, r);
+      const buf = fs.readFileSync(file);
+      const hash = sha256(buf);
+      const exact = cands.find((c) => c.sha12 === hash.slice(0, 12) && c.key.endsWith(`-${base}`));
+      if (exact) { refs.set(r, { sha256: hash, bytes: buf.length, blob_url: exact.url }); continue; }
+      const down = downsizedHash(file, r);
+      const hit = down && cands.find((c) => c.sha12 === down.sha256.slice(0, 12) && c.key.endsWith(`-${down.basename}`));
+      if (hit) refs.set(r, { sha256: hash, bytes: buf.length, blob_url: hit.url, downsized: true, blob_sha256: down.sha256, blob_bytes: hit.bytes });
+      else notes.push(`no Blob copy matched ${r} (${cands.length} same-name asset(s) on the site, none with this content)`);
+    }
+  };
+  walk("");
+  return refs;
+}
+
+export function localManifestPath(rp) { return path.join(rp.dir, "review", "bundle-manifest.json"); }
+function writeLocalManifest(rp, manifest, source) {
+  const f = localManifestPath(rp);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify({ ...manifest, synced: { source, at: nowIso(), host: os.hostname(), editor: editorId() } }, null, 1) + "\n");
+}
+
+export function collectBundle(rp) {
   const run = loadJsonOr(path.join(rp.dir, "run.json"), {});
   const files = new Map(); // relpath -> Buffer
   const notes = [];
   const addFile = (rel, buf) => { if (!files.has(rel)) files.set(rel, buf); };
-  const addPath = (rel) => {
+  const addPath = (rel, { allowSkipped = false } = {}) => {
     const abs = path.join(rp.dir, rel);
-    if (!exists(abs) || !fs.statSync(abs).isFile()) return;
+    if (!exists(abs) || fs.lstatSync(abs).isSymbolicLink() || !fs.statSync(abs).isFile()) return;
     if (SECRET_NAME.test(rel)) { notes.push(`skipped ${rel}: name looks secret`); return; }
-    if (SKIP_DIR.test(rel)) return;
+    if (SKIP_DIR.test(rel) && !allowSkipped) return;
     const st = fs.statSync(abs);
     if (st.size > MAX_FILE) { notes.push(`skipped ${rel}: ${st.size} B over the ${MAX_FILE} B cap`); return; }
     const ext = path.extname(rel).toLowerCase();
@@ -262,8 +398,9 @@ function collectBundle(rp) {
     if (!exists(abs)) return;
     for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
       const r = path.join(rel, e.name);
+      if (e.isSymbolicLink()) continue; // never follow links (a link to a dir reads as EISDIR, Clearwater 2026-10-21)
       if (e.isDirectory()) addDir(r, filter);
-      else if (!filter || filter(e.name)) addPath(r);
+      else if (e.isFile() && (!filter || filter(e.name))) addPath(r);
     }
   };
   addPath("run.json");
@@ -283,6 +420,8 @@ function collectBundle(rp) {
     else if (typeof v === "string" && path.isAbsolute(v) && v.startsWith(rp.dir + path.sep) && /\.(png|svg|jpg|jpeg|webp|pdf)$/i.test(v)) refs.add(path.relative(rp.dir, v));
   })(run);
   for (const r of refs) if (!r.includes("..")) addPath(r);
+  // small canvas inputs the skip list would otherwise drop (json only; the photos they describe are Blob references)
+  for (const f of CANVAS_INPUT_JSON) addPath(f, { allowSkipped: true });
   let total = 0;
   for (const [rel, buf] of files) { total += buf.length; }
   if (total > MAX_BUNDLE) {
@@ -293,17 +432,29 @@ function collectBundle(rp) {
   return { files, total, notes };
 }
 
-async function pushBundle(rp, token, origin, by) {
-  const { files, total, notes } = collectBundle(rp);
-  const prev = origin ? await fetchJson(`${origin}/bundles/${rp.slug}/manifest.json`).catch(() => null) : null;
-  const manifest = { slug: rp.slug, pushed_at: nowIso(), by: by || os.hostname(), bytes: total, files: {} };
-  let uploaded = 0, reused = 0;
+/** The manifest to push: uploaded files (reusing the store copy when the hash is unchanged) plus Blob references. */
+export function buildManifest(rp, files, refs, prev, { by, total = 0, now = nowIso() } = {}) {
+  const manifest = { slug: rp.slug, pushed_at: now, by: by || os.hostname(), bytes: total, refs: refs.size, files: {} };
+  const toUpload = [];
   for (const [rel, buf] of files) {
     const hash = sha256(buf);
     const old = prev?.files?.[rel];
-    if (old && old.sha256 === hash && old.url) { manifest.files[rel] = old; reused++; continue; }
-    const url = await putBlob(token, `bundles/${rp.slug}/${rel}`, buf, 60);
-    manifest.files[rel] = { sha256: hash, bytes: buf.length, url };
+    if (old && old.sha256 === hash && old.url) { manifest.files[rel] = old; continue; }
+    manifest.files[rel] = { sha256: hash, bytes: buf.length, url: null };
+    toUpload.push(rel);
+  }
+  for (const [rel, info] of refs) if (!manifest.files[rel]) manifest.files[rel] = info;
+  return { manifest, toUpload };
+}
+
+export async function pushBundle(rp, token, origin, by) {
+  const { files, total, notes } = collectBundle(rp);
+  const refs = collectRefs(rp, files, loadBlobIndex(), notes);
+  const prev = origin ? await fetchJson(`${origin}/bundles/${rp.slug}/manifest.json`).catch(() => null) : null;
+  const { manifest, toUpload } = buildManifest(rp, files, refs, prev, { by, total });
+  let uploaded = 0, reused = files.size - toUpload.length;
+  for (const rel of toUpload) {
+    manifest.files[rel].url = await putBlob(token, `bundles/${rp.slug}/${rel}`, files.get(rel), 60);
     uploaded++;
   }
   // drop store copies of files that left the bundle
@@ -312,7 +463,8 @@ async function pushBundle(rp, token, origin, by) {
   if (gone.length) notes.push(`${gone.length} file(s) removed from the store copy`);
   const mbuf = Buffer.from(JSON.stringify(manifest, null, 1) + "\n");
   const murl = await putBlob(token, `bundles/${rp.slug}/manifest.json`, mbuf, 60);
-  return { manifest_url: murl, files: files.size, bytes: total, uploaded, reused, pushed_at: manifest.pushed_at, notes };
+  writeLocalManifest(rp, manifest, "publish");
+  return { manifest_url: murl, files: files.size, refs: refs.size, bytes: total, uploaded, reused, pushed_at: manifest.pushed_at, notes };
 }
 
 // ---------- commands ----------
@@ -333,6 +485,8 @@ async function cmdSet() {
   if (opt.by) next.by = opt.by;
   next.host = os.hostname();
   next.updated_at = nowIso();
+  if (next.stage === "done") delete next.editing;
+  else next.editing = claim(next.editing);
   guardPublic({ last_step: next.last_step, next_step: next.next_step, blocked_on: next.blocked_on }, "progress text");
   fs.mkdirSync(path.dirname(rp.progressFile), { recursive: true });
   fs.writeFileSync(rp.progressFile, JSON.stringify(next, null, 1) + "\n");
@@ -346,13 +500,15 @@ async function cmdPublish(rpIn) {
   if (!token) { console.error("run-progress.mjs: no BLOB_READ_WRITE_TOKEN (env or " + path.join(REVIEWS_REPO, ".env.local") + "); progress saved locally only"); return; }
   const origin = await publicOrigin(token);
   const progress = loadJsonOr(rp.progressFile, {});
+  if (progress.stage !== "done") progress.editing = claim(progress.editing);
   if (!opt.noBundle) {
-    const b = await pushBundle(rp, token, origin, progress.by);
-    progress.bundle = { manifest_url: b.manifest_url, files: b.files, bytes: b.bytes, pushed_at: b.pushed_at };
-    fs.writeFileSync(rp.progressFile, JSON.stringify(progress, null, 1) + "\n");
-    console.log(`bundle: ${b.files} files, ${b.bytes} B, ${b.uploaded} uploaded, ${b.reused} unchanged -> ${b.manifest_url}`);
+    const b = await pushBundle(rp, token, origin, opt.by || progress.by);
+    progress.bundle = { manifest_url: b.manifest_url, files: b.files, refs: b.refs, bytes: b.bytes, pushed_at: b.pushed_at };
+    console.log(`bundle: ${b.files} files, ${b.bytes} B, ${b.uploaded} uploaded, ${b.reused} unchanged, ${b.refs} Blob references -> ${b.manifest_url}`);
     for (const n of b.notes) console.log(`  ${n}`);
   }
+  fs.mkdirSync(path.dirname(rp.progressFile), { recursive: true });
+  fs.writeFileSync(rp.progressFile, JSON.stringify(progress, null, 1) + "\n");
   const payload = statusPayload(rp);
   guardPublic(payload, "status payload");
   const url = await putBlob(token, `status/${rp.slug}.json`, Buffer.from(JSON.stringify(payload)), 60);
@@ -415,31 +571,76 @@ async function cmdPull() {
   const manifest = await fetchJson(`${origin}/bundles/${opt.slug}/manifest.json`);
   if (!manifest) die(`no bundle for ${opt.slug} at ${origin}`, 1);
   const dest = path.join(path.resolve(opt.runRoot), opt.slug);
-  let written = 0, kept = 0, same = 0;
+  let written = 0, kept = 0, same = 0, downsized = 0;
   const missing = [];
   for (const [rel, info] of Object.entries(manifest.files)) {
     if (rel.includes("..") || path.isAbsolute(rel)) continue;
     const abs = path.join(dest, rel);
+    const url = info.url || info.blob_url;
+    if (!url) { missing.push(rel); continue; }
     if (exists(abs)) {
       const localHash = sha256(fs.readFileSync(abs));
-      if (localHash === info.sha256) { same++; continue; }
+      if (localHash === info.sha256 || (info.blob_sha256 && localHash === info.blob_sha256)) { same++; continue; }
       if (!opt.force) { kept++; console.log(`kept local ${rel} (differs from the bundle; --force to overwrite)`); continue; }
     }
-    const res = await fetch(`${info.url}?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
     if (res.status === 404) { missing.push(rel); continue; }
     if (!res.ok) die(`GET ${rel}: ${res.status}`, 1);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, Buffer.from(await res.arrayBuffer()));
+    let body = Buffer.from(await res.arrayBuffer());
+    if (rel === "run.json") { try { body = Buffer.from(JSON.stringify(restorePlaceholders(JSON.parse(body.toString("utf8"))), null, 2) + "\n"); } catch {} }
+    fs.writeFileSync(abs, body);
     written++;
+    if (info.downsized) downsized++;
   }
+  writeLocalManifest({ dir: dest, slug: opt.slug }, manifest, "pull");
   const pf = path.join(dest, "review", "progress.json");
   const prog = loadJsonOr(pf, {});
   prog.pulled = { from: `${origin}/bundles/${opt.slug}/manifest.json`, at: nowIso(), pushed_at: manifest.pushed_at, host: os.hostname() };
   fs.mkdirSync(path.dirname(pf), { recursive: true });
   fs.writeFileSync(pf, JSON.stringify(prog, null, 1) + "\n");
-  console.log(`${dest}: ${written} written, ${same} already identical, ${kept} kept local (bundle pushed ${manifest.pushed_at} by ${manifest.by})`);
+  console.log(`${dest}: ${written} written (${downsized} of them the site's downsized copies), ${same} already identical, ${kept} kept local (bundle pushed ${manifest.pushed_at} by ${manifest.by})`);
   if (missing.length) console.log(`${missing.length} file(s) in the manifest are gone from the store (the manifest is edge-cached for 60 s; a push just replaced it): ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ", ..." : ""}. Run pull again in a minute.`);
-  console.log("run.json in the bundle has ship-to and contact fields redacted; the finish step reads them live from Boostly.");
+  console.log(`run.json has ship-to and contact fields replaced by "${PLACEHOLDER}" placeholders (shipping.complete=false); the finish step reads them live from Boostly.`);
+}
+
+/**
+ * Freshness guard (2026-10-21). Stale = the Blob manifest was pushed after the last publish or pull
+ * recorded here (review/bundle-manifest.json, else progress.json's bundle/pulled stamps). A run with
+ * no Blob bundle is local-only, never stale. Network trouble warns and passes: the guard protects
+ * against overwriting the other machine's work, not against working offline.
+ */
+export async function checkRun(rp, { allowStale = false, editor = editorId(), now = Date.now(), origin } = {}) {
+  const out = { code: 0, stale: false, warnings: [], lines: [] };
+  if (origin === undefined) origin = await publicOrigin(loadToken()).catch(() => null);
+  if (!origin) { out.warnings.push("no Blob origin known; freshness not checked"); return out; }
+  let remote;
+  try { remote = await fetchJson(`${origin}/bundles/${rp.slug}/manifest.json`); }
+  catch (e) { out.warnings.push(`could not read the Blob manifest (${e.message}); freshness not checked`); return out; }
+  if (!remote) { out.lines.push(`no Blob bundle for ${rp.slug}: local-only run`); return out; }
+  const local = loadJsonOr(localManifestPath(rp), null);
+  const progress = loadJsonOr(rp.progressFile, {});
+  const localTs = local?.pushed_at || progress.bundle?.pushed_at || progress.pulled?.pushed_at || null;
+  const remoteTs = Date.parse(remote.pushed_at || 0);
+  if (!localTs || remoteTs > Date.parse(localTs)) {
+    out.stale = true;
+    const msg = `pull first: Blob bundle is newer (pushed ${remote.pushed_at} by ${remote.by || "?"})${localTs ? `; last synced here ${localTs}` : "; never synced here"}`;
+    if (allowStale) out.warnings.push(`--allow-stale: ${msg}`);
+    else { out.code = 3; out.lines.push(msg); }
+  } else out.lines.push(`fresh: Blob bundle pushed ${remote.pushed_at} by ${remote.by || "?"}, synced here ${localTs}`);
+  const status = await fetchJson(`${origin}/status/${rp.slug}.json`).catch(() => null);
+  const ed = status?.editing;
+  if (ed?.by && ed.by !== editor && ed.since && now - Date.parse(ed.since) < CLAIM_MAX_AGE_MS) out.warnings.push(`another machine is editing this run: ${ed.by} since ${ed.since} (claim under 2 h old)`);
+  return out;
+}
+async function cmdCheck() {
+  if (!opt.run) usage();
+  const rp = runPaths(opt.run);
+  const r = await checkRun(rp, { allowStale: Boolean(opt.allowStale) });
+  if (opt.json) { console.log(JSON.stringify(r, null, 1)); process.exit(r.code); }
+  for (const w of r.warnings) console.error(`run-progress.mjs check: warning: ${w}`);
+  for (const l of r.lines) (r.code ? console.error : console.log)(`run-progress.mjs check: ${l}`);
+  process.exit(r.code);
 }
 
 async function cmdList() {
@@ -459,6 +660,8 @@ async function cmdList() {
   for (const p of rows) console.log(`${(p.progress?.stage || "?").padEnd(16)} ${(p.progress?.updated_at || "").slice(0, 16).padEnd(17)} ${p.slug.padEnd(44)} next: ${p.progress?.next_step || "?"}${p.progress?.blocked_on ? "  [blocked: " + p.progress.blocked_on + "]" : ""}`);
 }
 
-const run = { set: cmdSet, get: cmdGet, publish: () => cmdPublish(), resume: cmdResume, pull: cmdPull, list: cmdList }[cmd];
-if (!run) usage();
-await run();
+if (isEntry) {
+  const run = { set: cmdSet, get: cmdGet, publish: () => cmdPublish(), check: cmdCheck, resume: cmdResume, pull: cmdPull, list: cmdList }[cmd];
+  if (!run) usage();
+  await run();
+}

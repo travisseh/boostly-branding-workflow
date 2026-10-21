@@ -58,8 +58,8 @@ Steps, in order:
    ~/.claude/skills/boostly-brand-design/harness/mockups/ai-mockup.mjs --run-dir RUN_DIR --letter
    LETTER --scene box`, then `--scene scan --phone review/link-tree-<short_id>.png` after
    capturing tp.boostly.com/<short_id> in the live Chrome tab; SKILL.md rule 2d; previews, not
-   proofs), then rebuild the canvas (`review-canvas.mjs --run RUN_DIR --skip-google`) so they
-   land in its Previews section.
+   proofs), then `publish-location.mjs --run RUN_DIR --skip-google --no-site` so they land in the
+   canvas's Previews section (the site page is pushed at the stop in step 4).
 2. Gates: when the decision carries `traced_from_small_source`, first record `run-file override
    --gate edge-quality --decided-by travisse --reason "standing acceptance of small-source traces,
    2026-10-19"`. Then `gates.ts check --run RUN_DIR --asset <cell logo> --color <cell primary>`
@@ -135,7 +135,7 @@ Steps, in order:
    run.json. If Travisse asks for changes, the lead messages you: apply them (rerun
    `signage-preview.mjs --cell` when the pick changed, then export-direct.mjs with the new inputs
    (`--force` is not needed for a direct render), then drive-upload.mjs `--skip-summary` again so
-   the Drive files are replaced in place, then `review-canvas.mjs --skip-google`), refresh the
+   the Drive files are replaced in place, then `publish-location.mjs --run RUN_DIR --skip-google`), refresh the
    handoff files, and stop again. Never report the location as done.
    Before you stop, write the handoff the finish agent depends on, because it has none of
    your context:
@@ -164,9 +164,10 @@ Steps, in order:
    refresh and publish the status board
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (box-fulfillment SKILL.md "Status board on the review site"; a launchd job also publishes it
-   every 5 minutes without a model), then rebuild and push the location's site page so it shows
-   the Print files (Drive folder) link and the branding status (the push is part of publishing, no separate go):
-   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && until ! pgrep -f "scripts/buil[d].mjs" >/dev/null && [ -z "$(git status --short)" ]; do sleep 10; done && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name> && git add public data && git commit -m "Signage built: <location> review page" && git push`.
+   every 5 minutes without a model), then
+   `node ~/.claude/skills/boostly-brand-design/scripts/publish-location.mjs --run RUN_DIR --skip-google`
+   (canvas, the site page with the Print files link and branding status, Blob status + bundle; exit 3
+   means pull first; the push is part of publishing, no separate go).
 Steps 5 to 8 (the ONE Slack post, `fulfillment branding --complete`, the final site status,
 the final `run-file validate`; 4b only backfills the secondary logo on pre-2026-10-19 runs) belong to the `closeout-finish` agent
 (`~/.claude/agents/closeout-finish.md`). Do not run them, even when the lead tells you the

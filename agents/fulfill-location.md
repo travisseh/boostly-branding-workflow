@@ -94,10 +94,12 @@ Do, in order:
    hand from existing pixels and `add-cell`, or to leave with its reason in the report. Put the
    `notes_line` ("Taste pass added X, Y, Z ...") in your `checklist/notes.json` line.
    Stamp: `run-progress.mjs set --run RUN_DIR --stage fulfill --last "taste pass" --next "review canvas and link discovery" --by fulfill-location`.
-   Then the review canvas:
-   `node ~/.claude/skills/boostly-brand-design/scripts/review-canvas.mjs --run RUN_DIR --open`
-   (`--skip-google` when headless search is blocked; the live Chrome tab is the workaround, do not
-   fight it). The sheet and the canvas need no Boostly dev server: cells are drawn by the browser
+   Then the review canvas and the public page in one command:
+   `node ~/.claude/skills/boostly-brand-design/scripts/publish-location.mjs --run RUN_DIR`
+   (rebuilds the canvas, builds and pushes the site page, pushes the Blob status + bundle; exit 3
+   means pull first; `--skip-google` when headless search is blocked, the live Chrome tab is the
+   workaround, do not fight it; `--no-site` only when the lead's prompt says "no site publish").
+   The sheet and the canvas need no Boostly dev server: cells are drawn by the browser
    from the sheet JSON and the vendored templates (no screenshots, no per-cell PNGs, no
    `review-canvas.png` unless `--png`). The canvas builds `review/compare-default.png` itself
    (the default plus the strongest cell of every other row); pass `compare --cells <letters>`
@@ -108,15 +110,10 @@ Do, in order:
    the status board so the location shows "pick a letter":
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (box-fulfillment SKILL.md "Status board on the review site"; no Apple Note, no Notion). Do not
-   pass `--open` to the canvas unless the lead asks; the site page is how he opens it.
-   Then publish the shareable page to the public review site (box-fulfillment SKILL.md "Public
-   review site"; the push is part of publishing and needs no separate go; skip only when the
-   lead's prompt says "no site publish"):
-   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
-   `git add public data && git commit -m "Add <location> review page"`
-   `git push`
-   The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/`. A failed build or push
-   is reported, not retried blindly; never edit `data/sites.json` or `public/` by hand.
+   pass `--open` unless the lead asks; the site page is how he opens it.
+   The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/` (the push is part of
+   publishing and needs no separate go). A failed build or push is reported, not retried blindly;
+   never edit `data/sites.json` or `public/` by hand.
 5. Links. Page reading is TRANSPORT and is never done in your own context (2026-09-29); the
    verdicts are yours. Box-fulfillment SKILL.md "Discovery" has the details.
    a. Default transport, Codex: run

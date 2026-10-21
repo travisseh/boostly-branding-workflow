@@ -113,6 +113,9 @@ harness encode every failure a human flagged.
   `review/progress.json` and publishes `status/<slug>.json` plus a small bundle (run.json with
   ship-to redacted, candidates, proofs, handoff) to the review site's Blob store; `resume --slug`
   and `pull --slug --run-root` let a fresh agent on another machine continue from `next_step`.
+  `scripts/publish-location.mjs --run <dir>` (2026-10-21) is the one publish after any canvas or
+  sheet change: canvas rebuild, site page build + push, then the bundle (no separate "republish
+  the bundle" step); `run-progress.mjs check` refuses a stale run with exit 3 (pull first).
   See box-fulfillment SKILL.md "Status board on the review site".
 - `scripts/cut-words.mjs`: deterministic business-name-words-only cut of a knockout by
   connected components (two-pass union-find, line clustering, emblem/descriptor drop), with a
@@ -452,9 +455,9 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    Shawarma Inn.
 2c. **Review canvas: the sheet stage ends by generating and opening it.** After the variant
    sheet is built (or patched) and Fable has marked its default letter, run
-   `node scripts/review-canvas.mjs --run <run_dir> --open` (`--open` is for the operator's own
-   look only; the page Cam, Karissa, or the vendor see is the public review site, published per
-   box-fulfillment SKILL.md "Public review site", never a Claude artifact). It writes
+   `node scripts/publish-location.mjs --run <run_dir>` (canvas, site page, bundle in one; `--open`
+   passes through and is for the operator's own look only; the page Cam, Karissa, or the vendor
+   see is the public review site, never a Claude artifact). The canvas step writes
    `<run_dir>/review/review-canvas.html` (a self-contained page with inline CSS and relative paths
    into the run dir, no CDN; every image at native resolution, click any image to open the file; a
    fixed left sidebar lists every section with the one in view highlighted and collapses to a

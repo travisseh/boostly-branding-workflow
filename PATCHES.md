@@ -542,3 +542,45 @@ merged from the live copy with the Codex daily mirror as the three-way base, so 
   package-only lines stay as listed above). Tests on the live copies: brand-design 20 suites,
   signage-sheets 5, all green; `.test.ts` suites run with `node --experimental-strip-types --test`
   (tsx fails on the harness's top-level await).
+
+## 2026-10-21: run sync (the Blob bundle is the source of truth for a run)
+
+- `skills/boostly-brand-design/scripts/run-progress.mjs` (copied from live; no package patch): `check --run <dir>`
+  (exit 3 "pull first: Blob bundle is newer" when the Blob manifest was pushed after this machine's last
+  publish or pull, recorded in `review/bundle-manifest.json`; `--allow-stale` warns instead), `publish --no-site`
+  (no-op name: publish never built the site), the soft claim `editing: {by, since}` on `status/<slug>.json`
+  (`BOOSTLY_EDITOR` or hostname; cleared at stage done), Blob references in the bundle manifest (`blob_url`
+  from the reviews clone's `data/blob-index.json`, exact content hash or the hash of the downsized copy
+  via the clone's `scripts/shrink.py`; nothing uploaded, not counted toward the caps) plus
+  `evidence/branding-evidence.json`, `gbp-photos/gbp-photos.json` and `review/logo-search/manifest.json`
+  uploaded; `pull` downloads references too and skips files whose sha already matches.
+- NEW `skills/boostly-brand-design/scripts/publish-location.mjs`: one command per run dir: check, review canvas
+  (flags passed through), site build + commit + push from `BOOSTLY_REVIEWS_REPO_DIR` (same wait loop and
+  `--limit 0 --slug` as the SKILL), then `run-progress.mjs publish`. NEW `run-progress.test.mjs` (3 cases, no network).
+- `skills/boostly-brand-design/scripts/variant-sheet.mjs` (copied from live): add-row, add-cell, add-column, mark and
+  swap-asset run `run-progress.mjs check` first (`--allow-stale` bypasses) and `run-progress.mjs publish --no-site`
+  after a successful mutation (one-line warning when there is no token). `BOOSTLY_RUN_SYNC=0` disables both.
+- `skills/boostly-brand-design/scripts/review-canvas.mjs` (three-way merge, base = the Codex mirror): the same
+  check before a full canvas build, `--allow-stale`. The merge kept the package's older `cachedLogoSearch`
+  (no links-only logo-search manifest); that hunk was already behind the live copy before today.
+- `skills/boostly-box-fulfillment/SKILL.md` (copied from live): "Status board" and "Public review site" now
+  describe `publish-location.mjs`, `check` and the claim.
+- Agents (copied from live, then the package lines re-applied: `$BOOSTLY_RUN_ROOT` working directory x3,
+  `$BOOSTLY_HEARTBEAT_ROOT` in fulfill-location): the canvas + site + bundle steps are one
+  `publish-location.mjs` line each. The `cd "${BOOSTLY_REVIEWS_REPO_DIR:-...}"` package line is gone with the
+  inline site command; `publish-location.mjs` reads `BOOSTLY_REVIEWS_REPO_DIR` itself.
+- `setup/env.example`: optional `BOOSTLY_EDITOR`.
+- Tests on this checkout: `run-progress.test.mjs` 3, `fetch-searchapi-brand-environment` 7, `render-effective-proof` 4
+  (the sharp/qrcode suites still need Karissa's `setup.sh`). Live copies: variant-sheet 38, review-canvas 14,
+  sheet-templates 8, finalize-asset 10, taste-pass 12, trace-smooth 6, run-progress 3, all green.
+- Same day, follow-ups: `run-progress.mjs` bundle walkers skip symlinks and non-files (EISDIR on a nested
+  `candidates/ladder/`, Clearwater); `pull` rewrites run.json's redaction markers into validator-safe
+  placeholders (`"[redacted: read live]"`, shipping `{complete:false}`, csm/requested_by `{name, email:null}`)
+  so sheet subcommands and the canvas write run.json on a pulled run (test: redact, restore, `run-file validate`
+  passes). Nothing in run-progress or publish-location reads fulfillment-reviews.vercel.app over HTTP (it 403s
+  plain fetches since 2026-10-21); status and manifests come from the Blob URLs.
+- `skills/boostly-brand-design/SKILL.md` (copied from live, no package patch): the run-progress bullet and 2c
+  name `publish-location.mjs` as the one publish. **Karissa's uncommitted 2026-10-21 line "republish the bundle
+  after every review-page push" (brand-design SKILL.md and fulfill-location agent) is replaced by that sentence
+  and by the fulfill-location step-4 `publish-location.mjs` line**: the command pushes the bundle itself, so her
+  line should not survive the merge.

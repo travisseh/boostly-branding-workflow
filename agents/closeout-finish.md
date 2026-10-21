@@ -171,13 +171,9 @@ Start stamp, once the preconditions pass:
    `run-progress.mjs set --run RUN_DIR --stage done --last "branding complete, Slack posted, status set" --next "nothing; open decisions are on the notes line" --by closeout-finish`.
    When HOLD.md forbade branding complete, the stage stays `closeout-finish`:
    `run-progress.mjs set --run RUN_DIR --stage closeout-finish --last "Slack posted, status set" --next "branding complete after the hold clears" --blocked-on "<the hold reason, one phrase, no ship-to>" --by closeout-finish`.
-   Then rebuild and push the public review site so the location's page shows "Closed out"
-   (box-fulfillment SKILL.md "Public review site"; this push needs no separate go):
-   `cd "${BOOSTLY_REVIEWS_REPO_DIR:-$HOME/Programming/repos/fulfillment-reviews}" && git pull --ff-only && npm run build -- --run-root <parent of RUN_DIR> --limit 0 --slug <RUN_DIR name>` (limit 0: only this page is rebuilt, every other entry is kept from data/sites.json; a larger limit rewrites every page and a concurrent build then drops pages from the manifest, seen 2026-10-12)
-   `git add public data && git commit -m "Close out <location> review page"`
-   `git push`
-   (`--slug` keeps the page in the index even when the run is older than the newest 25). A
-   failed build or push is reported, not retried blindly.
+   Then `node ~/.claude/skills/boostly-brand-design/scripts/publish-location.mjs --run RUN_DIR --skip-google`
+   so the location's page shows "Closed out" (canvas, site page, Blob status + bundle; exit 3 means
+   pull first; this push needs no separate go). A failed build or push is reported, not retried blindly.
    Finally delete your cookie directory (`rm -rf` on the exact `mktemp` path only).
 
 Every step: dry run, read it, apply, read back. Save each output under `RUN_DIR/finish/`

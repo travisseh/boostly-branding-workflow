@@ -37,7 +37,8 @@
 // that could be a secret.
 
 import fs from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -50,6 +51,18 @@ const HARNESS_DIR = path.resolve(SCRIPT_DIR, '..', 'harness');
 const require = createRequire(path.join(HARNESS_DIR, 'package.json'));
 const sharp = require('sharp');
 const RUN_FILE_CLI = path.resolve(SCRIPT_DIR, '..', '..', 'boostly-box-fulfillment', 'scripts', 'run-file.ts');
+const RUN_PROGRESS_CLI = path.join(SCRIPT_DIR, 'run-progress.mjs');
+
+/** Run sync (2026-10-21): refuse to rebuild from inputs the other machine has since changed (run-progress.mjs check, exit 3 = pull first). */
+function checkFresh(runDir, allowStale) {
+  if (process.env.BOOSTLY_RUN_SYNC === '0') return;
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  if (real(runDir).startsWith(real(os.tmpdir()))) return;
+  const r = spawnSync(process.execPath, [RUN_PROGRESS_CLI, 'check', '--run', runDir, ...(allowStale ? ['--allow-stale'] : [])], { encoding: 'utf8' });
+  if (r.stderr) process.stderr.write(r.stderr);
+  if (r.status === 3) throw new Error(`${(r.stderr || r.stdout).trim().split('\n').find((l) => /pull first/.test(l)) ?? 'pull first: Blob bundle is newer'} (run-progress.mjs pull --slug ${path.basename(runDir)} --run-root ${path.dirname(runDir)}, or --allow-stale)`);
+  if (r.status) process.stderr.write(`run-progress check skipped: ${(r.stderr || r.stdout).trim()}\n`);
+}
 
 // Layout is authored in logical units (1600 wide) and rendered at S x.
 let S = 2;
@@ -93,6 +106,7 @@ function parseArgs(argv) {
     else if (a === '--png') args.png = true;
     else if (a === '--no-png') args.png = false;
     else if (a === '--no-record') args.record = false;
+    else if (a === '--allow-stale') args.allowStale = true; // skip the run-sync freshness guard (run-progress.mjs check)
     else if (a === '--help' || a === '-h') { console.log('node review-canvas.mjs --run <run_dir> [--open] [--skip-google] [--no-live-chrome] [--chrome-profile boostly] [--scale 2] [--no-html] [--record-only] [--png] [--png-budget-mb 25] [--no-record]\nnode review-canvas.mjs compare --run <run_dir> [--cells K,M,L] [--open] [--png] [--scale 2]   (no --cells: the default plus the strongest cell of every other row -> review/compare-default)'); process.exit(0); }
     else throw new Error(`Unknown argument ${a}`);
   }
@@ -1558,6 +1572,7 @@ async function main() {
   const sheetJsonPath = abs(runDir, run.variants?.sheet_json ?? 'variants/variant-sheet.json');
   const sheet = await readJson(sheetJsonPath);
   if (args.command === 'compare') { await compare({ args, runDir, reviewDir, run, sheet }); return; }
+  checkFresh(runDir, args.allowStale);
   const sheetPng = abs(runDir, run.variants?.sheet_png ?? 'variants/variant-sheet.png');
   const evidence = await readJson(abs(runDir, run.evidence?.packet_path ?? 'evidence/branding-evidence.json'), {});
   const decision = run.decision ?? (await readJson(path.join(runDir, 'decision.json'), {}));

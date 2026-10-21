@@ -106,7 +106,8 @@
 import { createRequire } from 'node:module';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -284,7 +285,7 @@ const LADDER = [
   { key: 'depth_darker_20', label: 'darker step -20% (allowed when real ink fails contrast)', delta: -0.2 },
 ];
 const LIGHTER_STEP = { key: 'depth_lighter_10', label: 'lighter step +10% (never a pick)', delta: 0.1 };
-const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter', 'raster', 'all', 'allTreatments']);
+const BOOL_FLAGS = new Set(['noWords', 'force', 'knockout', 'noInstore', 'forceViability', 'allowLighter', 'raster', 'all', 'allTreatments', 'allowStale']);
 const GATES_CLI = path.join(SCRIPT_DIR, 'logo-quality-gates.ts');
 const GATES_JSON = path.resolve(SCRIPT_DIR, '..', 'references', 'gates.json');
 const NOT_VIABLE_STYLE = { color: '#4A148C', text: '#FFFFFF', tag: 'NOT VIABLE' };
@@ -322,6 +323,37 @@ const RUN_FILE_CLI = path.resolve(SCRIPT_DIR, '..', '..', 'boostly-box-fulfillme
 function runFile(argv) {
   const result = spawnSync(process.execPath, ['--experimental-strip-types', RUN_FILE_CLI, ...argv], { encoding: 'utf8' });
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+// Run sync (2026-10-21): the Blob bundle is the source of truth when two machines edit a run. Every
+// mutation (add-row, add-cell, add-column, mark, swap-asset) first asks run-progress.mjs check whether
+// the Blob bundle is newer than the last sync here (exit 3 = pull first; --allow-stale bypasses), and
+// publishes status + bundle (never the site) when it succeeds. Temp run dirs and BOOSTLY_RUN_SYNC=0 skip both.
+const RUN_PROGRESS_CLI = path.join(SCRIPT_DIR, 'run-progress.mjs');
+const MUTATIONS = new Set(['add-row', 'add-cell', 'add-column', 'mark', 'swap-asset']);
+function syncRunDir(args) {
+  if (process.env.BOOSTLY_RUN_SYNC === '0') return null;
+  const dir = path.resolve(args.run ?? args.runDir);
+  if (!existsSync(path.join(dir, 'run.json'))) return null;
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  if (real(dir).startsWith(real(os.tmpdir()))) return null;
+  return dir;
+}
+function checkFresh(args) {
+  const dir = syncRunDir(args);
+  if (!dir) return;
+  const r = spawnSync(process.execPath, [RUN_PROGRESS_CLI, 'check', '--run', dir, ...(args.allowStale ? ['--allow-stale'] : [])], { encoding: 'utf8' });
+  if (r.stderr) process.stderr.write(r.stderr);
+  if (r.status === 3) throw new Error(`${(r.stderr || r.stdout).trim().split('\n').find((l) => /pull first/.test(l)) ?? 'pull first: Blob bundle is newer'} (run-progress.mjs pull --slug ${path.basename(dir)} --run-root ${path.dirname(dir)}, or --allow-stale)`);
+  if (r.status) process.stderr.write(`run-progress check skipped: ${(r.stderr || r.stdout).trim()}\n`);
+}
+function publishSync(args) {
+  const dir = syncRunDir(args);
+  if (!dir || !MUTATIONS.has(args.command)) return;
+  const r = spawnSync(process.execPath, [RUN_PROGRESS_CLI, 'publish', '--run', dir, '--no-site'], { encoding: 'utf8' });
+  const line = (r.status ? r.stderr || r.stdout : r.stderr).trim().split('\n').filter(Boolean).pop();
+  if (r.status) process.stderr.write(`warning: run-progress publish failed (${line ?? 'no output'}); the Blob bundle is behind this ${args.command}\n`);
+  else if (line) process.stderr.write(`${line}\n`);
 }
 
 /**
@@ -1451,6 +1483,7 @@ async function finish(args, outDir, manifest, extra = {}) {
   };
   delete summary.reason;
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  publishSync(args);
   return summary;
 }
 function resolveOut(args, runDir) {
@@ -1783,6 +1816,7 @@ async function addTreatmentSet(args) {
 }
 
 async function addRow(args, { single = false } = {}) {
+  checkFresh(args);
   if (args.allTreatments && !single) return addTreatmentSet(args);
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
@@ -1870,6 +1904,7 @@ async function addRow(args, { single = false } = {}) {
  * survive; row.asset_history keeps the replaced sha. A refusal changes nothing but the skip record.
  */
 async function swapAsset(args) {
+  checkFresh(args);
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
@@ -1916,6 +1951,7 @@ async function swapAsset(args) {
 }
 
 async function addColumn(args) {
+  checkFresh(args);
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
@@ -1996,6 +2032,7 @@ export function applyPrintCell(manifest, letter, printLetter) {
 }
 
 async function mark(args) {
+  checkFresh(args);
   const runDir = path.resolve(args.runDir);
   const outDir = resolveOut(args, runDir);
   const manifest = await loadManifest(outDir);
@@ -2038,6 +2075,7 @@ async function mark(args) {
     overrides: selection ? selection.overrides : null,
     rendered: { cards: 0, stickers: 0, pops: 0 },
   }, null, 2)}\n`);
+  publishSync(args);
 }
 
 async function restitch(args) {
