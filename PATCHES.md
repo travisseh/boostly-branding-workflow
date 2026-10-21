@@ -584,3 +584,7 @@ merged from the live copy with the Codex daily mirror as the three-way base, so 
   after every review-page push" (brand-design SKILL.md and fulfill-location agent) is replaced by that sentence
   and by the fulfill-location step-4 `publish-location.mjs` line**: the command pushes the bundle itself, so her
   line should not survive the merge.
+
+## 2026-10-21: post-review.mjs env token (restored)
+
+- `skills/boostly-signage-sheets/scripts/post-review.mjs`: `loadToken()` reads `SLACK_USER_OAUTH_TOKEN` from the env before `~/.config/slack-tools/config.json`. The 2026-10-19 sync (4a64b2f) dropped this package line, so closeout-finish on an operator machine failed with "Slack config not found" (Trail Rider). Re-apply after copying post-review.mjs from live.

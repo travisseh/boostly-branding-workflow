@@ -154,6 +154,8 @@ async function dbThreadTs(locationId) {
 }
 
 function loadToken() {
+  // package patch: the shared env file's SLACK_USER_OAUTH_TOKEN first (operator machines have no slack-tools config)
+  if (process.env.SLACK_USER_OAUTH_TOKEN) return process.env.SLACK_USER_OAUTH_TOKEN;
   if (!fs.existsSync(SLACK_CONFIG)) fail(`Slack config not found at ${SLACK_CONFIG}`);
   const cfg = JSON.parse(fs.readFileSync(SLACK_CONFIG, 'utf8'));
   const token = cfg?.workspaces?.boostly?.token;
