@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { validateIndex, validateManifest, validateSiteData } from "../lib/contract.ts";
+import { newestSiteData, validateIndex, validateManifest, validateSiteData, type SiteData } from "../lib/contract.ts";
 
 const RUNS = path.join(os.homedir(), "Programming/projects/brand-design-spike-2026-07-06/runs-prod-2026-09-18");
 const local = ["il-capo", "five-star-pizza-clearwater"].map((s) => path.join(RUNS, s, "review/site-data.json")).filter((f) => fs.existsSync(f));
@@ -36,4 +36,19 @@ test("the index needs schema_version 1 and an entries object", () => {
   assert.equal(validateIndex({ schema_version: 1, entries: {} }).ok, true);
   assert.equal(validateIndex({ schema_version: 1 }).ok, false);
   assert.equal(validateIndex({ entries: {} }).ok, false);
+});
+
+test("newestSiteData: the valid copy with the newer generated_at wins; reasons when none is valid", () => {
+  const sd = (t: string) => ({ schema_version: 1, kind: "boostly-review-site-data", generated_at: t }) as unknown as SiteData;
+  const both = newestSiteData([{ from: "bundle", data: sd("2026-10-21T10:00:00Z") }, { from: "site-data", data: sd("2026-10-21T12:00:00Z") }]);
+  assert.equal(both.kind === "ok" && both.from, "site-data");
+  const bundleNewer = newestSiteData([{ from: "bundle", data: sd("2026-10-22T10:00:00Z") }, { from: "site-data", data: sd("2026-10-21T12:00:00Z") }]);
+  assert.equal(bundleNewer.kind === "ok" && bundleNewer.from, "bundle");
+  // an old bundle (no schema_version) does not block a backfilled site/data copy
+  const old = newestSiteData([{ from: "bundle", errors: ["manifest has no schema_version"] }, { from: "site-data", data: sd("2026-10-21T12:00:00Z") }]);
+  assert.equal(old.kind, "ok");
+  const bad = newestSiteData([{ from: "bundle", errors: ["manifest has no schema_version"] }, { from: "site-data", missing: "no site/data file" }]);
+  assert.deepEqual(bad, { kind: "invalid", errors: ["bundle: manifest has no schema_version"] });
+  const none = newestSiteData([{ from: "bundle", missing: "no bundle" }, { from: "site-data", missing: "no site/data file" }]);
+  assert.deepEqual(none, { kind: "missing", reason: "no bundle; no site/data file" });
 });

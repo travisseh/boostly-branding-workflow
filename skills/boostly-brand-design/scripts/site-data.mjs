@@ -2,12 +2,22 @@
 // site-data.mjs: the data side of the hosted review site (2026-10-21). The site (boostly-branding-workflow
 // site/, Next.js) renders every location page live from the Blob store; this script only emits data.
 //
-//   site-data.mjs build --run RUN_DIR [--no-upload]   collect the page facts into RUN_DIR/review/site-data.json and
+//   site-data.mjs build --run RUN_DIR [--no-upload] [--backfill]
+//                                                      collect the page facts into RUN_DIR/review/site-data.json and
 //                                                      upload every image the page shows (downsized) to
 //                                                      site/assets/<slug>/<sha12>-<name> (content addressed, skipped
 //                                                      when already in the store). The bundle push (run-progress.mjs
 //                                                      publish) then carries review/site-data.json like any review/*.json.
-//   site-data.mjs index --run RUN_DIR                  upsert this location's entry in site/index.json (+ site/entries/<slug>.json)
+//                                                      The same file also goes to site/data/<slug>.json, so a location
+//                                                      renders without a bundle push; the site reads both copies and
+//                                                      shows the newer (generated_at).
+//                                                      --backfill (2026-10-21): a one-time build for a location published
+//                                                      before the site existed, from a local run dir or a pulled copy of an
+//                                                      old bundle (no schema_version). Records backfilled_from, refuses
+//                                                      (exit 4) a run too thin to draw a sheet, never touches the bundle.
+//   site-data.mjs index --run RUN_DIR [--backfill] [--entry-only]
+//                                                      upsert this location's entry in site/index.json (+ site/entries/<slug>.json);
+//                                                      --entry-only writes just the entry (batches: one rebuild-index at the end)
 //   site-data.mjs rebuild-index                        rebuild site/index.json from site/entries/*.json
 //   site-data.mjs seed-index --sites-json FILE         one-time seed before cutover: an entry (no page data yet,
 //                                                      old_url pointing at the static page) for every location in
@@ -79,12 +89,13 @@ async function putBlob(token, pathname, body, { maxAge = 60, overwrite = true } 
     try {
       const headers = { authorization: `Bearer ${token}`, 'x-api-version': '7', 'x-content-type': type, 'x-add-random-suffix': '0', 'x-cache-control-max-age': String(maxAge), 'content-length': String(body.length) };
       if (overwrite) headers['x-allow-overwrite'] = '1';
-      const res = await fetch(`${API}/${pathname}`, { method: 'PUT', headers, body });
+      const res = await fetch(`${API}/${pathname}`, { method: 'PUT', headers, body, signal: AbortSignal.timeout(120000) });
       if (!res.ok) throw new Error(`blob put ${pathname}: ${res.status} ${(await res.text()).slice(0, 200)}`);
       return (await res.json()).url;
     } catch (e) {
       lastErr = e;
-      if (!/\b(5\d\d|429|fetch failed)\b/.test(e.message)) throw e;
+      // 5xx, rate limits, resets and our own timeouts (a hung PUT once stalled a backfill for 19 minutes) are retried
+      if (!/\b(5\d\d|429|fetch failed)\b|aborted|timeout|ECONNRESET|socket/i.test(`${e.message} ${e.cause?.code ?? ''}`)) throw e;
     }
   }
   throw lastErr;
@@ -97,7 +108,11 @@ async function listBlobs(token, prefix) {
     u.searchParams.set('limit', '1000');
     if (prefix) u.searchParams.set('prefix', prefix);
     if (cursor) u.searchParams.set('cursor', cursor);
-    const res = await fetch(u, { headers: { authorization: `Bearer ${token}`, 'x-api-version': '7' } });
+    let res;
+    for (let k = 0; ; k += 1) {
+      try { res = await fetch(u, { headers: { authorization: `Bearer ${token}`, 'x-api-version': '7' }, signal: AbortSignal.timeout(30000) }); if (res.ok || res.status < 500 || k >= 3) break; } catch (e) { if (k >= 3) throw e; }
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** k));
+    }
     if (!res.ok) throw new Error(`blob list: ${res.status}`);
     const json = await res.json();
     out.push(...(json.blobs || []));
@@ -106,7 +121,7 @@ async function listBlobs(token, prefix) {
   return out;
 }
 async function fetchJson(url) {
-  const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store' });
+  const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET ${url}: ${res.status}`);
   return res.json();
@@ -253,7 +268,8 @@ export function indexEntry(runDir, run) {
     progress: progressOf(progress),
     editing: progress?.editing ?? null,
     review_status: review ? { status: review.status ?? null, waiting_on: review.waiting_on ?? null, ease: review.ease ?? null, updated_at: review.updated_at ?? null } : null,
-    has_canvas: exists(path.join(runDir, 'review', 'review-canvas.html')),
+    // the bundle carries review-canvas.json but not the HTML, so a pulled copy is recognised by the JSON
+    has_canvas: exists(path.join(runDir, 'review', 'review-canvas.html')) || exists(path.join(runDir, 'review', 'review-canvas.json')),
   };
 }
 
@@ -342,7 +358,16 @@ export async function buildSiteData(runDir) {
     const { sheetView, cellView, normalizeManifest, provenanceWords } = await import(path.join(HERE, 'variant-sheet.mjs'));
     if (!sheetRaw.run_dir) sheetRaw.run_dir = runDir;
     const manifest = normalizeManifest(sheetRaw, path.dirname(sheetJsonPath));
-    const view = sheetView(manifest);
+    let view;
+    try { view = sheetView(manifest); } catch (e) {
+      // An old sheet can carry a cell whose row is gone (and no stored view): draw the cells that can be drawn.
+      const ok = {};
+      for (const [l, c] of Object.entries(manifest.cells ?? {})) {
+        if (c.view || (manifest.rows ?? []).some((r) => r.key === c.row)) ok[l] = c;
+        else notes.push(`sheet cell ${l} not drawn: its row ${c.row} is not on the sheet`);
+      }
+      view = sheetView({ ...manifest, cells: ok });
+    }
     // A cell's stored view is a snapshot from its last build; the label header follows the current rule
     // (variant-sheet.mjs cellView: one neutral colour, grey only for rejected), so recompute just the header.
     for (const cell of Object.values(manifest.cells ?? {})) {
@@ -465,12 +490,39 @@ export async function publishAssets(slug, files, data, { token, upload = true } 
 }
 
 /** Validator-side guard before anything leaves the machine. */
+const SHIP_KEY = /^(ship_to|street_address|postal_code)$/;
+const isMarker = (v) => v == null || v === '' || v === false || (v && typeof v === 'object' && !Array.isArray(v) && v.redacted === true);
+/** Ship-to keys whose value redactJson already replaced (or that are empty) leave the document entirely. */
+export function dropRedactedShipKeys(v) {
+  if (Array.isArray(v)) return v.map(dropRedactedShipKeys);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k, x]) => !(SHIP_KEY.test(k) && isMarker(x))).map(([k, x]) => [k, dropRedactedShipKeys(x)]));
+  return v;
+}
 export function finalizeForPublic(data) {
   const counts = { street: 0, secret: 0 };
-  const out = scrubStrings(redactJson(data), counts);
+  const out = scrubStrings(dropRedactedShipKeys(redactJson(data)), counts);
   const s = JSON.stringify(out);
   if (/"(ship_to|street_address|postal_code)"/.test(s)) throw new Error('site data would carry ship-to keys; refusing');
   return { data: out, counts };
+}
+
+/** The stable Blob path of a location's site data (next to the copy inside its bundle). */
+export const siteDataPath = (slug) => `site/data/${slug}.json`;
+/** Why a location cannot render a sheet page, or null. */
+export function thinReason(data) {
+  // a sibling that inherits another location's branding has no sheet of its own (standalone page, or a canvas
+  // whose sheet section points at the source)
+  if (!data.sheet && data.branding?.source_slug) return null;
+  if (!data.sheet) return 'no variant sheet manifest (variants/variant-sheet.json)';
+  if (!Object.keys(data.sheet.cells ?? {}).length || !Object.keys(data.sheet.view?.cells ?? {}).length) return 'the variant sheet has no cells';
+  return null;
+}
+/** backfilled_from: the pulled bundle's push time, else the local run dir. */
+export function backfillSource(runDir) {
+  const prog = readJson(path.join(runDir, 'review', 'progress.json'), {}) ?? {};
+  // the last sync was a pull (not a later publish from this machine): the files are the bundle's
+  if (prog.pulled?.pushed_at && String(prog.pulled.at ?? '') >= String(prog.bundle?.pushed_at ?? '')) return `bundle ${prog.pulled.pushed_at}`;
+  return `local run ${os.hostname()}`;
 }
 
 async function cmdBuild(opt) {
@@ -480,12 +532,18 @@ async function cmdBuild(opt) {
   if (opt.upload && !token) die('no BLOB_READ_WRITE_TOKEN (env or the fulfillment-reviews clone .env.local)');
   const t0 = Date.now();
   const { data, files, notes } = await buildSiteData(runDir);
+  if (opt.backfill) {
+    const thin = thinReason(data);
+    if (thin) { console.error(`site-data.mjs: ${slug} too thin to render: ${thin}`); process.exit(4); }
+    data.backfilled_from = backfillSource(runDir);
+  }
   const stats = await publishAssets(slug, files, data, { token, upload: opt.upload });
   const { data: pub, counts } = finalizeForPublic(data);
   const out = path.join(runDir, 'review', 'site-data.json');
   const body = JSON.stringify(pub) + '\n';
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, body);
+  if (opt.upload) { await putBlob(token, siteDataPath(slug), Buffer.from(body), { maxAge: 60 }); stats.uploaded_bytes += Buffer.byteLength(body); }
   const summary = { ok: true, slug, file: out, site_data_bytes: Buffer.byteLength(body), ...stats, scrubbed: counts, notes, ms: Date.now() - t0 };
   console.log(opt.json ? JSON.stringify(summary, null, 1) : `site-data ${slug}: ${stats.assets} images (${(stats.total_bytes / 1e6).toFixed(2)} MB on Blob, ${(stats.source_bytes / 1e6).toFixed(2)} MB at source), uploaded ${stats.uploaded} (${(stats.uploaded_bytes / 1e6).toFixed(2)} MB), reused ${stats.reused}; site-data.json ${(summary.site_data_bytes / 1024).toFixed(0)} KB${counts.street || counts.secret ? `; scrubbed ${counts.street} street-like and ${counts.secret} token-like strings` : ''}${notes.length ? `\n  ${notes.join('\n  ')}` : ''}`);
   return summary;
@@ -500,8 +558,16 @@ async function cmdIndex(opt) {
   if (!data) die(`${runDir}/review/site-data.json missing: run site-data.mjs build first`);
   const run = readJson(path.join(runDir, 'run.json'));
   const progress = readJson(path.join(runDir, 'review', 'progress.json'), {}) ?? {};
-  const entry = { ...finalizeForPublic(indexEntry(runDir, run)).data, has_site_data: true, old_url: null, published_at: nowIso(), site_data_generated_at: data.generated_at, bundle_pushed_at: progress.bundle?.pushed_at ?? null };
+  let entry = { ...finalizeForPublic(indexEntry(runDir, run)).data, has_site_data: true, old_url: null, published_at: nowIso(), site_data_generated_at: data.generated_at, site_data_url: `${publicOrigin(token)}/${siteDataPath(slug)}`, bundle_pushed_at: progress.bundle?.pushed_at ?? progress.pulled?.pushed_at ?? null };
+  if (opt.backfill) {
+    // A pulled copy has no checklist/notes beside it: keep the board fields the existing (seeded) entry carries
+    // where this run has none, and the seeded request time when run.json has none.
+    const prev = await fetchJson(`${publicOrigin(token)}/site/entries/${slug}.json`).catch(() => null);
+    if (prev) for (const k of [...BACKFILL_KEEP]) if ((entry[k] == null || (Array.isArray(entry[k]) && !entry[k].length)) && prev[k] != null) entry[k] = prev[k];
+    entry = { ...entry, backfilled_from: data.backfilled_from ?? null };
+  }
   await putBlob(token, `site/entries/${slug}.json`, Buffer.from(JSON.stringify(entry)), { maxAge: 60 });
+  if (opt.entryOnly) { console.log(`entry: ${slug} written (index not rebuilt: run rebuild-index after the batch)`); return; }
   // The index is rebuilt from the per-location entry files (the source of truth) with this run's entry laid
   // over them, never read-modify-written from site/index.json: the public copy of index.json can be up to a
   // minute stale on the CDN, and writing a stale copy back would drop another machine's newer entry.
@@ -514,6 +580,8 @@ async function cmdIndex(opt) {
   }
   console.log(`index: ${slug} upserted (${idx.count} entries; the public copy refreshes within a minute)${SITE_URL ? ` -> ${SITE_URL}/l/${slug}` : ''}`);
 }
+
+const BACKFILL_KEEP = new Set(['account', 'city', 'state', 'requested_at', 'boostly_status', 'steps', 'needs_you', 'gaps', 'hold', 'done', 'note', 'review_status', 'figma_url', 'print_url', 'recommended_letter', 'picked_letter']);
 
 /** site/index.json content from every site/entries/<slug>.json, with `overlay` entries (this run's) winning. */
 async function buildIndexFromEntries(token, overlay = {}) {
@@ -593,12 +661,14 @@ if (isEntry) {
     if (a === '--run') opt.run = argv[++i];
     else if (a === '--slug') opt.slug = argv[++i];
     else if (a === '--no-upload') opt.upload = false;
+    else if (a === '--backfill') opt.backfill = true;
+    else if (a === '--entry-only') opt.entryOnly = true;
     else if (a === '--json') opt.json = true;
     else if (a === '--sites-json') opt.sitesJson = argv[++i];
     else die(`unknown argument ${a}`);
   }
   const run = { build: cmdBuild, index: cmdIndex, 'rebuild-index': cmdRebuildIndex, 'seed-index': cmdSeedIndex, footprint: cmdFootprint }[cmd];
   if (cmd === 'seed-index' && !opt.sitesJson) die('seed-index needs --sites-json FILE');
-  if (!run || ((cmd === 'build' || cmd === 'index') && !opt.run)) die('usage: site-data.mjs build|index --run RUN_DIR [--no-upload] [--json] | rebuild-index | footprint [--slug S]');
+  if (!run || ((cmd === 'build' || cmd === 'index') && !opt.run)) die('usage: site-data.mjs build|index --run RUN_DIR [--no-upload] [--backfill] [--json] | rebuild-index | footprint [--slug S]');
   await run(opt).catch((e) => die(e.stack || e.message, 1));
 }

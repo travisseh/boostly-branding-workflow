@@ -143,3 +143,10 @@ export function parseIso(iso?: string | null): number {
 }
 export const fmtTime = (iso?: string | null) => { const t = parseIso(iso); return t ? FMT_TIME.format(new Date(t)) : ""; };
 export const fmtDate = (iso?: string | null) => { const t = parseIso(iso); return t ? FMT_DATE.format(new Date(t)) : ""; };
+
+/** The latest of several ISO times (the entry's run time, its progress, the live status/<slug>.json progress). */
+export function newest(...ts: (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  for (const t of ts) if (t && parseIso(t) && (!best || parseIso(t) > parseIso(best))) best = t;
+  return best;
+}

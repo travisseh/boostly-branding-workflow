@@ -1,6 +1,6 @@
 import "server-only";
 import type { BundleManifest, Checklist, IndexDoc, SiteData, SlugStatus } from "./contract";
-import { validateIndex, validateManifest, validateSiteData } from "./contract";
+import { newestSiteData, validateIndex, validateManifest, validateSiteData, type SiteDataCandidate } from "./contract";
 
 // Server-side reads from the public Blob store. The read/write token never reaches the browser: it is used
 // only to derive the store's public origin when BLOB_PUBLIC_ORIGIN is not set. Every fetch is cached by
@@ -48,24 +48,36 @@ export async function readSlugStatus(slug: string): Promise<SlugStatus | null> {
 }
 
 export type LocationRead =
-  | { kind: "ok"; data: SiteData; manifest: BundleManifest }
+  | { kind: "ok"; data: SiteData; from: "bundle" | "site-data" }
   | { kind: "missing"; reason: string }
   | { kind: "invalid"; errors: string[] };
 
-export async function readLocation(slug: string): Promise<LocationRead> {
-  if (!/^[a-z0-9][a-z0-9-]{0,120}$/.test(slug)) return { kind: "missing", reason: "not a location slug" };
+/** review/site-data.json as the bundle manifest points at it (the owner machine's publish). */
+async function fromBundle(slug: string): Promise<SiteDataCandidate> {
   const manifest = await getJson<BundleManifest>(`bundles/${slug}/manifest.json`);
-  if (!manifest) return { kind: "missing", reason: "no bundle in the Blob store for this location" };
+  if (!manifest) return { from: "bundle", missing: "no bundle in the Blob store for this location" };
   const mv = validateManifest(manifest);
-  if (!mv.ok) return { kind: "invalid", errors: mv.errors };
+  if (!mv.ok) return { from: "bundle", errors: mv.errors };
   const ref = manifest.files["review/site-data.json"];
-  if (!ref) return { kind: "missing", reason: "the bundle has no review/site-data.json (published with the old site path only)" };
+  if (!ref) return { from: "bundle", missing: "the bundle has no review/site-data.json (published with the old site path only)" };
   const url = ref.url ?? ref.blob_url;
-  if (!url) return { kind: "missing", reason: "review/site-data.json has no URL in the manifest" };
+  if (!url) return { from: "bundle", missing: "review/site-data.json has no URL in the manifest" };
   const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}sha=${ref.sha256 ?? ""}`, { next: { revalidate: REVALIDATE } });
-  if (!res.ok) return { kind: "missing", reason: `review/site-data.json: HTTP ${res.status}` };
+  if (!res.ok) return { from: "bundle", missing: `review/site-data.json: HTTP ${res.status}` };
   const data = (await res.json()) as SiteData;
   const dv = validateSiteData(data);
-  if (!dv.ok) return { kind: "invalid", errors: dv.errors };
-  return { kind: "ok", data, manifest };
+  return dv.ok ? { from: "bundle", data } : { from: "bundle", errors: dv.errors };
+}
+
+/** site/data/<slug>.json: the same file at a stable path (every site-data.mjs build, and backfills with no bundle push). */
+async function fromSiteData(slug: string): Promise<SiteDataCandidate> {
+  const data = await getJson<SiteData>(`site/data/${slug}.json`).catch(() => null);
+  if (!data) return { from: "site-data", missing: "no site/data file for this location" };
+  const dv = validateSiteData(data);
+  return dv.ok ? { from: "site-data", data } : { from: "site-data", errors: dv.errors };
+}
+
+export async function readLocation(slug: string): Promise<LocationRead> {
+  if (!/^[a-z0-9][a-z0-9-]{0,120}$/.test(slug)) return { kind: "missing", reason: "not a location slug" };
+  return newestSiteData(await Promise.all([fromBundle(slug), fromSiteData(slug)]));
 }

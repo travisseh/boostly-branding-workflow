@@ -91,8 +91,12 @@ export default async function LocationPage({ params }: Props) {
         <a href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" />All locations</a>
         <h1 className="text-3xl font-semibold tracking-tight">{entry?.name ?? slug}</h1>
         {entry ? <StatusStrip s={liveRow(entry, checklist, slugStatus)} live={live} now={now} /> : null}
-        <Gray text={r.kind === "invalid" ? `This location's published data does not match the site contract: ${r.errors.join("; ")}` : `Not published to this site yet (${r.reason}).`} />
+        <p className="text-base">This location hasn&apos;t been published to the new site yet.{entry?.old_url ? " Open the current review page." : null}</p>
         {entry?.old_url ? <p><Button asChild variant="outline"><a href={entry.old_url} target="_blank" rel="noopener">Open the current review page<ExternalLink /></a></Button></p> : null}
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer select-none">Technical details</summary>
+          <p className="mt-2 [overflow-wrap:anywhere]">{r.kind === "invalid" ? `The published data does not match the site contract: ${r.errors.join("; ")}` : `${r.reason}.`}</p>
+        </details>
       </Shell>
     );
   }

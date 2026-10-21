@@ -1,7 +1,7 @@
 // "What's next" priority (port of fulfillment-reviews scripts/status-ui.mjs): one primary chip.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { whatsNext, type StatusRow } from "../lib/status.ts";
+import { newest, whatsNext, type StatusRow } from "../lib/status.ts";
 
 const base: StatusRow = { slug: "x", review_url: "/l/x" };
 const now = Date.parse("2026-10-21T18:00:00Z");
@@ -24,4 +24,9 @@ test("done, then hold", () => {
   const h = whatsNext({ ...base, hold: "waiting on the owner's logo" }, now);
   assert.equal(h.primary.kind, "hold");
   assert.equal(h.primary.text, "hold: waiting on the owner's logo");
+});
+
+test("newest: the latest valid time, nulls and junk ignored", () => {
+  assert.equal(newest("2026-10-20T10:00:00Z", null, "2026-10-21T09:00:00.000Z", undefined, "junk"), "2026-10-21T09:00:00.000Z");
+  assert.equal(newest(null, undefined), null);
 });

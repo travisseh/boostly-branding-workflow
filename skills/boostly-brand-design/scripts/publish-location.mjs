@@ -3,7 +3,7 @@
 // status + bundle. Replaces the three separate steps the agents used to run.
 //
 //   publish-location.mjs --run RUN_DIR [--skip-google ...canvas flags] [--allow-stale] [--no-canvas] [--no-site]
-//                        [--message "<commit message>"] [--by <agent>] [--site-mode old|next|both]
+//                        [--message "<commit message>"] [--by <agent>] [--site-mode old|next|both] [--no-bundle]
 //
 // 1. run-progress.mjs check: exit 3 "pull first" when the Blob bundle is newer than the last sync here
 //    (--allow-stale bypasses; a run with no Blob bundle is never stale).
@@ -17,6 +17,9 @@
 //    hosted Next.js site instead: site-data.mjs build (review/site-data.json + downsized images to
 //    site/assets/<slug>/), then step 4 (the bundle carries site-data.json), then site-data.mjs index (the
 //    list page's site/index.json). No git commit per publish. `both` runs the two paths.
+// --no-bundle skips step 4: no status/<slug>.json and no bundle push, so a backfill from a pulled copy never
+//    overwrites the owner machine's bundle or editing claim. With --site-mode next the page still renders: the
+//    site data also goes to site/data/<slug>.json.
 // Never prints the Blob token; the site build and run-progress read it from the clone's .env.local.
 import fs from "node:fs";
 import os from "node:os";
@@ -32,7 +35,7 @@ const SITE = process.env.BOOSTLY_REVIEWS_SITE || "https://fulfillment-reviews.ve
 const TRAILER = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>";
 
 const argv = process.argv.slice(2);
-const opt = { canvas: true, site: true, allowStale: false, passthrough: [], siteMode: process.env.BOOSTLY_SITE_MODE || "old" };
+const opt = { canvas: true, site: true, bundle: true, allowStale: false, passthrough: [], siteMode: process.env.BOOSTLY_SITE_MODE || "old" };
 const SITE_DATA = path.join(HERE, "site-data.mjs");
 const NEXT_SITE = process.env.BOOSTLY_SITE_NEXT_URL || null;
 for (let i = 0; i < argv.length; i++) {
@@ -42,10 +45,11 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--allow-stale") opt.allowStale = true;
   else if (a === "--no-canvas") opt.canvas = false;
   else if (a === "--no-site") opt.site = false;
+  else if (a === "--no-bundle") opt.bundle = false;
   else if (a === "--message") opt.message = take();
   else if (a === "--by") opt.by = take();
   else if (a === "--site-mode") opt.siteMode = take();
-  else if (a === "--help" || a === "-h") { console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 21).join("\n")); process.exit(0); }
+  else if (a === "--help" || a === "-h") { console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 23).join("\n")); process.exit(0); }
   else if (/^--(scale|google-budget-ms|chrome-profile|png-budget-mb|cells)$/.test(a)) opt.passthrough.push(a, take());
   else if (a.startsWith("--")) opt.passthrough.push(a);
   else die(`unknown argument: ${a}`);
@@ -113,8 +117,10 @@ if (opt.site && oldSite) {
 } else if (!opt.site) step("site skipped (--no-site)");
 
 // 4. status + bundle
-step(`blob status + bundle ${slug}`);
-sh(process.execPath, [RUN_PROGRESS, "publish", "--run", runDir, ...(opt.by ? ["--by", opt.by] : [])]);
+if (opt.bundle) {
+  step(`blob status + bundle ${slug}`);
+  sh(process.execPath, [RUN_PROGRESS, "publish", "--run", runDir, ...(opt.by ? ["--by", opt.by] : [])]);
+} else step("blob status + bundle skipped (--no-bundle)");
 
 // 5. next site: the list page entry (after the bundle, so the page and the list agree)
 if (opt.site && nextSite) {

@@ -1,7 +1,7 @@
 import "server-only";
 import { readChecklist, readIndex, readSlugStatus } from "./blob";
 import type { Checklist, IndexEntry } from "./contract";
-import { mergeChecklist, mergeSlugStatus, rowFromEntry, type StatusRow } from "./status";
+import { mergeChecklist, mergeSlugStatus, newest, rowFromEntry, type StatusRow } from "./status";
 
 export type ListRow = StatusRow & {
   name: string;
@@ -42,7 +42,7 @@ export async function readBoard(): Promise<{ rows: ListRow[]; errors: string[]; 
     city: e.city ?? null,
     state: e.state ?? null,
     requested_at: e.requested_at ?? null,
-    updated_at: e.updated_at ?? null,
+    updated_at: newest(e.updated_at, e.progress?.updated_at, statuses[i]?.progress?.updated_at),
     pick: e.picked_letter ?? statuses[i]?.picked_letter ?? null,
     has_site_data: e.has_site_data !== false,
     old_url: e.old_url ?? null,

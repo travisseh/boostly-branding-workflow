@@ -49,6 +49,8 @@ export type IndexEntry = {
   has_site_data?: boolean;
   old_url?: string | null;
   published_at?: string | null;
+  site_data_url?: string | null;
+  backfilled_from?: string | null;
 };
 
 export type IndexDoc = { schema_version: number; generated_at: string | null; count?: number; entries: Record<string, IndexEntry> };
@@ -177,7 +179,32 @@ export type SiteData = {
   };
   assets: Record<string, Asset>;
   notes: string[];
+  /** set by a one-time backfill: "bundle <pushed_at>" (a pulled copy) or "local run <host>" */
+  backfilled_from?: string | null;
 };
+
+/** One place a location's site data can come from, after validation. */
+export type SiteDataCandidate = { from: "bundle" | "site-data"; data?: SiteData; missing?: string; errors?: string[] };
+
+/**
+ * The bundle copy and the site/data copy of a location's site data: the valid one with the newer
+ * generated_at wins (a machine on an older skill updates only the bundle; a backfill only site/data).
+ * With no valid copy: invalid (with every reason) when either copy exists but fails the contract,
+ * else missing.
+ */
+export function newestSiteData(cands: SiteDataCandidate[]):
+  | { kind: "ok"; data: SiteData; from: "bundle" | "site-data" }
+  | { kind: "missing"; reason: string }
+  | { kind: "invalid"; errors: string[] } {
+  const ok = cands.filter((c): c is SiteDataCandidate & { data: SiteData } => !!c.data);
+  if (ok.length) {
+    const best = ok.reduce((a, b) => (String(b.data.generated_at ?? "") > String(a.data.generated_at ?? "") ? b : a));
+    return { kind: "ok", data: best.data, from: best.from };
+  }
+  const errors = cands.flatMap((c) => (c.errors ?? []).map((e) => `${c.from === "bundle" ? "bundle" : "site/data"}: ${e}`));
+  if (errors.length) return { kind: "invalid", errors };
+  return { kind: "missing", reason: cands.map((c) => c.missing).filter(Boolean).join("; ") || "no site data" };
+}
 
 export type Validation = { ok: boolean; errors: string[] };
 
