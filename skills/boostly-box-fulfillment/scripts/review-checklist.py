@@ -272,7 +272,10 @@ def publish_status(items, stale, notes=None):
 
 def live_requests():
     out = os.path.join(HERE, "open-requests.json")
-    if "--no-live" not in sys.argv:
+    # --no-live trusts the cached list only while it is fresh: the 5-minute launchd job refreshes it, and on a
+    # machine where that job is not loaded an old cache hid new requests from the board (Karissa 2026-10-21)
+    cache_old = not os.path.exists(out) or time.time() - os.path.getmtime(out) > 900
+    if "--no-live" not in sys.argv or cache_old:
         p = subprocess.run(["npx", "tsx", LIST_SCRIPT, "--status", "open", "--after", "2026-09-01T00:00:00Z",
                             "--json", "--run-root", RUNS], cwd=ROOT, capture_output=True, text=True, timeout=120)
         if p.returncode == 0 and p.stdout.strip().startswith("{"):

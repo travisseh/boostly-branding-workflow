@@ -145,6 +145,7 @@ if [ "$CHECK" = 1 ]; then
   [ -d "$BOOSTLY_HEARTBEAT_ROOT" ] && ok "heartbeat root $BOOSTLY_HEARTBEAT_ROOT" || miss "heartbeat root missing"
   [ -f "$BOOSTLY_RUN_ROOT/checklist/launchd-refresh.sh" ] && ok "checklist helpers" || miss "checklist helpers not installed"
   [ -f "$PLIST" ] && ok "launchd plist present (load with: launchctl bootstrap gui/\$(id -u) $PLIST)" || warn "launchd plist not installed"
+  [ -f "$PLIST" ] && { launchctl list com.boostly.fulfillment-checklist >/dev/null 2>&1 && ok "launchd job loaded" || warn "launchd job NOT loaded: the status board goes stale (run setup.sh --load-launchd)"; }
 else
   mkdir -p "$BOOSTLY_RUN_ROOT/checklist" "$BOOSTLY_HEARTBEAT_ROOT/account-write-locks" "$BOOSTLY_RUN_ROOT/inbox" && ok "directories"
   [ -f "$BOOSTLY_RUN_ROOT/checklist/notes.json" ] || { echo '{}' > "$BOOSTLY_RUN_ROOT/checklist/notes.json"; chmod 600 "$BOOSTLY_RUN_ROOT/checklist/notes.json"; }
