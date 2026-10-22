@@ -6,7 +6,7 @@ description: Hand a closed-out Boostly location's signage and sticker print file
 # Boostly Print Hand-off (customstickers.com)
 
 customstickers.com (CK Brands Marketing, contact Gracie, ckbrandsmktg@gmail.com, cc Colin Dunn
-<colin@printiverse.com> and Maren Dunn <maren@customstickers.com>) prints all
+<colin@printiverse.com>, Maren Dunn <maren@customstickers.com> and Travisse <travisse@boostly.com>) prints all
 Boostly signage and stickers from 2026-10. Every location close-out ends with this hand-off:
 vector PDFs in Drive, a summary row, and the vendor email, sent (Travisse 2026-10-14: no draft waiting on him).
 
@@ -112,8 +112,8 @@ Prerequisites: poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdfunite` on PATH),
    rows, POP sets = signage quantity), offer from `fulfillment_requests.offer_text`.
 3. **draft-email.mjs**: writes `print-handoff/draft-body.txt` and creates a Gmail DRAFT via
    `node ~/.config/gmail-tools/gmail.js draft boostly ckbrandsmktg@gmail.com "<subject>" "<body>" --cc "<VENDOR_CC>"`,
-   where `VENDOR_CC` (exported from the script) is Colin Dunn <colin@printiverse.com> and
-   Maren Dunn <maren@customstickers.com>. The `Cc:` line is also written under `To:` in draft-body.txt.
+   where `VENDOR_CC` (exported from the script) is Colin Dunn <colin@printiverse.com>,
+   Maren Dunn <maren@customstickers.com> and Travisse <travisse@boostly.com> (Karissa 2026-10-22). The `Cc:` line is also written under `To:` in draft-body.txt.
    Subject `Boostly print order: <Location name>`. Body (short, since 2026-10-12): one-line intro,
    location folder link, quantities, offer, ship-to, master folder link, the summary-sheet line,
    signed "Travisse". No file list, no vector-PDF explanation, no "let me know" closer. Plain
@@ -200,5 +200,5 @@ incorrect postal values require comparison with the source address and a separat
 ## Report line for closeout-finish
 
 "Print hand-off: folder <link>, <n> PDFs vector OK (<kind> p/p ...), summary row
-<appended|updated>, vendor email sent (draft <id>, message <id>) to ckbrandsmktg@gmail.com, cc Colin and Maren,
+<appended|updated>, vendor email sent (draft <id>, message <id>) to ckbrandsmktg@gmail.com, cc Colin, Maren and Travisse,
 order placed <YYYY-MM-DD> stamped in column N."

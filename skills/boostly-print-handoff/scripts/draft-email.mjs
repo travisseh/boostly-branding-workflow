@@ -19,7 +19,7 @@ import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDi
 // ship-to gate and --print-only need no credentials.
 
 export const VENDOR_TO = "ckbrandsmktg@gmail.com";
-export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>"];
+export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>", "Travisse <travisse@boostly.com>"];
 export const GMAIL_CLI = path.join(os.homedir(), ".config/gmail-tools/gmail.js");
 
 const args = parseArgs(process.argv.slice(2));
