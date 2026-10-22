@@ -4147,19 +4147,42 @@ async function instoreInitProvisionSignage(options: Options, locationId: string)
   const nonDefaultExisting = existingRows.filter(
     (r) => !INIT_DEFAULT_SIGNAGE.some((s) => s.name === r.name),
   );
-  if (nonDefaultExisting.length > 0) {
+  // --only "<default name>,<default name>": explicit target for a legacy location
+  // whose hand-named signage covers some kinds (e.g. "Table Sticker #1") but not
+  // others. Creates exactly the named DEFAULT_SIGNAGE entries, leaves every
+  // existing touchpoint untouched, and skips the non-default refusal.
+  const onlyRaw = optString(options, "only");
+  let onlyNames: string[] | null = null;
+  if (onlyRaw !== undefined) {
+    onlyNames = onlyRaw.split(",").map((n) => n.trim()).filter(Boolean);
+    const unknown = onlyNames.filter((n) => !INIT_DEFAULT_SIGNAGE.some((s) => s.name === n));
+    if (onlyNames.length === 0 || unknown.length > 0) {
+      throw new CliError(
+        `--only must list DEFAULT_SIGNAGE names (${INIT_DEFAULT_SIGNAGE.map((s) => s.name).join(", ")}); unknown: ${unknown.join(", ") || "(empty)"}`,
+        2,
+      );
+    }
+    const present = onlyNames.filter((n) => existingNames.has(n));
+    if (present.length > 0) {
+      throw new CliError(`--only names already exist on ${locationId}: ${present.join(", ")}`, 5);
+    }
+  } else if (nonDefaultExisting.length > 0) {
     throw new CliError(
-      `Location ${locationId} has non-default signage (${nonDefaultExisting.map((r) => r.name).join(", ")}); refusing to mix in defaults. Handle manually.`,
+      `Location ${locationId} has non-default signage (${nonDefaultExisting.map((r) => r.name).join(", ")}); refusing to mix in defaults. Handle manually, or pass --only "<default names>" to create exactly the missing kinds.`,
       5,
     );
   }
-  const toCreate = INIT_DEFAULT_SIGNAGE.filter((s) => !existingNames.has(s.name));
+  const toCreate = INIT_DEFAULT_SIGNAGE.filter((s) =>
+    onlyNames ? onlyNames.includes(s.name) : !existingNames.has(s.name),
+  );
+  const targetNames = onlyNames ?? INIT_DEFAULT_SIGNAGE.map((s) => s.name);
 
   if (!optBool(options, "apply")) {
     printOutput(options, {
       dry_run: true,
       location: { id: state.id, name: state.name },
       already_present: [...existingNames],
+      untouched_existing: onlyNames ? (existingRows as unknown as JsonValue) : undefined,
       will_create: toCreate as unknown as JsonValue,
       review_focused_overrides:
         "for each review-focused sign lacking touchpoint-scoped events: copy location events with review sort 0 / subscribe sort 1 / others +10, non-review+subscribe deactivated",
@@ -4176,13 +4199,10 @@ async function instoreInitProvisionSignage(options: Options, locationId: string)
     const result = await createSignageTouchpoint(options, locationId, item.name);
     created.push({ name: item.name, result });
   }
-  const rows = await awaitSignageRows(
-    locationId,
-    INIT_DEFAULT_SIGNAGE.map((s) => s.name),
-  );
+  const rows = await awaitSignageRows(locationId, targetNames);
   const overrideCounts = await touchpointOverrideCounts(locationId);
   const overrideResults: JsonValue[] = [];
-  for (const item of INIT_DEFAULT_SIGNAGE.filter((s) => s.review_focused)) {
+  for (const item of INIT_DEFAULT_SIGNAGE.filter((s) => s.review_focused && targetNames.includes(s.name))) {
     const row = rows.find((r) => r.name === item.name);
     if (!row) {
       overrideResults.push({ name: item.name, error: "created row not found on readback" });
@@ -5278,7 +5298,8 @@ Write, dry-run by default:
 Pre-initialization provisioning (locations with touchpoints_initialized_at null):
   boostly-links instore-init status <locationId> --cookie-file <path> --json
   boostly-links instore-init provision-events <locationId> [--promotion-id <id>] [--apply]
-  boostly-links instore-init provision-signage <locationId> [--apply]
+  boostly-links instore-init provision-signage <locationId> [--only "<default names, comma-separated>"] [--apply]
+    --only: legacy locations with hand-named signage; create exactly those defaults, touch nothing else.
   boostly-links instore-init provision-promotions <locationId> [--apply]
   boostly-links promotions create <locationId> --title <t> --code <CODE> --value <n> [--description <d>] [--terms <t>] --cookie-file <path> [--apply] [--json]
   boostly-links offer set <locationId> --title '25% OFF' --code SAVE25 --value 25 [--description <d>] [--terms <t>] --cookie-file <path> [--apply] [--json]

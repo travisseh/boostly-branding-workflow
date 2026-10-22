@@ -383,6 +383,7 @@ reproduce the completed-onboarding state:
 boostly-links instore-init status <location-id>                 # diff vs completed state
 boostly-links instore-init provision-events <location-id>       # location events from defaults (+ CTJ when subscribe activates)
 boostly-links instore-init provision-signage <location-id>      # the 7 DEFAULT_SIGNAGE touchpoints + review-focused overrides
+boostly-links instore-init provision-signage <location-id> --only "Tables - Reviews,To-Go - Reviews,Bathroom - Subscribe,Bathroom - Reviews"   # legacy hand-named signage: create exactly these defaults, leave existing ones untouched
 boostly-links instore-init provision-promotions <account-id>    # the 6 default catalog promos (invite-first ordering preserved)
 boostly-links instore-init provision-objectives <location-id>   # 'New Subscriber' + 'Google Review' wired to events
 boostly-links instore-init delete-objective <location-id> <objective-id>  # soft-delete a NON-default objective (dupe cleanup)
