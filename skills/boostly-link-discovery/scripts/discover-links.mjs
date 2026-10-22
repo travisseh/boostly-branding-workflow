@@ -584,10 +584,18 @@ function resolveBrowserRuntime(args = {}) {
 
 async function verifyLinks(location, links, fixtureStore, args, fixtureKind) {
   const decorated = decorateLinksForVerification(location, links);
+  // javascript:, mailto:, tel:, data: and other non-web hrefs are never fetched or queued for a
+  // browser read; they are rejected with reason "not a URL" (Fat Daddy's 2026-10-22).
+  const notUrls = decorated.filter((link) => nonHttpScheme(link.input_url || link.url));
+  const fetchable = decorated.filter((link) => !nonHttpScheme(link.input_url || link.url));
   const useCustomEvidence = Boolean(args.record || args.replay || fixtureStore.usesCustomBrowserProvider());
-  const verified = await verifyCandidateLinks(normalizeLocation(location), decorated, useCustomEvidence ? {
+  const verifiedRaw = fetchable.length ? await verifyCandidateLinks(normalizeLocation(location), fetchable, useCustomEvidence ? {
     fetchEvidence: async (url) => fixtureStore.fetchEvidence(url, fixtureKind)
-  } : {});
+  } : {}) : [];
+  const verified = [
+    ...verifiedRaw.map((link) => applyRecordedBrowserFailure(link, fixtureStore)),
+    ...notUrls.map(notAUrlDecision)
+  ];
   return verified.map((link) => {
     const original = decorated.find((candidate) => sameUrl(candidate.input_url, link.input_url));
     return {
@@ -598,6 +606,75 @@ async function verifyLinks(location, links, fixtureStore, args, fixtureKind) {
       source_evidence: original?.source_evidence || []
     };
   });
+}
+
+// The scheme of an href that is not a web address (javascript, mailto, tel, data, sms, blob, ...),
+// or null for http(s) and schemeless host/path values (ensureProtocol adds https to those).
+function nonHttpScheme(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "empty";
+  const match = /^([a-z][a-z0-9+.-]*):/i.exec(trimmed);
+  if (!match) return null;
+  const scheme = match[1].toLowerCase();
+  if (scheme === "http" || scheme === "https") return null;
+  // "example.com:8080/path" (a host with a port, no scheme) is a web address.
+  if (scheme.includes(".") && /^[^:]+:\d+(?:[/?#]|$)/.test(trimmed)) return null;
+  return scheme;
+}
+
+function notAUrlDecision(link) {
+  const inputUrl = String(link.input_url || link.url || "").trim();
+  return {
+    input_url: inputUrl,
+    final_url: null,
+    link_type: link.link_type,
+    category: link.category || null,
+    fetch_method: "none",
+    liveness: "broken",
+    relevance: "unknown",
+    status: "rejected",
+    status_basis: "not_a_url",
+    destination_state: "hard_rejection",
+    destination_state_reason: "not a URL",
+    destination_state_evidence: [`non_http_href_scheme=${nonHttpScheme(inputUrl)}`],
+    validity_evidence: [`non_http_href_scheme=${nonHttpScheme(inputUrl)}`],
+    location_match_evidence: [],
+    rejection_reason: "not a URL",
+    url_canonicalization: null,
+    source: {
+      source_table: link.source_table || link.source_type || "candidate",
+      source_id: link.source_id || null,
+      source_field: link.source_field || link.category || null,
+      title: link.title || null,
+      display_title: link.display_title || null
+    },
+    event_timing: null,
+    page_evidence: null,
+    checked_at: checkedAt()
+  };
+}
+
+// A page the session could not load at all (TLS certificate error, DNS failure, connection refused)
+// is recorded with `claude-chrome-browser.mjs results add --error "<observed error>"`. That result
+// resolves the browser read, and the candidate is unreachable: broken, never ready. A candidate that
+// still verified live from another fetch is left alone.
+function applyRecordedBrowserFailure(link, fixtureStore) {
+  if (link.liveness === "live") return link;
+  const failure = fixtureStore.recordedBrowserFailure?.(link.input_url) || fixtureStore.recordedBrowserFailure?.(link.final_url);
+  if (!failure) return link;
+  const reason = `unreachable: ${failure.error}`;
+  const evidenceLine = `recorded_browser_failure=${failure.error}${Number.isFinite(failure.http_status) ? ` http_status=${failure.http_status}` : ""}`;
+  return {
+    ...link,
+    liveness: "broken",
+    status: "broken",
+    status_basis: "recorded_browser_failure",
+    destination_state: "hard_rejection",
+    destination_state_reason: reason,
+    destination_state_evidence: [...(link.destination_state_evidence || []), evidenceLine],
+    validity_evidence: [...(link.validity_evidence || []), evidenceLine],
+    rejection_reason: reason
+  };
 }
 
 function decorateLinksForVerification(location, links) {
@@ -2142,6 +2219,13 @@ class FixtureStore {
     this.currentFetchKind = null;
   }
 
+  // The recorded observed failure (TLS, DNS, connection) for a url, or null.
+  recordedBrowserFailure(url) {
+    if (!url) return null;
+    const result = this.browserResults?.results?.[browserResultKey(url)] || null;
+    return result && typeof result.error === "string" && result.error ? result : null;
+  }
+
   chromeProfileResolved() {
     return this.codexExtensionProfileName ?? this.claudeChromeProfileName ?? null;
   }
@@ -2151,6 +2235,8 @@ class FixtureStore {
   }
 
   noteBrowserNeeded(url, kind) {
+    // A non-web href (javascript:, mailto:, ...) can never be read in a browser; never queue it.
+    if (nonHttpScheme(url)) return;
     const key = browserResultKey(url);
     if (this.browserNeeded.some((entry) => entry.key === key)) return;
     this.browserNeeded.push({ key, url, kind: kind || this.currentFetchKind || null });
@@ -2197,7 +2283,7 @@ class FixtureStore {
       results_file: this.browserResultsFile ? path.resolve(this.browserResultsFile) : null,
       urls: browserNeeded,
       instructions: browserNeeded.length
-        ? "For each url: navigate in the required Chrome profile with the claude-in-chrome tools, run extractor_js with javascript_tool (it parks compact JSON on the page and returns the chunk count), read chunk i with chunk_read_js (replace INDEX; the tool returns at most 1000 chars per call, browser_batch reads several at once), write the chunks as 01.txt, 02.txt ... under one directory, then run claude-chrome-browser.mjs results add --file <results_file> --url <url> --final-url <landed url> --page-parts <dir>. Rerun discovery with --browser-results <results_file> when every url is recorded."
+        ? "For each url: navigate in the required Chrome profile with the claude-in-chrome tools, run extractor_js with javascript_tool (it parks compact JSON on the page and returns the chunk count), read chunk i with chunk_read_js (replace INDEX; the tool returns at most 1000 chars per call, browser_batch reads several at once), write the chunks as 01.txt, 02.txt ... under one directory, then run claude-chrome-browser.mjs results add --file <results_file> --url <url> --final-url <landed url> --page-parts <dir>. A page that does not load at all (TLS certificate error, DNS failure, connection refused) is recorded instead with results add --url <url> --error \"<observed error>\" [--status <n>]; the candidate is then rejected as unreachable. Rerun discovery with --browser-results <results_file> when every url is recorded."
         : "No browser escalation was needed. Rerun with --browser-results pointing at an initialized results file to mark the report preflighted.",
       chunk_size: CLAUDE_CHROME_CHUNK_SIZE,
       chunk_read_js: "window.__boostlyPage.slice(INDEX * " + CLAUDE_CHROME_CHUNK_SIZE + ", (INDEX + 1) * " + CLAUDE_CHROME_CHUNK_SIZE + ")",
@@ -2253,6 +2339,9 @@ class FixtureStore {
     if (cached) {
       this.cacheHits += 1;
       return { ...cached, cache_hit: true };
+    }
+    if (nonHttpScheme(url) && kind !== "search") {
+      return { ...baseEvidenceForNonUrl(url), checked_at: checkedAt() };
     }
     if (this.cacheEnabled && kind !== "search") this.cacheMisses += 1;
     const browserLabel = this.browserProvider === "codex-extension" ? "codex_extension" :
@@ -2518,6 +2607,11 @@ class ClaudeChromePageAdapter {
       this.store.noteBrowserNeeded(url);
       throw new Error(`claude_chrome_result_missing: ${url}`);
     }
+    if (typeof result.error === "string" && result.error) {
+      // The session observed a network/TLS failure; replay it as the navigation error.
+      this.current = null;
+      throw new Error(`claude_chrome_recorded_failure: ${result.error}`);
+    }
     this.current = result;
     return { status: () => (Number.isFinite(result.http_status) ? result.http_status : null) };
   }
@@ -2543,6 +2637,10 @@ class ClaudeChromePageAdapter {
   }
 }
 
+function baseEvidenceForNonUrl(url) {
+  return { input_url: url, final_url: null, http_status: null, ok: false, fetch_method: "none", error: "not a URL" };
+}
+
 function browserResultKey(url) {
   return normalizeUrlForCompare(ensureProtocol(String(url || "")));
 }
@@ -2566,7 +2664,8 @@ function loadBrowserResults(file) {
   }
   const results = {};
   for (const [key, value] of Object.entries(parsed.results || {})) {
-    if (!value || typeof value !== "object" || !value.page || typeof value.page !== "object") {
+    const recordedFailure = value && typeof value === "object" && typeof value.error === "string" && value.error.trim();
+    if (!value || typeof value !== "object" || (!recordedFailure && (!value.page || typeof value.page !== "object"))) {
       throw new Error(`browser result for ${key} has no page object`);
     }
     results[browserResultKey(value.url || key)] = value;
@@ -4221,6 +4320,10 @@ export {
   CODEX_EXTENSION_PROVIDER,
   ClaudeChromePageAdapter,
   FULFILLMENT_BROWSER_PROVIDERS,
+  applyRecordedBrowserFailure,
+  nonHttpScheme,
+  notAUrlDecision,
+  verifyLinks,
   FixtureStore,
   MissingFixtureError,
   PROFILE_RESOLUTION_EXTENSION,

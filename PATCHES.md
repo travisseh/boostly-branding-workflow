@@ -588,3 +588,16 @@ merged from the live copy with the Codex daily mirror as the three-way base, so 
 ## 2026-10-21: post-review.mjs env token (restored)
 
 - `skills/boostly-signage-sheets/scripts/post-review.mjs`: `loadToken()` reads `SLACK_USER_OAUTH_TOKEN` from the env before `~/.config/slack-tools/config.json`. The 2026-10-19 sync (4a64b2f) dropped this package line, so closeout-finish on an operator machine failed with "Slack config not found" (Trail Rider). Re-apply after copying post-review.mjs from live.
+
+## 2026-10-22: unreadable discovery items no longer block the validator (Fat Daddy's, Trail Rider)
+
+- `skills/boostly-link-discovery/scripts/discover-links.mjs`: `javascript:`, `mailto:`, `tel:`, `data:` and other
+  non-web hrefs are never fetched or queued in `browser_needed`; `verifyLinks` rejects them with reason "not a URL".
+  A browser result recorded with an `error` (no page) resolves the read; the adapter replays it as the navigation
+  error and the candidate becomes `broken` with `rejection_reason: "unreachable: <observed error>"` (left alone if
+  another fetch verified it live). The results loader accepts error-only results.
+- `skills/boostly-link-discovery/scripts/claude-chrome-browser.mjs`: `results add --url <u> --error "<observed
+  error>" [--status <n>]` records a page that did not load (TLS, DNS, connection); refuses non-web URLs, an empty
+  error, or a page plus an error.
+- `skills/boostly-link-discovery/SKILL.md`: the claude-chrome section documents both. Tests: two new cases in
+  `claude-chrome-provider.test.mjs` (12 pass); every discovery test file green.

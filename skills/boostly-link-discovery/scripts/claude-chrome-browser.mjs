@@ -19,7 +19,12 @@
 //      count; the tool returns at most 1000 chars per call), read each chunk with chunk_read_js
 //      (`chunk --index i` prints it), write the chunks as 01.txt, 02.txt ... into one directory,
 //      then `results add --file <results.json> --url <u> --final-url <landed> --page-parts <dir>`
+//      A page that does not load at all (TLS certificate error, DNS failure, connection refused) is
+//      recorded with `results add --url <u> --error "<observed error>" [--status <n>]`: it counts as
+//      read, and discovery rejects that candidate as unreachable (status broken), never ready.
 //   4. rerun discovery with the same flags; the report is preflighted when browser_needed is empty.
+//   javascript:, mailto:, tel:, data: and other non-web hrefs are never queued; discovery rejects
+//   them as "not a URL" (2026-10-22).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -141,13 +146,31 @@ function validatePage(page) {
   if (!Array.isArray(page.links) || !Array.isArray(page.h1)) throw new Error("page.links and page.h1 must be arrays");
 }
 
-function addResult(file, { url, finalUrl, httpStatus, page }) {
+// `error`: the observed failure for a page that did not load at all (TLS certificate error, DNS
+// failure, connection refused), e.g. the error line from a plain HTTP read (curl -sSI) or Chrome's
+// net:: code. It resolves the browser read; discovery then rejects the candidate as unreachable.
+// A page and an error are mutually exclusive, and javascript:/mailto:/tel:/data: hrefs are refused
+// (discovery rejects those itself as "not a URL"; they never need a browser result).
+function addResult(file, { url, finalUrl, httpStatus, page, error }) {
   if (!url) throw new Error("--url is required");
-  validatePage(page);
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(String(url).trim())?.[1]?.toLowerCase();
+  if (scheme && scheme !== "http" && scheme !== "https" && !scheme.includes(".")) {
+    throw new Error(`${url} is not a web URL (${scheme}:); discovery rejects it as "not a URL" without a browser result`);
+  }
+  const observedError = typeof error === "string" ? error.trim() : "";
+  if (error !== undefined && error !== null && !observedError) throw new Error("--error needs the observed error text");
+  if (observedError && page) throw new Error("pass either a page or --error, not both");
+  if (!observedError) validatePage(page);
   const results = readJson(file);
   if (results.format !== BROWSER_RESULTS_FORMAT) throw new Error(`${file} is not a ${BROWSER_RESULTS_FORMAT} file`);
   const key = browserResultKey(url);
-  results.results[key] = {
+  results.results[key] = observedError ? {
+    url,
+    final_url: finalUrl || url,
+    http_status: Number.isFinite(httpStatus) ? httpStatus : null,
+    captured_at: new Date().toISOString(),
+    error: observedError,
+  } : {
     url,
     final_url: finalUrl || url,
     http_status: Number.isFinite(httpStatus) ? httpStatus : null,
@@ -215,7 +238,9 @@ function main(argv) {
   }
   if (command === "results" && subcommand === "add") {
     if (!args.file) throw new Error("--file <results.json> is required");
-    const page = args.page ? readJson(args.page)
+    const error = args.error === undefined ? undefined : args.error === true ? "" : String(args.error);
+    const page = error !== undefined ? null
+      : args.page ? readJson(args.page)
       : args["page-json"] ? JSON.parse(args["page-json"])
       : args["page-parts"] ? assemblePageParts(args["page-parts"], { chars: args["expect-chars"], sum: args["expect-sum"] }).page
       : null;
@@ -224,6 +249,7 @@ function main(argv) {
       finalUrl: args["final-url"],
       httpStatus: args.status ? Number(args.status) : null,
       page,
+      error,
     });
     console.log(JSON.stringify({ ok: true, ...added }));
     return;
@@ -238,6 +264,7 @@ function main(argv) {
     "      [--profile-source local-state (--browsers <list_connected_browsers.json> | --device-id <id> [--browser-label <label>]) [--profile-dir <directory>] [--local-state <file>]]",
     "      [--profile-source user-confirmed [--device-id <id> --browser-label <label> --confirmed-by <who> --confirmed-note <quote>] [--browsers <list_connected_browsers.json>] [--confirmation-file <file>]]",
     "  claude-chrome-browser.mjs results add --file <results.json> --url <url> [--final-url <url>] [--status <n>] (--page <page.json> | --page-json '<json>' | --page-parts <dir of 01.txt,02.txt,...> [--expect-chars <n> --expect-sum <n>])",
+    "  claude-chrome-browser.mjs results add --file <results.json> --url <url> --error \"<observed error>\" [--status <n>]   # page did not load (TLS/DNS/connection): resolved, rejected as unreachable",
   ].join("\n"));
 }
 

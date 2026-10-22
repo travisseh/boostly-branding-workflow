@@ -139,6 +139,15 @@ node $H/claude-chrome-browser.mjs results add --file <dir>/browser-results.json 
 node $H/claude-chrome-browser.mjs manifest pending --manifest <dir>/browser-needed.json --results <dir>/browser-results.json
 ```
 
+Unreadable items (2026-10-22): `javascript:`, `mailto:`, `tel:`, `data:` and other non-web hrefs are
+never queued; discovery rejects them as "not a URL". A page that does not load at all (TLS certificate
+error, DNS failure, connection refused) is recorded with the error you observed, ideally the error line
+from a plain HTTP read (`curl -sSI <url>`), never invented:
+`claude-chrome-browser.mjs results add --file <results> --url <url> --error "<observed error>" [--status <n>]`.
+That counts as read, and the candidate is rejected as unreachable (status `broken`,
+`rejection_reason: "unreachable: <error>"`), never ready. A login wall or bot challenge is not a network
+failure: it stays a hold.
+
 The report is fulfillable only when `runtime.browser_provider_preflighted` is true (a results
 file in the required profile was loaded) and `runtime.browser_needed` is empty; the validator
 (`--require-browser-provider fulfillment`, which accepts `codex-extension` or `claude-chrome`

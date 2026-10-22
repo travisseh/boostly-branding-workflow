@@ -253,3 +253,64 @@ test("page chunks written by the session assemble back into the recorded page", 
   fs.unlinkSync(path.join(dir, "99.txt"));
   assert.equal(addResult(resultsFile, { url: "https://www.dogwood.pizza/", page: assemblePageParts(dir).page }).count, 1);
 });
+
+// 2026-10-22 (Fat Daddy's, Trail Rider): non-web hrefs and pages that never load must not block the validator.
+test("non-web hrefs are never queued for the browser and are rejected as not a URL", async () => {
+  const { nonHttpScheme, notAUrlDecision, verifyLinks } = await import("./discover-links.mjs");
+  for (const href of ["javascript:void(0", "javascript:void(0)", "mailto:hi@x.com", "tel:+18015550100", "data:text/html,hi", "sms:123", "webcal://x.com/a.ics"]) {
+    assert.ok(nonHttpScheme(href), href);
+  }
+  for (const href of ["https://a.com/x", "http://a.com", "a.com/menu", "www.a.com", "a.com:8080/x"]) {
+    assert.equal(nonHttpScheme(href), null, href);
+  }
+  const decision = notAUrlDecision({ input_url: "javascript:void(0", category: "order", link_type: "order" });
+  assert.equal(decision.status, "rejected");
+  assert.equal(decision.rejection_reason, "not a URL");
+
+  const dir = tmp();
+  const manifestFile = path.join(dir, "browser-needed.json");
+  const store = new FixtureStore("", "loc-1", { browserProvider: CLAUDE_CHROME_PROVIDER, chromeProfile: "boostly", browserManifestFile: manifestFile });
+  await store.preflightBrowserProvider();
+  store.noteBrowserNeeded("javascript:void(0", "candidate");
+  store.noteBrowserNeeded("mailto:hi@x.com", "candidate");
+  const links = await verifyLinks(
+    { name: "Dogwood Pizza", website_url: "https://www.dogwood.pizza/" },
+    [{ input_url: "javascript:void(0", category: "order", source_type: "website" }, { input_url: "tel:+18015550100", category: "menu", source_type: "website" }],
+    store, {}, "candidate");
+  assert.deepEqual(links.map((link) => [link.status, link.rejection_reason]), [["rejected", "not a URL"], ["rejected", "not a URL"]]);
+  assert.deepEqual(store.claudeChromeRuntime("loc-1").browser_needed, []);
+  await store.close();
+});
+
+test("a recorded network/TLS failure resolves the browser read and the candidate is unreachable", async () => {
+  const { applyRecordedBrowserFailure } = await import("./discover-links.mjs");
+  const dir = tmp();
+  const resultsFile = path.join(dir, "browser-results.json");
+  initResults(resultsFile, { profile: "Boostly.com" });
+  const url = "https://order.example-pizza.com/menu#signature";
+  assert.throws(() => addResult(resultsFile, { url, error: "  " }), /observed error/);
+  assert.throws(() => addResult(resultsFile, { url, error: "x", page: samplePage }), /either a page or --error/);
+  assert.throws(() => addResult(resultsFile, { url: "javascript:void(0", error: "x" }), /not a web URL/);
+  addResult(resultsFile, { url, error: "curl: (60) SSL: no alternative certificate subject name matches target host name" });
+
+  const manifestFile = path.join(dir, "browser-needed.json");
+  fs.writeFileSync(manifestFile, JSON.stringify({ format: BROWSER_MANIFEST_FORMAT, chrome_profile_required: "Boostly.com", urls: [{ url, kind: "candidate" }] }));
+  assert.equal(pendingUrls(manifestFile, resultsFile).pending.length, 0);
+
+  const store = new FixtureStore("", "loc-1", { browserProvider: CLAUDE_CHROME_PROVIDER, chromeProfile: "boostly", browserResultsFile: resultsFile, browserManifestFile: manifestFile });
+  await store.preflightBrowserProvider();
+  assert.equal(store.browserProviderPreflighted, true);
+  const page = await store.getPage();
+  await assert.rejects(() => page.goto("https://order.example-pizza.com/menu"), /claude_chrome_recorded_failure: curl: \(60\) SSL/);
+  assert.deepEqual(store.claudeChromeRuntime("loc-1").browser_needed, []);
+
+  const unknown = { input_url: url, liveness: "unknown", status: "needs_manual_review", validity_evidence: [] };
+  const applied = applyRecordedBrowserFailure(unknown, store);
+  assert.equal(applied.status, "broken");
+  assert.equal(applied.liveness, "broken");
+  assert.match(applied.rejection_reason, /^unreachable: curl: \(60\) SSL/);
+  const live = { input_url: url, liveness: "live", status: "verified" };
+  assert.equal(applyRecordedBrowserFailure(live, store), live);
+  assert.equal(applyRecordedBrowserFailure({ input_url: "https://other.example/", liveness: "unknown" }, store).liveness, "unknown");
+  await store.close();
+});
