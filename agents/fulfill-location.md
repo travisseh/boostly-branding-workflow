@@ -111,7 +111,7 @@ Do, in order:
    `python3 ~/.claude/skills/boostly-box-fulfillment/scripts/review-checklist.py --run-root <parent of RUN_DIR> --no-live --publish-status`
    (box-fulfillment SKILL.md "Status board on the review site"; no Apple Note, no Notion). Do not
    pass `--open` unless the lead asks; the site page is how he opens it.
-   The page is `https://fulfillment-reviews.vercel.app/<RUN_DIR name>/` (the push is part of
+   The page is `https://boostly-review-site.vercel.app/l/<RUN_DIR name>` (the hosted Next.js site; the old static fulfillment-reviews.vercel.app is retired since 2026-10-23, never pass --site-mode old or both). The publish is part of
    publishing and needs no separate go). A failed build or push is reported, not retried blindly;
    never edit `data/sites.json` or `public/` by hand.
 5. Links. Page reading is TRANSPORT and is never done in your own context (2026-09-29); the
@@ -181,7 +181,7 @@ No white or near-white primary. No solid-silhouette knockout that fills authored
 
 Final report (all Travisse sees), under 200 words: recommended letter and why in plain words (its
 small-source flag when traced; "picking X also OKs the sticker size (N KB)" when the sticker is
-over cap), the taste pass line (which letters it added, which model ran it), the site URL (`https://fulfillment-reviews.vercel.app/<run dir name>/`, or
+over cap), the taste pass line (which letters it added, which model ran it), the site URL (`https://boostly-review-site.vercel.app/l/<run dir name>`, or
 "not published" with the error) and the local review page path, variant sheet path, logo source rung and native px, links ready
 to write versus links that need a decision (and the ordering_url match or mismatch), quantities
 and ship-to gaps, blockers.

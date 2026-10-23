@@ -710,3 +710,6 @@ body copy, which stayed at its fixed y.
   clears y274: the rule direct-pdf `retarget.mjs` already had (`defaultTwoLine`). POP was already safe.
   One-line offers lay out unchanged (scratch renders pixel-identical). plan.mjs and SKILL.md: comment and doc only.
 - The direct PDF renderer (closeout default) had no overlap; unchanged.
+
+## 2026-10-23 review site default
+- `publish-location.mjs` defaults to `--site-mode next`; the static fulfillment-reviews.vercel.app page is retired (Travisse 2026-10-23). `agents/fulfill-location.md`, `agents/closeout-finish.md` and `skills/boostly-box-fulfillment/SKILL.md` report `https://boostly-review-site.vercel.app/l/<slug>`. Same change applied to the live skills.

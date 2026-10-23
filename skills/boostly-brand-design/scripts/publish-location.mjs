@@ -13,7 +13,7 @@
 //    tree is clean; npm run build -- --run-root <parent> --limit 0 --slug <slug>; git add public data;
 //    commit; push. Nothing staged = nothing committed. (--no-site skips.)
 // 4. run-progress.mjs publish --run RUN_DIR: status/<slug>.json (with the soft claim) + the bundle.
-// --site-mode (default BOOSTLY_SITE_MODE, else both; "both" since 2026-10-22 so the board index refreshes at every publish): `old` is step 3 above. `next` skips step 3 and feeds the
+// --site-mode (default BOOSTLY_SITE_MODE, else next; Travisse 2026-10-23: nothing is pushed to the old static site any more, `old`/`both` only on an explicit ask): `old` is step 3 above. `next` skips step 3 and feeds the
 //    hosted Next.js site instead: site-data.mjs build (review/site-data.json + downsized images to
 //    site/assets/<slug>/), then step 4 (the bundle carries site-data.json), then site-data.mjs index (the
 //    list page's site/index.json). No git commit per publish. `both` runs the two paths.
@@ -35,7 +35,7 @@ const SITE = process.env.BOOSTLY_REVIEWS_SITE || "https://fulfillment-reviews.ve
 const TRAILER = "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>";
 
 const argv = process.argv.slice(2);
-const opt = { canvas: true, site: true, bundle: true, allowStale: false, passthrough: [], siteMode: process.env.BOOSTLY_SITE_MODE || "both" };
+const opt = { canvas: true, site: true, bundle: true, allowStale: false, passthrough: [], siteMode: process.env.BOOSTLY_SITE_MODE || "next" };
 const SITE_DATA = path.join(HERE, "site-data.mjs");
 const NEXT_SITE = process.env.BOOSTLY_SITE_NEXT_URL || null;
 for (let i = 0; i < argv.length; i++) {

@@ -159,7 +159,7 @@ Start stamp, once the preconditions pass:
    until the offer is real; Brown's Chicken 2026-10-22). Skip this step when HOLD.md forbids branding complete
    or when branding complete did not apply.
 7. Review status on the hosted site (Travisse 2026-10-13: no Notion page and no Apple Note any
-   more; the site index at https://fulfillment-reviews.vercel.app is the status board). Write
+   more; the site index at https://boostly-review-site.vercel.app is the status board). Write
    `RUN_DIR/review/status.json` with
    `node ~/.claude/skills/boostly-brand-design/scripts/review-status.mjs set --run RUN_DIR --status <waiting|done> --waiting-on "<text or empty>" --ease <1-5> --by closeout-finish`
    taking `status`, `waiting_on`, and `ease` from the status line in `closeout-handoff.md`
@@ -218,5 +218,5 @@ Slack permalink (or "no thread, nothing posted", or "already posted") and the CS
 print hand-off Drive folder link, PDF page counts, the offer recopy when it changed, and the sent vendor email (draft id, message id), or the ship-to block or what failed;
 branding complete status readback with state before and after (or "skipped: HOLD.md"); the review status
 written (status, waiting_on, ease); `run-file validate` result; the review site URL
-(`https://fulfillment-reviews.vercel.app/<run dir name>/`) after the rebuild, or what failed; links written, links
+(`https://boostly-review-site.vercel.app/l/<run dir name>`) after the publish, or what failed; links written, links
 held, open flags, skipped steps; anything that failed.

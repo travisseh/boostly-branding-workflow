@@ -583,7 +583,7 @@ does around them.
 ## Finish
 
 ### Status board on the review site (default, Travisse 2026-10-13)
-The hosted index at https://fulfillment-reviews.vercel.app is the one status board: pipeline
+The hosted index at https://boostly-review-site.vercel.app is the one status board (the old static fulfillment-reviews.vercel.app is retired since 2026-10-23; publish-location.mjs defaults to --site-mode next): pipeline
 steps per location, what Travisse owes (pick a letter, approve the signage in the Print files Drive folder, link
 decisions, store details), the one-line note from `<run root>/checklist/notes.json`, and the
 review status (`waiting|done`, `waiting_on`, `ease`) from `<run dir>/review/status.json`. It
@@ -644,7 +644,7 @@ next 5 minute run heals it. Tests: `python3 -m unittest discover -s ~/.claude/sk
   review page so the verdicts on it are current.
 
 ### Public review site (default, Travisse 2026-10-09)
-The shareable review page is `https://fulfillment-reviews.vercel.app/<run dir name>/` (index at
+The shareable review page is `https://boostly-review-site.vercel.app/l/<run dir name>` since 2026-10-23 (the old static `https://fulfillment-reviews.vercel.app/<run dir name>/` is retired; index at
 the root: search by name or city, status filter, sort by last updated or request date). Repo
 `Boostly/fulfillment-reviews`, clone `/Users/travisse/Programming/repos/fulfillment-reviews`, Vercel team `boostly`,
 project `fulfillment-reviews`; a push to main deploys. Images go to the Vercel Blob store
