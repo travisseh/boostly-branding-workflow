@@ -432,6 +432,14 @@ export function buildSection(opts, spec = loadTemplateSpec()) {
   const status = sec.k.find((n) => n.t === 'TEXT' && n.text.fs === 150);
   if (status) { status.text.ch = opts.status || 'GENERATED - REVIEW BEFORE PRINT'; status.n = status.text.ch; measureText(status); }
   log.recolored = recolor(sec, TEMPLATE_BAND, band).n;
+  // light band: every white text fill (band copy, POP primary copy and legal) takes the band ink
+  // so the words stay legible on a light band; QR tiles and panels are not TEXT and keep white
+  if (opts.bandInk) {
+    const ink = hex(opts.bandInk);
+    let n = 0;
+    for (const t of findAll(sec, (x) => x.t === 'TEXT')) for (const f of t.f || []) if (f.c && f.c.toLowerCase() === '#ffffff') { f.c = ink; n += 1; }
+    log.bandInk = { ink, recolored: n };
+  }
   const copy = offerCopy(opts.offer, opts.mode || 'auto');
   log.togo = rebuildTogo(sec, { togoPromo: opts.togo?.togoPromo ?? copy.togoPromo, togoReview: opts.togo?.togoReview ?? 'Let us know how we did' });
   log.trim = trim(sec, opts.tables, opts.stalls);

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { planSteps, DRY_FLAGS } from "./print-handoff.mjs";
-import { offerChange, shipToMissing } from "./lib/common.mjs";
+import { offerChange, offerPlaceholder, shipToMissing, ccList } from "./lib/common.mjs";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const names = (p) => p.steps.map((s) => s.script);
@@ -124,4 +124,17 @@ test("offerChange and shipToMissing are pure and strict", () => {
   assert.deepEqual(shipToMissing(null), ["recipient_name", "address_line1", "city", "state", "zip"]);
   assert.deepEqual(shipToMissing({ recipient_name: "A", address_line1: "1 Main", city: "Lehi", state: "UT", zip: "84043" }), []);
   assert.deepEqual(shipToMissing({ recipient_name: " ", address_line1: "1 Main", city: "Lehi", state: "UT" }), ["recipient_name", "zip"]);
+});
+
+test("offerPlaceholder: TBD-style text and empty are placeholders, real copy is not", () => {
+  for (const t of ["TBD", "tbd", " T.B.D. ", "TBA", "N/A", "?", "pending", "Offer TBD", "", null, undefined]) assert.ok(offerPlaceholder(t), JSON.stringify(t));
+  assert.equal(offerPlaceholder(""), "empty");
+  for (const t of ["Get 20% Off!", "Free appetizer", "Join the Club!", "10% off your next visit"]) assert.equal(offerPlaceholder(t), null, t);
+});
+
+test("vendor email copies Karissa and Travisse unless one of them is the sender", () => {
+  const vendor = ["Maren Dunn <maren@customstickers.com>"];
+  assert.deepEqual(ccList(vendor, "travisse@boostly.com"), ["Maren Dunn <maren@customstickers.com>", "Karissa Cozza <karissa.cozza@boostly.com>"]);
+  assert.deepEqual(ccList(vendor, "Karissa Cozza <karissa.cozza@boostly.com>"), ["Maren Dunn <maren@customstickers.com>", "Travisse Hansen <travisse@boostly.com>"]);
+  assert.equal(ccList(vendor, null).length, 3);
 });

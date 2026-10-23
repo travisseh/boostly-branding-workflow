@@ -11,7 +11,7 @@
 // offer differs from the recorded (approved) one the live offer wins, recopy.offer_changed {from, to} is logged in
 // handoff.json and the review-sheets.png preview is regenerated so the change is visible. --offline skips the read.
 import path from "node:path";
-import { parseArgs, requireRunDir, readRun, handoffDir, readHandoff, writeHandoff, log, liveOffer, livePromotionTitle, offerChange } from "./lib/common.mjs";
+import { parseArgs, requireRunDir, readRun, handoffDir, readHandoff, writeHandoff, log, liveOffer, livePromotionTitle, offerChange, offerPlaceholder } from "./lib/common.mjs";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const directPdf = path.resolve(here, "..", "..", "boostly-signage-sheets", "scripts", "direct-pdf", "direct-pdf.mjs");
@@ -43,11 +43,23 @@ if (!args.offline && args.offer === undefined && run.request?.request_id) {
   const live = liveOffer(run.request.request_id);
   try { promotion = livePromotionTitle(run.request.location_id); } catch (e) { promotion = null; log(`promotion read skipped: ${e.message}`); }
   const baseline = merged.offer !== undefined ? merged.offer : (run.request.offer_text || "");
-  offerChanged = offerChange(baseline, live?.offer_text ?? null);
+  // a placeholder on the request ("TBD") never replaces the approved copy; it is logged and the approved copy stays
+  const livePh = offerPlaceholder(live?.offer_text);
+  offerChanged = livePh ? null : offerChange(baseline, live?.offer_text ?? null);
+  if (livePh) log(JSON.stringify({ "recopy.offer_placeholder": { live: live?.offer_text ?? "", kept: baseline } }));
   if (offerChanged) {
     merged.offer = offerChanged.to;
     delete merged["no-preview"];
     log(JSON.stringify({ "recopy.offer_changed": offerChanged, promotion }));
+  }
+}
+// Nothing renders from a placeholder: the agreed sign copy comes from --offer or a real offer_text on the request.
+{
+  const finalOffer = merged.offer !== undefined ? merged.offer : (run.request?.offer_text || "");
+  const ph = offerPlaceholder(finalOffer);
+  if (ph) {
+    log(JSON.stringify({ blocked_on: "offer", offer: finalOffer, hint: "offer text is a placeholder; pass --offer \"<agreed sign copy>\" (confirm it on the call or with the CSM) or set offer_text on the request" }));
+    process.exit(3);
   }
 }
 const summary = await renderRun(runDir, { ...merged, out });

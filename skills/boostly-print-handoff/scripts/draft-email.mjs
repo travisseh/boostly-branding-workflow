@@ -14,13 +14,15 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, MASTER_REF, log, liveShipTo, shipToMissing } from "./lib/common.mjs";
+import { parseArgs, requireRunDir, readRun, readHandoff, writeHandoff, handoffDir, KINDS, MASTER_REF, log, liveShipTo, shipToMissing, offerPlaceholder, ccList, senderEmail } from "./lib/common.mjs";
 // lib/drive.mjs loads Google auth at import; it is imported only when a send actually gets stamped, so the
 // ship-to gate and --print-only need no credentials.
 
 export const VENDOR_TO = "ckbrandsmktg@gmail.com";
-export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>", "Travisse <travisse@boostly.com>"];
+export const VENDOR_CC = ["Colin Dunn <colin@printiverse.com>", "Maren Dunn <maren@customstickers.com>"];
 export const GMAIL_CLI = path.join(os.homedir(), ".config/gmail-tools/gmail.js");
+// Karissa and Travisse are copied unless one of them is the sender (Travisse 2026-10-22).
+const CC = ccList(VENDOR_CC, senderEmail(GMAIL_CLI));
 
 const args = parseArgs(process.argv.slice(2));
 const runDir = requireRunDir(args);
@@ -41,6 +43,20 @@ if (!f.ship_to_complete) {
   writeHandoff(runDir, h);
   log(JSON.stringify({ blocked_on: "ship-to", missing, location: name, hint: "no vendor email until locations.shipping_* is complete; rerun print-handoff.mjs --live after the address lands" }));
   process.exit(3);
+}
+
+// The offer printed on signage and stickers must be real copy: a placeholder ("TBD", empty with printed goods on the
+// order) blocks the email the same way an incomplete ship-to does (exit 3, handoff.draft.blocked_on "offer").
+{
+  const ph = offerPlaceholder(f.offer_text);
+  const printed = Number(q.signage || 0) + Number(q.tables || 0) + Number(q.bathroom_stalls || 0) > 0;
+  if (ph && (ph !== "empty" || printed)) {
+    const missing = [ph === "empty" ? "offer text is empty" : `offer text is a placeholder: "${f.offer_text}"`];
+    h.draft = { ...(h.draft?.id ? { previous_blocked: h.draft } : {}), blocked_on: "offer", missing, checked_at: new Date().toISOString(), sent: false };
+    writeHandoff(runDir, h);
+    log(JSON.stringify({ blocked_on: "offer", missing, location: name, hint: "no vendor email until the offer is confirmed (call transcript or CSM) and set on the request; rerun print-handoff.mjs --live after" }));
+    process.exit(3);
+  }
 }
 
 // Zero of a unit is said plainly, never as a bare "0" the vendor has to interpret.
@@ -77,7 +93,7 @@ const body = [
 ].join("\n");
 
 const bodySha = crypto.createHash("sha256").update(body).digest("hex");
-fs.writeFileSync(path.join(handoffDir(runDir), "draft-body.txt"), `To: ${VENDOR_TO}\nCc: ${VENDOR_CC.join(", ")}\nSubject: ${subject}\n\n${body}\n`);
+fs.writeFileSync(path.join(handoffDir(runDir), "draft-body.txt"), `To: ${VENDOR_TO}\nCc: ${CC.join(", ")}\nSubject: ${subject}\n\n${body}\n`);
 if (args["print-only"]) { log(body); process.exit(0); }
 
 // Stamp column N of the summary row with the send date. The send is already recorded in handoff.json,
@@ -111,19 +127,19 @@ async function sendRecordedDraft() {
   await stampOrderDate();
 }
 
-if (h.draft?.blocked_on && !h.draft.id) { log(`ship-to block cleared (${h.draft.missing?.join(", ")}); drafting now`); h.draft = h.draft.previous_blocked || undefined; }
+if (h.draft?.blocked_on && !h.draft.id) { log(`${h.draft.blocked_on} block cleared (${h.draft.missing?.join(", ")}); drafting now`); h.draft = h.draft.previous_blocked || undefined; }
 if (h.draft?.id && !args.redraft) {
   log("draft already recorded", h.draft.id, h.draft.body_sha256 === bodySha ? "(body unchanged)" : "(body differs; pass --redraft to make a new draft)");
   if (!h.draft.sent && !args["no-send"]) await sendRecordedDraft();
   else if (h.draft.sent && h.draft.sent_at && !h.draft.order_placed) await stampOrderDate();
   process.exit(0);
 }
-const outp = execFileSync("node", [GMAIL_CLI, "draft", "boostly", VENDOR_TO, subject, body, "--cc", VENDOR_CC.join(", ")], { encoding: "utf8" });
+const outp = execFileSync("node", [GMAIL_CLI, "draft", "boostly", VENDOR_TO, subject, body, "--cc", CC.join(", ")], { encoding: "utf8" });
 const line = outp.split("\n").find((l) => l.includes("draft_created"));
 if (!line) throw new Error(`gmail.js did not report a draft: ${outp.slice(0, 300)}`);
 const res = JSON.parse(line);
 const prev = h.draft?.id ? [...(h.draft.previous || []), { id: h.draft.id, created_at: h.draft.created_at }] : [];
-h.draft = { id: res.id, account: "boostly", to: VENDOR_TO, cc: VENDOR_CC, subject, body_sha256: bodySha, created_at: new Date().toISOString(), via: "gmail.js draft", sent: false, previous: prev };
+h.draft = { id: res.id, account: "boostly", to: VENDOR_TO, cc: CC, subject, body_sha256: bodySha, created_at: new Date().toISOString(), via: "gmail.js draft", sent: false, previous: prev };
 writeHandoff(runDir, h);
 log(JSON.stringify({ draft_id: res.id, subject }));
 if (!args["no-send"]) await sendRecordedDraft();

@@ -1,4 +1,6 @@
 // Shared helpers for the customstickers.com print hand-off. Never prints secrets.
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -143,6 +145,15 @@ export function offerChange(recordedOffer, liveOffer) {
   if (normOffer(recordedOffer) === normOffer(liveOffer)) return null;
   return { from: recordedOffer ?? "", to: String(liveOffer) };
 }
+// Pure: a placeholder offer must never reach a sign or the vendor (Brown's Chicken 2026-10-22: the finish re-copied
+// the request's "TBD"). Returns the placeholder kind ("empty", "tbd", ...) or null for real copy.
+export function offerPlaceholder(t) {
+  const s = String(t ?? "").trim().toLowerCase().replace(/[^a-z0-9%? ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return "empty";
+  const packed = s.replace(/ /g, ""); // "T.B.D." and "N / A" read the same as "tbd" and "na"
+  if (/^(tbd|tba|tbc|na|none|null|pending|placeholder|offer|offertext|offertbd|\?+|x+)$/.test(packed)) return s;
+  return null;
+}
 
 // Request facts: live first, run.json fallback only with --offline.
 export function requestFacts(run, args) {
@@ -166,3 +177,20 @@ export function shipLines(s) {
 }
 
 export function log(...a) { console.log(...a); }
+
+// Vendor email CC (Travisse 2026-10-22): always copy Karissa and Travisse on mail to customstickers.com,
+// unless one of them is the sending account. The sender is read from `gmail.js check` (the "boostly" entry; `accounts` has no email).
+export const INTERNAL_CC = ["Karissa Cozza <karissa.cozza@boostly.com>", "Travisse Hansen <travisse@boostly.com>"];
+const addr = (s) => String(s || "").replace(/^.*<([^>]+)>.*$/, "$1").trim().toLowerCase();
+export function ccList(vendorCc, sender) {
+  const me = addr(sender);
+  return [...vendorCc, ...INTERNAL_CC.filter((e) => addr(e) !== me)];
+}
+export function senderEmail(gmailCli, account = "boostly") {
+  try {
+    const { execFileSync } = require("node:child_process");
+    const out = execFileSync("node", [gmailCli, "check"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const list = JSON.parse(out.slice(out.indexOf("[")));
+    return (list.find((a) => a.account === account) || {}).email || null;
+  } catch { return null; }
+}

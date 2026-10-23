@@ -16,7 +16,7 @@
 //   [--offer "<offer_text>"] [--mode auto|discount|phrase|generic] [--band #RRGGBB]
 //   [--logo <png>] [--pop-primary-logo <png>] [--header-logo <png>] [--name "<Location (City)>"]
 //   [--date YYYY-MM-DD] [--status "<header label>"] [--kinds <kind[,kind]>] [--no-icc]
-//   [--no-preview] [--preview-dpi 24]
+//   [--no-preview] [--preview-dpi 24] [--no-outline]  (text is outlined via Ghostscript by default since 2026-10-22)
 // Defaults come from run.json (figma.header_title, figma.quantities, request.offer_text) and
 // signage/plan.json (band, copy, qr files, logo, logo_panel). Zero tables is a normal order:
 // the table and review families are dropped and build-log.json says so. Never prints secrets;
@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process';
 import { buildSection, sheetsOf } from './lib/retarget.mjs';
 import { PdfRenderer, savePdf } from './lib/pdf-render.mjs';
 import { KINDS, classify, orderFrames } from './lib/kinds.mjs';
+import { outlinePdf } from './lib/outline.mjs';
 
 export function parseArgs(argv) {
   const out = { _: [] };
@@ -80,7 +81,7 @@ export function resolveInputs(runDir, args) {
   for (const [k, f] of Object.entries(logos)) if (f && !fs.existsSync(f)) throw new Error(`${k} logo missing: ${f}`);
   return {
     name, status: args.status || fig.header || 'GENERATED - REVIEW BEFORE PRINT', date: args.date || new Date().toISOString().slice(0, 10),
-    band, offer, mode: args.mode || 'auto', tables, stalls, qrFiles, logos, logoPanel: plan.logo_panel || null,
+    band, bandInk: args['band-ink'] || null, offer, mode: args.mode || 'auto', tables, stalls, qrFiles, logos, logoPanel: plan.logo_panel || null,
     plan, run,
   };
 }
@@ -170,16 +171,23 @@ export async function renderRun(runDir, args = {}) {
     const kindState = await renderer.newDocument();
     for (const f of fk) await renderer.renderSheet(kindState, f.sheet);
     await savePdf(kindState, dst, { title: `${inputs.name} - ${kind}` });
+    const embedded = pdfFonts(dst);
+    // vendor files ship with text as outlines (2026-10-22, customstickers.com asked for it; Figma's
+    // exports carried Type 3 outlines): Ghostscript converts the embedded subset to paths. --no-outline
+    // keeps the live text; a missing Ghostscript is a WARNING, not a failure, and the file keeps its fonts.
+    const outline = args['no-outline'] ? { outlined: false, reason: '--no-outline' } : outlinePdf(dst);
+    if (!outline.outlined && !args['no-outline']) console.log('WARNING', kind, 'text not outlined:', outline.reason);
     const pages = pdfPages(dst);
     const fonts = pdfFonts(dst);
     const imgs = pdfImages(dst);
     const size = pdfPageSize(dst);
     const fullPage = (imgs || []).filter((im) => size && im.w >= size[0] * 0.95 && im.h >= size[1] * 0.95);
-    const vector = fonts === null ? null : fonts.length > 0 && fullPage.length === 0;
+    // vector means: no full-page raster, and the text is either an embedded font or outlined paths
+    const vector = fonts === null ? null : fullPage.length === 0 && (fonts.length > 0 || outline.outlined);
     const ok = (pages === null || pages === fk.length) && vector !== false;
     allOk = allOk && ok;
-    sheets[kind] = { file: `${kind}.pdf`, pages, expected_pages: fk.length, node_ids: fk.map((f) => f.node_id), names: fk.map((f) => f.name), page_size_pt: size, fonts: fonts ? fonts.length : null, font_list: fonts, images: imgs ? imgs.length : null, full_page_images: fullPage.length, vector, ok, parts_md5: parts.map(md5).join(','), md5: md5(dst), bytes: fs.statSync(dst).size };
-    console.log(ok ? 'OK ' : 'BAD', kind, `${pages}/${fk.length} pages`, `fonts ${fonts ? fonts.length : '?'}`, `images ${imgs ? imgs.length : '?'}`, vector === null ? '(poppler missing)' : vector ? 'vector' : 'NOT VECTOR');
+    sheets[kind] = { file: `${kind}.pdf`, pages, expected_pages: fk.length, node_ids: fk.map((f) => f.node_id), names: fk.map((f) => f.name), page_size_pt: size, fonts: fonts ? fonts.length : null, font_list: fonts, fonts_embedded_before_outline: embedded ? embedded.length : null, text: outline.outlined ? 'outlined' : 'embedded font', outline, images: imgs ? imgs.length : null, full_page_images: fullPage.length, vector, ok, parts_md5: parts.map(md5).join(','), md5: md5(dst), bytes: fs.statSync(dst).size };
+    console.log(ok ? 'OK ' : 'BAD', kind, `${pages}/${fk.length} pages`, outline.outlined ? 'text outlined' : `fonts ${fonts ? fonts.length : '?'}`, `images ${imgs ? imgs.length : '?'}`, vector === null ? '(poppler missing)' : vector ? 'vector' : 'NOT VECTOR');
   }
   const preview = args['no-preview'] ? null : await contactSheet(frames.map((f) => ({ name: f.name, file: path.join(pagesDir, f.file), w: f.w, h: f.h })), path.join(out, 'review-sheets.png'), { dpi: Number(args['preview-dpi'] || 24), title: `${inputs.name}: ${frames.length} print sheets, direct render ${inputs.date}` });
   if (preview) console.log('preview', preview.file, `${preview.width}x${preview.height}`);
