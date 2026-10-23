@@ -256,10 +256,69 @@
   }
 
   // ---- sticker mock (the Figma table-sticker-promo template, 900x900 design px) --------------------
-  // Title-to-body gap (design px). The body flows under the title and never above the template's body y, so a one-line
-  // title prints at the exact Figma positions and a title that wraps (a long offer: "Get $10 off your next visit of
-  // $40+") pushes the body down instead of drawing over it (Pyke's Crossroads 2026-10-23).
-  const COPY_GAP = 40;
+  // Copy fit (Pyke's Crossroads 2026-10-23: "Get $10 off your next visit of $40+" wrapped at 90px and its lines and the
+  // body ran together). The mocks fit the copy the way the direct-PDF renderer does (boostly-signage-sheets
+  // direct-pdf/lib/retarget.mjs recopy): a default title that wraps at 90 takes the two-line layout (74 auto line height,
+  // body at y274) and shrinks by 2 until it holds two lines; a POP title shrinks 140 -> 80 by 10 to stay on one line and
+  // otherwise sets two lines at 1.15 leading. On top of that the body flows under the title with the template's own
+  // title-to-body gap (COPY_GAP per layout) and never above the template's body y, so a copy that still runs long pushes
+  // the body down instead of drawing over it. One-line copy prints at the exact Figma positions (pixel-identical).
+  // Measuring uses Figtree's advance widths (per 1000 em, from references/fonts in boostly-signage-sheets, no kerning,
+  // so a measure errs long), the same numbers in Node and the browser.
+  const FIGTREE_ADV_CHARS = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u2019\u2026\u00e9';
+  const FIGTREE_ADV = {
+    500: [244,302,345,629,561,793,645,212,360,360,483,626,235,414,219,401,643,416,564,547,624,576,569,542,614,569,266,271,626,626,626,506,990,687,611,722,691,591,546,756,751,276,525,625,524,849,774,779,586,782,631,612,561,706,701,967,632,616,638,329,401,329,559,437,233,516,589,542,588,548,376,591,561,240,275,500,227,857,561,580,594,581,349,466,384,561,530,798,492,540,488,388,257,388,595,191,640,550],
+    600: [241,307,376,630,558,802,646,227,370,370,485,629,245,411,232,415,645,419,571,551,628,578,574,548,613,574,282,287,629,629,629,509,991,699,612,723,695,590,550,750,750,282,537,644,530,853,774,783,594,785,637,610,572,705,711,975,653,630,635,336,415,336,569,436,247,524,592,544,591,551,384,596,565,250,282,517,236,864,564,581,597,586,363,466,393,564,542,815,512,556,483,391,257,391,628,204,671,553],
+  };
+  /** Width of one line of Figtree at `size` (any unit), `tracking` in em (the pieces use -0.025). */
+  function textWidth(text, size, weight = 500, tracking = 0) {
+    const adv = FIGTREE_ADV[weight >= 600 ? 600 : 500];
+    let units = 0;
+    for (const ch of String(text)) {
+      const i = FIGTREE_ADV_CHARS.indexOf(ch);
+      units += (i >= 0 ? adv[i] : 700) + tracking * 1000;
+    }
+    return (units * size) / 1000;
+  }
+  /** Line count of `text` set at `size` in a `width` box, greedy breaks at spaces like CSS and Figma (explicit newlines kept). */
+  function wrapLines(text, size, width, weight = 500, tracking = 0) {
+    let count = 0;
+    for (const para of String(text).split(/\n/)) {
+      let line = '';
+      count += 1;
+      for (const word of para.split(/ +/).filter(Boolean)) {
+        const next = line ? `${line} ${word}` : word;
+        if (line && textWidth(next, size, weight, tracking) > width + 0.5) { count += 1; line = word; } else line = next;
+      }
+    }
+    return count;
+  }
+  // Title-to-body gap per sticker layout (design px), the gap each Figma layout already has between a title of its
+  // designed line count and the body: default 216 - 56 - 100, phrase 274 - 56 - 2 x 88.8, phrase_one_line 216 - 56 - 98.4.
+  const COPY_GAP = { default: 60, phrase: 40, phrase_one_line: 60 };
+  /** Sticker copy fit: { layout, titleSize } as the direct-PDF recopy sets it. */
+  function stickerCopyFit(headline, layout = 'default') {
+    const W = STICKER.text.w;
+    let key = STICKER.layouts[layout] ? layout : 'default';
+    if (key === 'default' && wrapLines(headline, 90, W) > 1) key = 'phrase';
+    if (key === 'phrase_one_line' && wrapLines(headline, 82, W) > 1) key = 'phrase';
+    let titleSize = STICKER.layouts[key].title.size;
+    if (key === 'phrase') { titleSize = 74; while (wrapLines(headline, titleSize, W) > 2 && titleSize > 40) titleSize -= 2; }
+    return { layout: key, titleSize };
+  }
+  /** POP title fit: { size, lh, lines } as the direct-PDF recopy sets it (140/150 one line, else two lines at 1.15). */
+  function popTitleFit(offer) {
+    const W = POP.title.w;
+    let size = POP.title.size;
+    while (wrapLines(offer, size, W) > 1 && size > 80) size -= 10;
+    if (wrapLines(offer, size, W) <= 1) return { size, lh: POP.title.lh, lines: 1 };
+    let lines = 0;
+    for (size = 130; size >= 80; size -= 10) { lines = wrapLines(offer, size, W); if (lines <= 2) break; }
+    size = Math.max(size, 80);
+    return { size, lh: Math.round(size * 1.15), lines: wrapLines(offer, size, W) };
+  }
+  // Title-to-body gap on the POP sign: the template's 420 - 180 - 150.
+  const POP_COPY_GAP = 90;
   const FIGTREE = "'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   /** Google Fonts link for Figtree (the template font) with the same weights the templates use (500, 600). */
   const FONT_LINK_HTML = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">';
@@ -286,15 +345,17 @@
     const T = STICKER;
     const s = size / T.w;
     const px = (v) => `${+(v * s).toFixed(3)}px`;
-    const L = T.layouts[layout] ?? T.layouts.default;
+    const fit = stickerCopyFit(headline, layout);
+    const L = T.layouts[fit.layout];
+    const gap = COPY_GAP[fit.layout];
     const lh = (v) => (v === 'normal' ? 'normal' : px(parseFloat(v)));
     const qrSvg = qrFor(qr, band, seed == null ? seedFrom(`${logoUrl}${band}`) : seed);
     const lines = (text) => String(text).split(/\||\n/).map((line) => esc(line)).join('<br>');
     return `<div class="bs-sticker" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${T.bg}; overflow: hidden; font-family: ${FIGTREE}; color: #ffffff; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
     <svg aria-hidden="true" style="position: absolute; inset: 0; display: block;" width="${px(T.w)}" height="${px(T.h)}" viewBox="0 0 ${T.w} ${T.h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="${T.bandPath}" fill="${esc(band)}"/></svg>
     <div class="bs-sticker-copy" style="position: absolute; left: ${px(T.text.x)}; top: ${px(L.title.y)}; width: ${px(T.text.w)};">
-    <div class="bs-sticker-title" style="min-height: ${px(L.body.y - L.title.y - COPY_GAP)}; font-size: ${px(L.title.size)}; line-height: ${lh(L.title.lh)}; font-weight: ${L.title.weight}; white-space: pre-line;">${esc(headline)}</div>
-    <div class="bs-sticker-body" style="margin-top: ${px(COPY_GAP)}; font-size: ${px(L.body.size)}; line-height: ${lh(L.body.lh)}; font-weight: ${L.body.weight};">${lines(body)}</div>
+    <div class="bs-sticker-title" style="min-height: ${px(L.body.y - L.title.y - gap)}; font-size: ${px(fit.titleSize)}; line-height: ${lh(L.title.lh)}; font-weight: ${L.title.weight}; white-space: pre-line;">${esc(headline)}</div>
+    <div class="bs-sticker-body" style="margin-top: ${px(gap)}; font-size: ${px(L.body.size)}; line-height: ${lh(L.body.lh)}; font-weight: ${L.body.weight};">${lines(body)}</div>
     </div>
     <div class="bs-sticker-divider" style="position: absolute; left: ${px(T.divider.x)}; top: ${px(T.divider.y)}; width: ${px(T.divider.w)}; height: ${px(T.divider.h)}; background: ${esc(band)};"></div>
     <div class="bs-sticker-logo" style="position: absolute; left: ${px(T.logo.x)}; top: ${px(T.logo.y)}; width: ${px(T.logo.w)}; height: ${px(T.logo.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
@@ -343,10 +404,11 @@
     const logoBox = ink === '#000000' ? T.logoLight : T.logo;
     const qrSvg = qrFor(qr, ink, seed == null ? seedFrom(`pop${logoUrl}${ground}`) : seed);
     const lines = (text) => String(text).split(/\||\n/).map((line) => esc(line)).join('<br>');
+    const fit = popTitleFit(offer);
     return `<div class="bs-pop" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${esc(ground)}; overflow: hidden; font-family: ${FIGTREE}; color: ${ink}; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
     <div class="bs-pop-copy" style="position: absolute; left: ${px(T.title.x)}; top: ${px(T.title.y)}; width: ${px(T.title.w)}; text-align: center;">
-    <div class="bs-pop-title" style="min-height: ${px(T.body.y - T.title.y - COPY_GAP)}; font-size: ${px(T.title.size)}; line-height: ${px(T.title.lh)}; font-weight: ${T.title.weight}; white-space: pre-line;">${esc(offer)}</div>
-    <div class="bs-pop-body" style="margin-top: ${px(COPY_GAP)}; font-size: ${px(T.body.size)}; line-height: ${px(T.body.lh)}; font-weight: ${T.body.weight};">${lines(body)}</div>
+    <div class="bs-pop-title" style="min-height: ${px(T.body.y - T.title.y - POP_COPY_GAP)}; font-size: ${px(fit.size)}; line-height: ${px(fit.lh)}; font-weight: ${T.title.weight}; white-space: pre-line;">${esc(offer)}</div>
+    <div class="bs-pop-body" style="margin-top: ${px(POP_COPY_GAP)}; font-size: ${px(T.body.size)}; line-height: ${px(T.body.lh)}; font-weight: ${T.body.weight};">${lines(body)}</div>
     </div>
     <div class="bs-pop-qr" style="position: absolute; left: ${px(T.qr.x)}; top: ${px(T.qr.y)}; width: ${px(T.qr.w)}; height: ${px(T.qr.w)};"><img src="${svgDataUri(qrSvg)}" alt="" style="display: block; width: 100%; height: 100%;"></div>
     <div class="bs-pop-logo" style="position: absolute; left: ${px(logoBox.x)}; top: ${px(logoBox.y)}; width: ${px(logoBox.w)}; height: ${px(logoBox.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
@@ -389,15 +451,34 @@
   function qrImg(style, light) {
     return `<img src="${svgDataUri(signageQrSvg(light ? '#ffffff' : '#000000'))}" alt="QR code" style="${style}">`;
   }
+  // Onboarding-row copy fit (cqi units of the piece width; Pyke's 2026-10-23). A one-line offer keeps the component's
+  // exact size and leading. A wrapped POP title gets 1.1 leading (1.02 let a descender meet the next line's caps) and
+  // shrinks until it holds two lines; the table title shrinks until title, the 8% gap and the two body lines end above
+  // the band's diagonal (50% of the side on the right), so no copy runs onto the white field or the logo/QR row.
+  function popPieceFit(offer, fs) {
+    let size = 13 * fs;
+    if (wrapLines(offer, size, 80, 600, -0.025) <= 1) return { size, lh: 1.02 };
+    while (wrapLines(offer, size, 80, 600, -0.025) > 2 && size > 7 * fs) size -= 0.25 * fs;
+    return { size: +size.toFixed(3), lh: 1.1 };
+  }
+  function tablePieceFit(offer, fs) {
+    const body = 3.2 * fs; const fixed = 11 + 0.08 * 85 + 2 * 1.2 * body; const limit = 48;
+    let size = 5 * fs;
+    let n = wrapLines(offer, size, 85, 600, -0.025);
+    if (n <= 1) return { size, lh: 1.05 };
+    while (size > 2.5 * fs && fixed + n * 1.1 * size > limit) { size -= 0.25 * fs; n = wrapLines(offer, size, 85, 600, -0.025); }
+    return { size: +size.toFixed(3), lh: 1.1 };
+  }
   function popPieceHtml({ logoUrl, primary, offer, fs, logoAttrs }) {
     const bg = primary || PREVIEW_SAMPLE_PRIMARY;
+    const fit = popPieceFit(offer, fs);
     const logo = logoUrl
       ? `<img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} alt="" style="height: 100%; width: 100%; object-fit: contain;">`
       : `<span style="text-align: center; font-weight: 600; line-height: 1.05; letter-spacing: -0.025em; color: #fff; font-size: clamp(0.55rem, ${8 * fs}cqi, 1.9rem);">Your Logo Here</span>`;
     return `<div style="position: relative; height: 100%; aspect-ratio: 3 / 5;">
       <div aria-hidden="true" style="pointer-events: none; position: absolute; inset: 0; box-shadow: ${AMBIENT_SHADOW};"></div>
       <div style="position: relative; display: flex; height: 100%; flex-direction: column; align-items: center; overflow: hidden; padding: 15% 10% 5%; text-align: center; background-color: ${esc(bg)}; container-type: inline-size;">
-        <p style="margin: 0; color: #fff; font-weight: 600; letter-spacing: -0.025em; line-height: 1.02; font-size: clamp(1rem, ${13 * fs}cqi, 4rem);">${esc(offer)}</p>
+        <p style="margin: 0; color: #fff; font-weight: 600; letter-spacing: -0.025em; line-height: ${fit.lh}; font-size: clamp(1rem, ${fit.size}cqi, 4rem);">${esc(offer)}</p>
         <p style="margin: 8% 0 0; color: #fff; font-weight: 500; line-height: 1.2; font-size: clamp(0.5rem, ${5.5 * fs}cqi, 1.8rem);">Scan to join our VIP text club<br>for ongoing offers!</p>
         <div style="margin-top: 12%; width: 45%;">${qrImg('aspect-ratio: 1 / 1; width: 100%; display: block;', true)}</div>
         <div style="margin-top: 12%; display: flex; width: 22%; aspect-ratio: 330 / 245; align-items: center; justify-content: center;">${logo}</div>
@@ -429,6 +510,7 @@
   }
   function tablePieceHtml({ logoUrl, logoLightUrl, primary, offer, fs, logoAttrs }) {
     const bg = primary || PREVIEW_SAMPLE_PRIMARY;
+    const fit = tablePieceFit(offer, fs);
     const lightLogo = logoLightUrl ?? logoUrl;
     const logo = lightLogo
       ? `<div style="width: 80%; aspect-ratio: 330 / 245;"><img src="${esc(lightLogo)}"${logoAttrs ? ` ${logoAttrs}` : ''} alt="" style="height: 100%; width: 100%; object-fit: contain;"></div>`
@@ -437,7 +519,7 @@
       <div style="position: absolute; inset: 0; background-color: ${esc(bg)}; clip-path: polygon(0 0, 100% 0, 100% 50%, 0 60%);"></div>
       <div style="position: absolute; inset: 0; background: #fff; clip-path: polygon(0 60%, 100% 50%, 100% 100%, 0 100%);"></div>
       <div style="position: absolute; top: 11%; left: 9%; right: 6%;">
-        <p style="margin: 0; color: #fff; font-weight: 600; letter-spacing: -0.025em; line-height: 1.05; font-size: clamp(0.5rem, ${5 * fs}cqi, 2.5rem);">${esc(offer)}</p>
+        <p style="margin: 0; color: #fff; font-weight: 600; letter-spacing: -0.025em; line-height: ${fit.lh}; font-size: clamp(0.5rem, ${fit.size}cqi, 2.5rem);">${esc(offer)}</p>
         <div style="margin-top: 8%;">
           <p style="margin: 0; color: #fff; font-weight: 500; line-height: 1.2; font-size: clamp(0.35rem, ${3.2 * fs}cqi, 1.4rem);">Be the first to know.</p>
           <p style="margin: 0; color: #fff; font-weight: 500; line-height: 1.2; font-size: clamp(0.35rem, ${3.2 * fs}cqi, 1.4rem);">Receive exclusive deals.</p>
@@ -651,7 +733,7 @@
     esc, contrast, luminance, computeTextColor, seedFrom, mockQrModules, mockQrSvg, styledQrSvg, svgDataUri,
     FIGTREE, FONT_LINK_HTML, STICKER, POP, POP_LEGAL, POP_BODY_DEFAULT,
     BADGE_LAYOUT, BADGE_WIDTH_PX, BADGE_HEIGHT_PX, badgeCardHtml, badgeShotHtml,
-    stickerMockHtml, stickerPlaceholderHtml, popTileHtml,
+    stickerMockHtml, stickerPlaceholderHtml, popTileHtml, textWidth, wrapLines, stickerCopyFit, popTitleFit, COPY_GAP, POP_COPY_GAP,
     SIGNAGE_CONFIG, SIGNAGE_QR_ROWS, signageQrSvg, signageLayout, signagePreviewHtml,
     GEOMETRY, STATUS_STYLE, NOT_VIABLE_STYLE, SHEET_CSS, sheetGeometry, cellHtml, sheetHtml, compareHtml, pageHtml,
   };

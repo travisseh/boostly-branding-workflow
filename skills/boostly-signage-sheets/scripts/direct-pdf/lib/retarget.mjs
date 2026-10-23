@@ -272,7 +272,7 @@ export function recopy(sec, offerText, mode = 'auto') {
           title.text.fs = size; title.text.lh = lh; measureText(title);
           if (title.h <= 2 * lh + 1) break;
         }
-        bodyY = 180 + title.h + 40;
+        bodyY = 180 + title.h + 90; // the template's own title-to-body gap (420 - 180 - 150), as the review mocks draw it
         summary.popTitleLines = 2;
       }
       summary.popTitleSize = size;

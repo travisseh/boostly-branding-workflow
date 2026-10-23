@@ -143,14 +143,14 @@ for (const sheet of sheets.filter(s => /^Print Sheet - POP Sign/.test(s.name))) 
       // Still wraps at the 80 floor (long phrase, e.g. Coriander's "Buy One Get One
       // Chicken Tikka Masala", 2026-09-18): lay the title out on TWO lines at the
       // largest size 130..80 that holds two lines (lh = 1.15em), and push the body
-      // 40px under it. Title 300 tall at 130/150 ends at 480, body 520-690, QR at 802.
+      // 90px (the template gap) under it. Title 300 tall at 130/150 ends at 480, body 570-740, QR at 802.
       for (size = 130; size >= 80; size -= 10) {
         const lh = Math.round(size * 1.15);
         title.fontSize = size;
         title.lineHeight = { unit: 'PIXELS', value: lh };
         if (title.height <= 2 * lh + 1) break;
       }
-      bodyY = 180 + title.height + 40;
+      bodyY = 180 + title.height + 90; // the template's own title-to-body gap (420 - 180 - 150)
       summary.popTitleLines = 2;
     }
     summary.popTitleSize = size;

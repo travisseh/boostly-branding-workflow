@@ -47,18 +47,26 @@ test('stickerMockHtml and popTileHtml reproduce the Figma templates (900x900 sti
   assert.equal(a, templates.stickerMockHtml({ logoUrl: 'l.png', band: '#8B2C1D', headline: 'Get 20% Off', qr, size: 900 }));
   assert.match(a, /width: 900px; height: 900px; background: #FFFFFF;[^"]*font-family: 'Figtree'[^"]*box-shadow: inset 0 0 0 1px #000000;/, 'white 900 frame, Figtree, 1px inside cut line');
   assert.match(a, /<path d="M0 0H900V429L0 524Z" fill="#8B2C1D"\/>/, 'the band path from plan.mjs');
-  // title and body flow in one copy box at 56/56: the title holds at least 120px (216 - 56 - 40) and the
-  // body follows 40px under it, so a one-line title keeps the body at y216 and a wrapped one pushes it down
-  assert.match(a, /class="bs-sticker-copy" style="position: absolute; left: 56px; top: 56px; width: 788px;">\s*<div class="bs-sticker-title" style="min-height: 120px; font-size: 90px; line-height: 100px; font-weight: 500;[^>]*>Get 20% Off</, 'title Figtree Medium 90/100 at 56/56');
-  assert.match(a, /class="bs-sticker-body" style="margin-top: 40px; font-size: 50px; line-height: 60px; font-weight: 600;">Be the first to know\.<br>Receive exclusive deals\.</, 'body Figtree SemiBold 50/60 at y216 (56 + 120 + 40)');
+  // title and body flow in one copy box at 56/56: the title holds at least 100px (216 - 56 - 60) and the
+  // body follows the template's 60px gap under it, so a one-line title keeps the body at y216 and anything longer pushes it down
+  assert.match(a, /class="bs-sticker-copy" style="position: absolute; left: 56px; top: 56px; width: 788px;">\s*<div class="bs-sticker-title" style="min-height: 100px; font-size: 90px; line-height: 100px; font-weight: 500;[^>]*>Get 20% Off</, 'title Figtree Medium 90/100 at 56/56');
+  assert.match(a, /class="bs-sticker-body" style="margin-top: 60px; font-size: 50px; line-height: 60px; font-weight: 600;">Be the first to know\.<br>Receive exclusive deals\.</, 'body Figtree SemiBold 50/60 at y216 (56 + 100 + 60)');
   assert.match(a, /class="bs-sticker-divider" style="position: absolute; left: 446\.5px; top: 420px; width: 7px; height: 440px; background: #8B2C1D;/, 'the 7px divider from y420 (inside the band) to y860');
   assert.match(a, /class="bs-sticker-logo" style="position: absolute; left: 56px; top: 542px; width: 330px; height: 244\.9px;"><img src="l\.png"[^>]*object-fit: contain/, 'logo FIT box');
   assert.match(a, /class="bs-sticker-qr" style="position: absolute; left: 485px; top: 485px; width: 359px; height: 359px; border-radius: 14px; background: #ffffff;"><img src="data:image\/svg\+xml,/, 'QR tile 359 r14');
   const half = templates.stickerMockHtml({ logoUrl: 'l.png', band: '#8B2C1D', qr, size: 150 });
-  assert.match(half, /left: 9\.333px; top: 9\.333px; width: 131\.333px;">\s*<div class="bs-sticker-title" style="min-height: 20px; font-size: 15px; line-height: 16\.667px;/, 'everything scales with size');
+  assert.match(half, /left: 9\.333px; top: 9\.333px; width: 131\.333px;">\s*<div class="bs-sticker-title" style="min-height: 16\.667px; font-size: 15px; line-height: 16\.667px;/, 'everything scales with size');
   const phrase = templates.stickerMockHtml({ logoUrl: 'l.png', band: '#000000', headline: 'Unlock the V.I.P Experience', layout: 'phrase', size: 900 });
   assert.match(phrase, /font-size: 74px; line-height: normal; font-weight: 500;/, 'phrase layout 74/auto');
   assert.match(phrase, /min-height: 178px; font-size: 74px;[\s\S]*margin-top: 40px; font-size: 42px; line-height: 60px;/, 'phrase body 42/60 at y274 (56 + 178 + 40)');
+  // a default title that wraps at 90 takes the direct-PDF two-line layout (74/auto, body 42/60 at y274), never 90/100
+  // lines running into each other (Pyke's Crossroads 2026-10-23); a longer one shrinks by 2 until it holds two lines
+  const wrapped = templates.stickerMockHtml({ logoUrl: 'l.png', band: '#161616', headline: 'Get $10 off your next visit of $40+', layout: 'default', size: 900 });
+  assert.match(wrapped, /min-height: 178px; font-size: 74px; line-height: normal;[\s\S]*margin-top: 40px; font-size: 42px; line-height: 60px;/, 'wrapped default -> two-line 74 layout');
+  assert.deepEqual(templates.stickerCopyFit('Get $10 off your next visit of $40+'), { layout: 'phrase', titleSize: 74 }, 'same fit as direct-pdf recopy (defaultTwoLine, 74)');
+  assert.ok(templates.stickerCopyFit('Get a free appetizer with any two entrees on your next visit with us this month').titleSize < 74, 'a three-line title shrinks');
+  assert.deepEqual(templates.popTitleFit('Get $10 off your next visit of $40+'), { size: 80, lh: 150, lines: 1 }, 'POP title shrinks to one line like direct-pdf (80)');
+  assert.deepEqual(templates.popTitleFit('Get 20% Off'), { size: 140, lh: 150, lines: 1 });
   // the QR: the closeout's styled SVG (plan.mjs generateStyledSvgQR) of the same matrix
   const svg = templates.styledQrSvg(qr.modules, '#8B2C1D', 600);
   assert.match(svg, /viewBox="0 0 600 600" width="600" height="600"/);
@@ -76,8 +84,8 @@ test('stickerMockHtml and popTileHtml reproduce the Figma templates (900x900 sti
   assert.equal(templates.seedFrom('abc'), templates.seedFrom('abc'));
   const pop = templates.popTileHtml({ logoUrl: 'l.png', ground: '#0517B8', offer: 'Get 20% Off', body: 'Scan to join our text club|for ongoing offers!', qr, width: 1500 });
   assert.match(pop, /class="bs-pop" style="position: relative; width: 1500px; height: 2100px; background: #0517B8;/);
-  assert.match(pop, /class="bs-pop-copy" style="position: absolute; left: 120px; top: 180px; width: 1260px; text-align: center;">\s*<div class="bs-pop-title" style="min-height: 200px; font-size: 140px; line-height: 150px; font-weight: 500;[^>]*>Get 20% Off</, 'title Figtree Medium 140/150 at y180');
-  assert.match(pop, /class="bs-pop-body" style="margin-top: 40px; font-size: 70px; line-height: 85px; font-weight: 500;">Scan to join our text club<br>for ongoing offers!</, 'body 70/85 at y420 (180 + 200 + 40), lower when the title wraps');
+  assert.match(pop, /class="bs-pop-copy" style="position: absolute; left: 120px; top: 180px; width: 1260px; text-align: center;">\s*<div class="bs-pop-title" style="min-height: 150px; font-size: 140px; line-height: 150px; font-weight: 500;[^>]*>Get 20% Off</, 'title Figtree Medium 140/150 at y180');
+  assert.match(pop, /class="bs-pop-body" style="margin-top: 90px; font-size: 70px; line-height: 85px; font-weight: 500;">Scan to join our text club<br>for ongoing offers!</, 'body 70/85 at y420 (180 + 150 + 90), lower when the title wraps');
   assert.match(pop, /class="bs-pop-qr" style="position: absolute; left: 412\.5px; top: 802px; width: 675px; height: 675px;"><img src="data:image\/svg\+xml,/);
   assert.ok(pop.includes(encodeURIComponent(templates.styledQrSvg(qr.modules, '#FFFFFF', 600))), 'white modules on the primary sign');
   assert.match(pop, /class="bs-pop-logo" style="position: absolute; left: 539\.6px; top: 1607\.6px; width: 421px; height: 312px;"/, 'the primary sign logo box');
