@@ -601,3 +601,98 @@ merged from the live copy with the Codex daily mirror as the three-way base, so 
   error, or a page plus an error.
 - `skills/boostly-link-discovery/SKILL.md`: the claude-chrome section documents both. Tests: two new cases in
   `claude-chrome-provider.test.mjs` (12 pass); every discovery test file green.
+## 2026-10-21: review page header, links order, logo search reuse (Travisse's review-site pass)
+
+Same edits patched by hand into the live copy and this package copy (not copied over: the live file keeps its
+links-only `cachedLogoSearch` hunk, the package keeps its older one; that pre-existing difference is unchanged).
+
+- `skills/boostly-brand-design/scripts/review-canvas.mjs`:
+  - Overview chips: no "Compare default" chip (compare-default.html is still built) and no per-link chips
+    (Website / Ordering / Facebook ... HELD); the Links section carries every URL and status.
+  - Header: only the location name and the "City, ST · request id · order kind" line. The "Fable's default: X"
+    line, rationale, confidence/flags, "Cell X = ..." line, the default-cell render and the "Logo at 3x (what
+    prints)" crop are gone from the page. logo-3x.png is still computed for run.json (`sections.logo_3x`).
+    Nothing reads the canvas HTML beyond its existence (agents read run.json).
+  - Links table sorted by status group with the category order kept inside a group (new export
+    `sortLinkRowsByStatus`): held and pending browser, then verified/ready to write, then already live
+    (verified live, written, existing), then rejected, then none found.
+  - Logo image search: an earlier Playwright fallback screenshot `review/logo-image-search.png` is reused on a
+    `--skip-google` rebuild or a failed recapture (before this, every `--skip-google` rebuild dropped it and drew
+    "Logo image search skipped ... no cached results"); a fresh capture writes a `review/logo-image-search.json`
+    sidecar (source, query, date) that the bundle carries. With no results at all the section is not rendered
+    and the Google Images link moves to the Logo candidates chips. Il Capo root cause: its only capture was the
+    first build's Bing screenshot on Karissa's machine; her later `--skip-google` rebuilds dropped it from the page,
+    and her bundle push (2026-10-20, before Blob references existed) never carried review images, so this machine
+    never had it. Restored here from the site's Blob copy (same sha as the Blob key), so the bundle now references it.
+- `skills/boostly-brand-design/scripts/review-canvas.test.ts`: one new case for the status-group order.
+- Site (fulfillment-reviews, committed there): the list page's Status / Progress / Needs you columns are one
+  "What's next" column; notes sit behind a "note" toggle; the table no longer scrolls sideways at laptop widths.
+- Karissa's pages pick up the canvas changes when she pulls this package and republishes with `publish-location.mjs`.
+- Tests: live suites 177 green, including the new case (`node --experimental-strip-types --test *.test.ts`).
+
+## 2026-10-21: Claude Code telemetry to Axiom
+
+Travisse wants to see what the agents do on a run (tool name, duration, success, API latency, tokens, cost) on both
+machines. Details, field layout, the queries and the Axiom steps are in `docs/telemetry.md`.
+
+- NEW `setup/bin/telemetry-settings.mjs`: merges the OpenTelemetry env block and `otelHeadersHelper` into
+  `~/.claude/settings.json` (backup `settings.json.bak-telemetry-<time>` first, other keys untouched, `--check`,
+  `--remove`). It always deletes `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_ASSISTANT_RESPONSES`, `OTEL_LOG_TOOL_DETAILS`,
+  `OTEL_LOG_TOOL_CONTENT` and `OTEL_LOG_RAW_API_BODIES`, so prompt text and tool arguments are never exported.
+- NEW `setup/bin/otel-headers.sh`: the `otelHeadersHelper`. Reads `AXIOM_TOKEN` and the dataset names from the env
+  file at Claude Code startup and prints the Authorization and Axiom dataset headers; prints `{}` with no token.
+  The token is never in settings.json.
+- `setup/setup.sh` section 6b: appends any missing `AXIOM_TOKEN`, `AXIOM_DATASET`, `AXIOM_METRICS_DATASET`,
+  `AXIOM_DOMAIN` and `BOOSTLY_EDITOR` lines to an existing env file, installs the helper to
+  `~/.config/boostly-branding/bin/`, merges the block with `operator=$BOOSTLY_EDITOR` (else the login name), the
+  host and the package git sha, and reports it in `--check`. `BOOSTLY_TELEMETRY=0` removes the block.
+- `setup/env.example`: `BOOSTLY_EDITOR` is now a real (empty) key; new telemetry section.
+- `skills/boostly-brand-design/scripts/run-progress.mjs` (`set`, same patch applied to the live copy):
+  stamps `session_id` and `sessions` (distinct, last 20) from `CLAUDE_CODE_SESSION_ID`, the id Claude Code exports
+  as `session.id`. run-progress tests: 5 pass.
+- NEW `setup/axiom/`: `apl.mjs` (prelude and queries), `build-dashboard.mjs` and `dashboard.json` (validated against
+  Axiom's dashboard JSON schema), `create-dashboard.sh` (needs `AXIOM_ADMIN_TOKEN`, sends it on stdin to curl),
+  `run-join.mjs` (sessions per run from `run-progress.mjs list --json`), `otlp-receiver.mjs` (local test receiver).
+- Verified with a local receiver against Claude Code 2.1.304: events and metrics arrive in JSON and protobuf, the
+  helper's headers arrive on both signals, prompt and response text arrive as `<REDACTED>`, no tool arguments.
+  The no-token case against the real Axiom endpoint exits 0 with nothing on stderr. Not verified: queries against
+  live Axiom data (no account yet); run the shape-check query first.
+- Travisse's machine (not from setup.sh): helper copied to `~/.config/boostly-branding/bin/otel-headers.sh` and the
+  block merged with
+  `node setup/bin/telemetry-settings.mjs --settings ~/.claude/settings.json --helper ~/.config/boostly-branding/bin/otel-headers.sh --operator travisse --version live`
+  (add `--domain eu-central-1.aws.edge.axiom.co` for an EU org). His token goes in `~/Programming/.env`.
+
+## 2026-10-22: vendor PDFs ship with outlined text
+
+- customstickers.com (Gracie) reported the direct-rendered orders of 10/22 as "text not embedded": the renderer set
+  real text in an embedded Figtree subset (valid, but her prepress flow wants outlines, which the Figma exports had as
+  Type 3 glyphs). NEW `skills/boostly-signage-sheets/scripts/direct-pdf/lib/outline.mjs`: Ghostscript `pdfwrite`
+  with `-dNoOutputFonts`, lossless images, colour untouched; checks pages and `pdffonts` = 0 before replacing the file.
+- `direct-pdf.mjs` outlines every vendor PDF after `savePdf` (`--no-outline` keeps live text; a missing Ghostscript
+  is a WARNING and the file keeps its fonts). `sheets[kind]` gains `text` ("outlined" | "embedded font"),
+  `outline` and `fonts_embedded_before_outline`; `vector` now accepts outlined text. Tests: 14 pass.
+- NEW `skills/boostly-print-handoff/scripts/outline-handoff.mjs --run-dir <dir> [--upload] [--dry]`: outlines an
+  existing hand-off in place, updates handoff.json, and with `--upload` replaces the same Drive files (same ids).
+  Run on every direct hand-off in Drive on 2026-10-22 (25 folders).
+- `setup/setup.sh`: `need_formula ghostscript gs`. Karissa: `brew install ghostscript`, then pull.
+
+## 2026-10-22: publish-location.mjs defaults to --site-mode both
+
+publish-location.mjs defaulted to `old` when BOOSTLY_SITE_MODE was unset, so a closeout-finish publish never
+rebuilt the hosted board's site/index.json entry: finished locations kept showing "approve signage" on
+boostly-review-site.vercel.app until a manual `site-data.mjs index` run. Default is now `both` (old static
+page plus the Next.js entry). Env BOOSTLY_SITE_MODE still overrides. publish-location.mjs and site-data.mjs
+synced from site-next into the package and the live skills (adds --no-bundle and --backfill).
+
+## 2026-10-22: bundle carries signage/plan.json; address-in-a-link lines keep their URL
+
+run-progress.mjs publish now bundles signage/plan.json (export-direct.mjs on a pulled copy needs it; Mi
+Corazon's finish failed on the first try without it). redactText cuts the street/zip substring out of a line
+that carries a URL instead of dropping the whole line (a Catering bullet lost its link). Lines with "ship to"
+or without a URL are still dropped whole. Patched in all three copies.
+
+## 2026-10-22 board: unpublished open requests and owed rows
+
+- `site/lib/board.ts`: open requests in the 5-minute board feed with no published index entry (no review sheet yet) now get a row from the feed item, with no review link. Matches the admin fulfillment list.
+- `site/lib/status.ts` isDone: a row that still owes a decision (`needs_you` non-empty, not `done`) is never done, even when its published entry says closed.
+- `site/components/LocationList.tsx`: the Open/Done filter uses lib/status isDone (was a narrower local copy); rows without a review page render the name unlinked.

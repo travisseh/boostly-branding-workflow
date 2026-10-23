@@ -9,13 +9,15 @@
 #   setup/setup.sh --load-launchd   also load the 5-minute Apple Note refresh job (off by default)
 #
 # What it does (all under $HOME; nothing touches production):
-#   1. checks Homebrew, node (>=22), npm, python3, potrace, gh, jq, sqlite3, poppler, nc
+#   1. checks Homebrew, node (>=22), npm, python3, potrace, gh, jq, sqlite3, poppler, ghostscript, nc
 #   2. installs npm deps for the brand-design harness (sharp, playwright, qrcode, pdf-lib, fontkit, jsqr, tsx) and image-generator,
 #      Playwright's chromium, Pillow (pip --user), and an OpenCV venv at ~/.config/boostly-branding/cvenv
 #   3. copies skills/ -> ~/.claude/skills/, agents/ -> ~/.claude/agents/, tools/ -> ~/.claude/tools/
 #   4. creates ~/.config/boostly-branding/.env from setup/env.example (0600) and lists the empty keys
 #   5. creates the run root, heartbeat root, checklist dir, launchd helpers and plist (not loaded)
 #   6. installs the Notion wrapper shim and the review-server command
+#   6b. merges the Claude Code OpenTelemetry block into ~/.claude/settings.json (export to Axiom; docs/telemetry.md)
+#       and installs the otelHeadersHelper that reads AXIOM_TOKEN from the env file; BOOSTLY_TELEMETRY=0 removes it
 #   7. adds one line to ~/.zshrc that exports the env file into every shell
 #   8. doctor
 set -u
@@ -66,6 +68,7 @@ need_formula potrace potrace
 need_formula gh gh
 need_formula jq jq
 need_formula poppler pdftoppm
+need_formula ghostscript gs
 have python3 && ok "python3 $(python3 --version 2>&1)" || need_formula python python3
 have sqlite3 && ok "sqlite3" || miss "sqlite3 (ships with macOS)"
 have nc && ok "nc" || miss "nc (ships with macOS)"
@@ -161,6 +164,40 @@ if [ -e "$NOTION_WRAPPER_DST" ]; then ok "Notion wrapper present at $NOTION_WRAP
   mkdir -p "$(dirname "$NOTION_WRAPPER_DST")" && cp "$REPO/setup/bin/notion-ai-ntn.sh" "$NOTION_WRAPPER_DST" && chmod 755 "$NOTION_WRAPPER_DST" && ok "Notion wrapper shim installed"
 fi
 if [ "$CHECK" = 0 ]; then mkdir -p "$CONF/bin" && cp "$REPO/setup/bin/boostly-review-server.sh" "$CONF/bin/" && chmod 755 "$CONF/bin/boostly-review-server.sh" && ok "review server command: $CONF/bin/boostly-review-server.sh"; else [ -x "$CONF/bin/boostly-review-server.sh" ] && ok "review server command installed" || miss "review server command (setup.sh installs it)"; fi
+
+# ---------------------------------------------------------------- 6b. Claude Code telemetry (2026-10-21)
+# Exports Claude Code metrics and events (tool name, duration, success, API latency, tokens, cost; never prompt text or
+# tool arguments) to Axiom over OTLP. settings.json gets the exporter env block and otelHeadersHelper; the token stays in
+# the env file and otel-headers.sh reads it at Claude Code startup, so adding AXIOM_TOKEN later needs only a restart.
+# operator (BOOSTLY_EDITOR, else the login name), host and package version are frozen into OTEL_RESOURCE_ATTRIBUTES
+# here; rerun setup.sh after changing BOOSTLY_EDITOR or AXIOM_DOMAIN. See docs/telemetry.md.
+step "Claude Code telemetry -> Axiom"
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+OTEL_HELPER="$CONF/bin/otel-headers.sh"
+if [ "$CHECK" = 0 ] && [ -f "$ENV_FILE" ]; then
+  ADDED=""
+  for kv in AXIOM_TOKEN= AXIOM_DATASET=claude-logs AXIOM_METRICS_DATASET=claude-metrics AXIOM_DOMAIN=us-east-1.aws.edge.axiom.co BOOSTLY_EDITOR=; do
+    k="${kv%%=*}"; grep -q "^$k=" "$ENV_FILE" || { [ -z "$ADDED" ] && printf '\n# Claude Code telemetry to Axiom (added by setup.sh 2026-10-21; docs/telemetry.md)\n' >> "$ENV_FILE"; printf '%s\n' "$kv" >> "$ENV_FILE"; ADDED="$ADDED $k"; }
+  done
+  [ -n "$ADDED" ] && ok "env file: added$ADDED" || ok "env file has the telemetry keys"
+  set -a; . "$ENV_FILE"; set +a
+fi
+OTEL_OPERATOR="${BOOSTLY_EDITOR:-$(id -un)}"
+OTEL_VERSION="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+OTEL_ARGS=(--settings "$CLAUDE_SETTINGS" --helper "$OTEL_HELPER" --operator "$OTEL_OPERATOR" --version "$OTEL_VERSION" --domain "${AXIOM_DOMAIN:-us-east-1.aws.edge.axiom.co}")
+if [ "${BOOSTLY_TELEMETRY:-1}" = 0 ]; then
+  if [ "$CHECK" = 1 ]; then ok "telemetry disabled (BOOSTLY_TELEMETRY=0)"; else node "$REPO/setup/bin/telemetry-settings.mjs" --settings "$CLAUDE_SETTINGS" --remove && ok "telemetry removed from settings.json (BOOSTLY_TELEMETRY=0)" || miss "telemetry removal failed"; fi
+elif [ "$CHECK" = 1 ]; then
+  [ -x "$OTEL_HELPER" ] && ok "otel headers helper at $OTEL_HELPER" || miss "otel headers helper not installed (setup.sh installs it)"
+  node "$REPO/setup/bin/telemetry-settings.mjs" "${OTEL_ARGS[@]}" --check >/dev/null 2>&1 && ok "settings.json telemetry block current (operator=$OTEL_OPERATOR)" || miss "settings.json telemetry block missing or stale (run setup.sh)"
+else
+  mkdir -p "$CONF/bin" && cp "$REPO/setup/bin/otel-headers.sh" "$OTEL_HELPER" && chmod 755 "$OTEL_HELPER" && ok "otel headers helper: $OTEL_HELPER"
+  node "$REPO/setup/bin/telemetry-settings.mjs" "${OTEL_ARGS[@]}" && ok "settings.json telemetry block (operator=$OTEL_OPERATOR, version=$OTEL_VERSION; restart Claude Code to apply)" || miss "settings.json telemetry merge failed (file left unchanged)"
+fi
+if [ "${BOOSTLY_TELEMETRY:-1}" != 0 ]; then
+  [ -n "${AXIOM_TOKEN:-}" ] && ok "env AXIOM_TOKEN set (telemetry exports to Axiom)" || warn "env AXIOM_TOKEN empty: telemetry is configured but dropped until Travisse's token is in $ENV_FILE"
+  [ -n "${BOOSTLY_EDITOR:-}" ] || warn "env BOOSTLY_EDITOR empty: telemetry operator is the login name '$OTEL_OPERATOR' (set BOOSTLY_EDITOR=karissa, then rerun setup.sh)"
+fi
 
 # ---------------------------------------------------------------- 7. shell
 step "shell profile"

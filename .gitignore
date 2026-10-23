@@ -17,3 +17,4 @@ feedback/
 *.tsbuildinfo
 PATCHES.generated.tsv
 PATCHES.docs.tsv
+.vercel/
