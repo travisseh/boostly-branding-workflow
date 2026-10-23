@@ -1,0 +1,14 @@
+/* Location page CSS that Tailwind classes do not cover. The page chrome is Tailwind + shadcn; the hosts below
+   wrap the template islands (class .tpl, see globals.css) and keep the review-canvas.mjs renderHtml rules
+   (2026-10-21) that the sheet, compare panel and signage preview were measured against. */
+.cv .sheet-wrap { border: 1px solid #ddd; overflow: auto; background: #C8C8C8; cursor: zoom-in; border-radius: 8px; }
+.cv .sheet-wrap.native { cursor: zoom-out; }
+.cv .sheet-zoom { width: max-content; }
+.cv .compare-panel { margin-top: 12px; overflow: auto; }
+.cv .compare-panel:empty { display: none; }
+.cv .compare-panel h3 { font-size: 22px; margin: 8px 0; }
+.cv .signage-wrap { overflow: auto; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+.cv .cell-html .bs-cell { border: 6px solid #1b5e20; box-sizing: content-box; }
+
+/* "Show all N": figures past the first N stay hidden until the grid is expanded. */
+.cv .grid:not(.expanded) > figure.more { display: none; }
