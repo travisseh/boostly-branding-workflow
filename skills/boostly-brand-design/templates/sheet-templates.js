@@ -256,6 +256,10 @@
   }
 
   // ---- sticker mock (the Figma table-sticker-promo template, 900x900 design px) --------------------
+  // Title-to-body gap (design px). The body flows under the title and never above the template's body y, so a one-line
+  // title prints at the exact Figma positions and a title that wraps (a long offer: "Get $10 off your next visit of
+  // $40+") pushes the body down instead of drawing over it (Pyke's Crossroads 2026-10-23).
+  const COPY_GAP = 40;
   const FIGTREE = "'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   /** Google Fonts link for Figtree (the template font) with the same weights the templates use (500, 600). */
   const FONT_LINK_HTML = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">';
@@ -288,8 +292,10 @@
     const lines = (text) => String(text).split(/\||\n/).map((line) => esc(line)).join('<br>');
     return `<div class="bs-sticker" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${T.bg}; overflow: hidden; font-family: ${FIGTREE}; color: #ffffff; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
     <svg aria-hidden="true" style="position: absolute; inset: 0; display: block;" width="${px(T.w)}" height="${px(T.h)}" viewBox="0 0 ${T.w} ${T.h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="${T.bandPath}" fill="${esc(band)}"/></svg>
-    <div class="bs-sticker-title" style="position: absolute; left: ${px(T.text.x)}; top: ${px(L.title.y)}; width: ${px(T.text.w)}; font-size: ${px(L.title.size)}; line-height: ${lh(L.title.lh)}; font-weight: ${L.title.weight}; white-space: pre-line;">${esc(headline)}</div>
-    <div class="bs-sticker-body" style="position: absolute; left: ${px(T.text.x)}; top: ${px(L.body.y)}; width: ${px(T.text.w)}; font-size: ${px(L.body.size)}; line-height: ${lh(L.body.lh)}; font-weight: ${L.body.weight};">${lines(body)}</div>
+    <div class="bs-sticker-copy" style="position: absolute; left: ${px(T.text.x)}; top: ${px(L.title.y)}; width: ${px(T.text.w)};">
+    <div class="bs-sticker-title" style="min-height: ${px(L.body.y - L.title.y - COPY_GAP)}; font-size: ${px(L.title.size)}; line-height: ${lh(L.title.lh)}; font-weight: ${L.title.weight}; white-space: pre-line;">${esc(headline)}</div>
+    <div class="bs-sticker-body" style="margin-top: ${px(COPY_GAP)}; font-size: ${px(L.body.size)}; line-height: ${lh(L.body.lh)}; font-weight: ${L.body.weight};">${lines(body)}</div>
+    </div>
     <div class="bs-sticker-divider" style="position: absolute; left: ${px(T.divider.x)}; top: ${px(T.divider.y)}; width: ${px(T.divider.w)}; height: ${px(T.divider.h)}; background: ${esc(band)};"></div>
     <div class="bs-sticker-logo" style="position: absolute; left: ${px(T.logo.x)}; top: ${px(T.logo.y)}; width: ${px(T.logo.w)}; height: ${px(T.logo.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
     <div class="bs-sticker-qr" style="position: absolute; left: ${px(T.qr.x)}; top: ${px(T.qr.y)}; width: ${px(T.qr.w)}; height: ${px(T.qr.w)}; border-radius: ${px(T.qr.r)}; background: #ffffff;"><img src="${svgDataUri(qrSvg)}" alt="" style="display: block; width: 100%; height: 100%;"></div>
@@ -338,8 +344,10 @@
     const qrSvg = qrFor(qr, ink, seed == null ? seedFrom(`pop${logoUrl}${ground}`) : seed);
     const lines = (text) => String(text).split(/\||\n/).map((line) => esc(line)).join('<br>');
     return `<div class="bs-pop" style="position: relative; width: ${px(T.w)}; height: ${px(T.h)}; background: ${esc(ground)}; overflow: hidden; font-family: ${FIGTREE}; color: ${ink}; letter-spacing: 0; box-shadow: inset 0 0 0 ${px(1)} ${T.cut};">
-    <div class="bs-pop-title" style="position: absolute; left: ${px(T.title.x)}; top: ${px(T.title.y)}; width: ${px(T.title.w)}; text-align: center; font-size: ${px(T.title.size)}; line-height: ${px(T.title.lh)}; font-weight: ${T.title.weight}; white-space: pre-line;">${esc(offer)}</div>
-    <div class="bs-pop-body" style="position: absolute; left: ${px(T.body.x)}; top: ${px(T.body.y)}; width: ${px(T.body.w)}; text-align: center; font-size: ${px(T.body.size)}; line-height: ${px(T.body.lh)}; font-weight: ${T.body.weight};">${lines(body)}</div>
+    <div class="bs-pop-copy" style="position: absolute; left: ${px(T.title.x)}; top: ${px(T.title.y)}; width: ${px(T.title.w)}; text-align: center;">
+    <div class="bs-pop-title" style="min-height: ${px(T.body.y - T.title.y - COPY_GAP)}; font-size: ${px(T.title.size)}; line-height: ${px(T.title.lh)}; font-weight: ${T.title.weight}; white-space: pre-line;">${esc(offer)}</div>
+    <div class="bs-pop-body" style="margin-top: ${px(COPY_GAP)}; font-size: ${px(T.body.size)}; line-height: ${px(T.body.lh)}; font-weight: ${T.body.weight};">${lines(body)}</div>
+    </div>
     <div class="bs-pop-qr" style="position: absolute; left: ${px(T.qr.x)}; top: ${px(T.qr.y)}; width: ${px(T.qr.w)}; height: ${px(T.qr.w)};"><img src="${svgDataUri(qrSvg)}" alt="" style="display: block; width: 100%; height: 100%;"></div>
     <div class="bs-pop-logo" style="position: absolute; left: ${px(logoBox.x)}; top: ${px(logoBox.y)}; width: ${px(logoBox.w)}; height: ${px(logoBox.h)};"><img src="${esc(logoUrl)}"${logoAttrs ? ` ${logoAttrs}` : ''} style="display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;"></div>
     <div class="bs-pop-legal" style="position: absolute; left: ${px(T.legal.x)}; top: ${px(T.legal.y)}; width: ${px(T.legal.w)}; text-align: center; font-size: ${px(T.legal.size)}; line-height: ${px(T.legal.lh)}; font-weight: ${T.legal.weight};">${esc(POP_LEGAL)}</div>

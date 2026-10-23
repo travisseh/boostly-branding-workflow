@@ -12,7 +12,8 @@
 //
 // MODE=auto mirrors plan.mjs specificOfferCopy():
 //   discount ("$10 OFF", "20% Off", "Free Dessert")  -> headline "Get <offer>" (OFF -> Off)
-//       on every table promo sticker (default 90/100 + 50/60 layout) and both POP
+//       on every table promo sticker (default 90/100 + 50/60 layout; a headline that wraps at
+//       90 takes the two-line 74/42 layout with the body at y=274) and both POP
 //       titles; POP body = "Scan to join our text club / for ongoing offers!" (no VIP).
 //   phrase ("Unlock the V.I.P Experience", "Tillie's Special Offers") -> title verbatim
 //       on stickers using the phrase layout (one-line 82/50 at y=216 if the title fits
@@ -98,13 +99,25 @@ for (const sheet of sheets.filter(s => /^Print Sheet - Table Stickers/.test(s.na
       stickerLayout = title.height <= 100 ? 'phraseOneLine' : 'phraseTwoLine';
     }
     if (stickerLayout === 'default') {
+      // Cam's default is a ONE-line 90/100 title over the body at y216. A discount headline that
+      // wraps at 90 in 788px ("Get $10 off your next visit of $40+", Pyke's Crossroads 2026-10-23)
+      // would draw its second line over the body, so it takes the two-line layout instead (copy
+      // unchanged). Same rule as direct-pdf/lib/retarget.mjs recopy() 'defaultTwoLine'.
+      await setText(title, { font: MEDIUM, size: 90, lh: 100, chars: stickerTitle, x: 56, y: 56, w: 788 });
+      if (title.height > 100) stickerLayout = 'defaultTwoLine';
+    }
+    if (stickerLayout === 'default') {
       await setText(title, { font: MEDIUM, size: 90, lh: 100, chars: stickerTitle, x: 56, y: 56, w: 788 });
       await setText(body, { font: SEMIBOLD, size: 50, lh: 60, chars: stickerBody, x: 56, y: 216, w: 788 });
     } else if (stickerLayout === 'phraseOneLine') {
       await setText(title, { font: MEDIUM, size: 82, lh: 'AUTO', chars: stickerTitle, x: 56, y: 56, w: 788 });
       await setText(body, { font: SEMIBOLD, size: 50, lh: 60, chars: stickerBody, x: 56, y: 216, w: 788 });
     } else {
-      await setText(title, { font: MEDIUM, size: 74, lh: 'AUTO', chars: stickerTitle, x: 56, y: 56, w: 788 });
+      // two-line layout (phraseTwoLine / defaultTwoLine): title 74 auto-lh, body 42/60 at y274; a
+      // title that still runs past y274 shrinks in steps of 2 (floor 40) so it never overlaps the body
+      let size = 74;
+      await setText(title, { font: MEDIUM, size, lh: 'AUTO', chars: stickerTitle, x: 56, y: 56, w: 788 });
+      while (56 + title.height > 274 && size > 40) { size -= 2; title.fontSize = size; }
       await setText(body, { font: SEMIBOLD, size: 42, lh: 60, chars: stickerBody, x: 56, y: 274, w: 788 });
     }
     mutated.push(title.id, body.id);

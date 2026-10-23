@@ -294,6 +294,9 @@ const SHEET_FORMAT = {
     bandPath: 'M 0 0 L 900 0 L 900 429 L 0 524 L 0 0 Z',
     title: { x: 56, y: 56, w: 788, size: 90, lh: 100, font: 'Figtree Medium', color: 'white' },
     bodyPromo: { x: 56, y: 216, w: 788, size: 50, lh: 60, font: 'Figtree SemiBold', color: 'white' },
+    // A discount headline that wraps at 90 in 788px ("Get $10 off your next visit of $40+", Pyke's
+    // Crossroads 2026-10-23) takes the two-line phraseTitle/phraseBodyPromo geometry below so the body
+    // never sits under the title's second line (figma-recopy.js and direct-pdf retarget.mjs measure it).
     // Phrase-offer variant (Travisse's hand-tuned Fahrenheit reference 2154:42413,
     // 2026-09-03): a long headline like "Unlock the V.I.P Experience" wraps to two
     // lines, so title drops to 74 with AUTO line height and the body drops to 42/60

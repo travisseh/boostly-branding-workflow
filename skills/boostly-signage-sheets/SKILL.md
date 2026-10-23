@@ -377,7 +377,8 @@ sticker + one POP to confirm.
 - Recopy (offer copy on table promo stickers + both POP signs):
   `node scripts/figma-recopy.mjs --section <id> --offer '<offer_text>' [--mode auto|discount|phrase|generic]`
   MODE auto = the plan.mjs specificOfferCopy() rules: discount -> "Get <offer>"
-  (OFF -> Off) in the default 90/100 + 50/60 layout with the no-VIP POP body;
+  (OFF -> Off) in the default 90/100 + 50/60 layout (a headline that wraps at 90
+  takes the two-line 74/42 layout, body at y=274) with the no-VIP POP body;
   phrase -> verbatim title, one-line 82/50 at y=216 if it fits 788px, else
   two-line 74/42 at y=274, POP title auto-shrinks from 140 in steps of 10 to
   fit one line, and a phrase that still wraps at 80 becomes a two-line POP

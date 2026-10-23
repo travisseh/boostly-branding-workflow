@@ -696,3 +696,17 @@ or without a URL are still dropped whole. Patched in all three copies.
 - `site/lib/board.ts`: open requests in the 5-minute board feed with no published index entry (no review sheet yet) now get a row from the feed item, with no review link. Matches the admin fulfillment list.
 - `site/lib/status.ts` isDone: a row that still owes a decision (`needs_you` non-empty, not `done`) is never done, even when its published entry says closed.
 - `site/components/LocationList.tsx`: the Open/Done filter uses lib/status isDone (was a narrower local copy); rows without a review page render the name unlinked.
+
+## 2026-10-23: a wrapped offer headline no longer draws over the line beneath it
+
+Pyke's Crossroads ("$10 off your next visit of $40+") wraps the headline to two lines; the second line sat on the
+body copy, which stayed at its fixed y.
+- `skills/boostly-brand-design/templates/sheet-templates.js` (review preview): sticker and POP title and body share
+  one copy box; the title keeps its template height as a minimum and the body follows 40px under it, so a one-line
+  title prints at the Figma positions and a wrapped one pushes the body down. `sheet-templates.test.ts` follows the
+  new markup (same geometry).
+- `skills/boostly-signage-sheets/scripts/figma-recopy.js` (Figma fallback): a discount headline that wraps at 90 in
+  788px takes the two-line sticker layout (74 auto / 42-60, body at y274), and any two-line title shrinks until it
+  clears y274: the rule direct-pdf `retarget.mjs` already had (`defaultTwoLine`). POP was already safe.
+  One-line offers lay out unchanged (scratch renders pixel-identical). plan.mjs and SKILL.md: comment and doc only.
+- The direct PDF renderer (closeout default) had no overlap; unchanged.
