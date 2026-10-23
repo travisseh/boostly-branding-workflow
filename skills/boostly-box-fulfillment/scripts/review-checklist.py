@@ -59,7 +59,7 @@ def blob_token():
     return None
 
 PUBLIC_FIELDS = ["request_id", "name", "status", "created", "run_dir", "steps", "needs_you", "gaps", "hold", "done",
-                 "figma_url", "note", "review_status", "progress", "site_url"]
+                 "figma_url", "print_url", "note", "review_status", "progress", "site_url"]
 
 def load_progress(run_dir):
     """review/progress.json written by boostly-brand-design/scripts/run-progress.mjs (stage, last_step,
@@ -163,7 +163,7 @@ def merge_pair(local, remote):
             win = remote if _newer(remote, local) else local
     other = remote if win is local else local
     out = dict(win)
-    for k in ("progress", "review_status", "figma_url"):
+    for k in ("progress", "review_status", "figma_url", "print_url"):
         if out.get(k) is None and other.get(k) is not None:
             out[k] = other[k]
     return out
@@ -433,6 +433,21 @@ def derive(req, runs):
     item["canvas"] = os.path.join(RUNS, os.path.basename(src) if src else d, "review", "review-canvas.html") if sheet else None
     item["figma_url"] = fig.get("section_url")
     ldir = os.path.basename(src) if src else d
+    # Print files (Travisse 2026-10-22): the direct-PDF close-outs record the vendor Drive folder in
+    # print-handoff/handoff.json drive.folder_link; the board shows it as the "Print files" button.
+    # Each location has its own Drive folder (an inherited run never shows the lead's). A pulled run
+    # (a stub here, the real run under a sibling runs-pulled-* root) resolves through that root.
+    item["print_url"] = None
+    for hj in [os.path.join(RUNS, d, "print-handoff", "handoff.json")] + sorted(glob.glob(os.path.join(os.path.dirname(RUNS), "runs-pulled-*", d, "print-handoff", "handoff.json")), reverse=True):
+        if not os.path.exists(hj):
+            continue
+        try:
+            drv = (json.load(open(hj, encoding="utf-8")).get("drive") or {})
+            item["print_url"] = drv.get("folder_link") or drv.get("folder_url") or (f"https://drive.google.com/drive/folders/{drv['folder_id']}" if drv.get("folder_id") else None)
+        except Exception:
+            item["print_url"] = None
+        if item["print_url"]:
+            break
     rdir = os.path.join(RUNS, ldir, "review")
     canvas_html = os.path.join(rdir, "review-canvas.html")
     item["review_url"] = f"{BASE}/{ldir}/review/review-canvas.html" if os.path.exists(canvas_html) else None

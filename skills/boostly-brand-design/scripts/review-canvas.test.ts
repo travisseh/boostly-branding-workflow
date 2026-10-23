@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { approvedWebsiteSwap, buildLinkRows, candidateSource, collectPreviews, compareDefaultLetters, defaultFlag, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection } from './review-canvas.mjs';
+import { approvedWebsiteSwap, buildLinkRows, candidateSource, collectPreviews, compareDefaultLetters, defaultFlag, displayUrl, evidenceWords, linkVerdict, overviewLinkChips, parsePreviewName, parsePromptsVerdicts, pickStatus, previewsSection, sortLinkRowsByStatus } from './review-canvas.mjs';
 
 test('parsePreviewName reads scene and letter and tolerates suffixes', () => {
   assert.deepEqual(parsePreviewName('signage-preview-K.png'), { kind: 'signage', scene: 'signage preview', letter: 'K', suffix: null, name: 'signage-preview-K' });
@@ -295,4 +295,19 @@ test('defaultFlag: a small-source trace is a flag on the default (sheet.default_
   assert.equal(defaultFlag({ default_flag: { letter: 'B', flag: 'traced_from_small_source', native_px: 300 }, decision_marks: { traced_from_small_source: false } }, {}, 'A'), null);
   assert.equal(defaultFlag({ decision_marks: { traced_from_small_source: false } }, {}, 'A'), null);
   assert.equal(defaultFlag({ hold: { letter: 'A', native_px: 499 }, decision_marks: marks }, {}, null), null, 'old manifest: hold, no default');
+});
+
+test('sortLinkRowsByStatus: held and pending first, then ready, then already live, then rejected, then none; category order kept within a group', () => {
+  const rows = buildLinkRows({ links: { candidates: [
+    { category: 'website', url: 'https://a.example/', verification_status: 'existing_verified', action: 'preserve' },
+    { category: 'ordering', url: 'https://order.example/', action: 'ready' },
+    { category: 'menu', url: 'https://a.example/menu', action: 'hold', reason: 'stale' },
+    { category: 'facebook', url: 'https://facebook.com/a', action: 'skip', reason_code: 'identity_mismatch' },
+    { category: 'instagram', url: 'https://instagram.com/a', action: 'hold', reason: 'two accounts' },
+    { category: 'catering', url: null, verification_status: 'no_candidate', action: 'none' },
+    { category: 'events', url: 'https://a.example/events', verification_status: 'verified_live', action: 'write' },
+  ] }, pendingUrls: [] });
+  assert.deepEqual(sortLinkRowsByStatus(rows).map((r) => `${r.category}:${r.status.kind}`), [
+    'menu:held', 'instagram:held', 'ordering:ready', 'website:existing', 'events:live', 'facebook:rejected', 'catering:none',
+  ]);
 });

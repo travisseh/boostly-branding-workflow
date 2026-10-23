@@ -128,7 +128,12 @@ Start stamp, once the preconditions pass:
    `ship-to` means the live `locations.shipping_*` is incomplete: report the missing fields as a
    routing item and leave the email for a rerun after the address lands; never work around it.
    The export re-reads the live offer and SUBSCRIBE promotion; a `recopy.offer_changed` in the log
-   is reported with the regenerated `review-sheets.png`. Already done is not an error: a
+   is reported with the regenerated `review-sheets.png`. A placeholder offer ("TBD", "TBA", "N/A",
+   empty) never replaces the approved copy (`recopy.offer_placeholder` is logged and the approved
+   copy stays), and exit 3 with `blocked_on` `offer` (from the export or from the email draft)
+   means the sign copy is not confirmed: report "offer not confirmed: <live value>" as a routing
+   item (the call transcript via /askelephant, else the CSM), leave the email for a rerun, and
+   never invent or guess an offer (Brown's Chicken 2026-10-22). Already done is not an error: a
    recorded draft id is reused and never sent twice. Put the folder link, the page counts, and
    the sent message id in your report.
 6. Branding complete (skip when HOLD.md forbids it):
@@ -148,7 +153,10 @@ Start stamp, once the preconditions pass:
    `store-details-apply.json` under `RUN_DIR/finish/`. This is a production write Travisse has
    pre-authorized for every finish; do not ask. When the ship-to is incomplete or empty, do NOT
    confirm and do NOT invent an address: report "store details not confirmed: ship-to missing
-   <fields>" so the lead can route it. Skip this step when HOLD.md forbids branding complete
+   <fields>" so the lead can route it. Likewise when the order carries signage or stickers and
+   the request's `offer_text` is empty or a placeholder ("TBD", "TBA", "N/A"): do NOT confirm,
+   report "store details not confirmed: offer text is <value>" (store details are not complete
+   until the offer is real; Brown's Chicken 2026-10-22). Skip this step when HOLD.md forbids branding complete
    or when branding complete did not apply.
 7. Review status on the hosted site (Travisse 2026-10-13: no Notion page and no Apple Note any
    more; the site index at https://fulfillment-reviews.vercel.app is the status board). Write

@@ -574,6 +574,14 @@ export const LINK_STATUS_STYLE = {
   ready: { chip: '#1B5E20', words: 'verified, ready to write' }, held: { chip: '#B7791F', words: 'held for review' },
   pending: { chip: '#6B6B6B', words: 'pending browser' }, rejected: { chip: '#6B6B6B', words: 'rejected' }, none: { chip: '#6B6B6B', words: 'none found' },
 };
+// Links table order (Travisse 2026-10-21): what needs a decision first. Held and pending browser, then
+// verified/ready to write, then already live (verified live, written, existing), then rejected, then none
+// found. Stable within a group, so the category order from buildLinkRows survives.
+const LINK_STATUS_GROUP = { held: 0, pending: 0, ready: 1, live: 2, written: 2, existing: 2, rejected: 3, none: 4 };
+export function sortLinkRowsByStatus(rows) {
+  const g = (r) => LINK_STATUS_GROUP[r.status?.kind ?? r.status] ?? 5;
+  return rows.map((r, i) => [r, i]).sort((a, b) => g(a[0]) - g(b[0]) || a[1] - b[1]).map(([r]) => r);
+}
 
 /** Pure: one evidence phrase per known evidence key, in plain words; unknown keys are humanized. */
 export function evidenceWords(link) {
@@ -709,6 +717,9 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
     const row = at(cat);
     row.decided = true;
     const url = executionUrl(e.operation);
+    // a reject/skip of a different URL in a category already decided by an earlier execution row is a
+    // secondary candidate, not a verdict on the chosen one (2026-10-22): keep the decided row
+    if (row.decided && row.url && url && norm(url) !== norm(row.url) && /^(reject|skip|none)$/.test(String(e.operation?.action ?? ''))) continue;
     if (url && !row.url) row.url = url;
     const outcome = String(e.outcome ?? '');
     if (/applied|written|created|updated|success/.test(outcome)) { row.status = 'written'; row.reason = e.reason ?? null; }
@@ -720,6 +731,12 @@ export function buildLinkRows({ links = {}, categoryResults = [], pendingUrls = 
       row.reason = e.reason ?? row.reason;
     }
     else if (/held|skipped|blocked/.test(outcome)) { row.status = 'held'; row.reason = e.reason ?? row.reason; }
+    else if (outcome === 'dry_run') {
+      // fulfill-stage dry run (2026-10-22): the row carries the agent's verdict in operation.action
+      const action = String(e.operation?.action ?? '');
+      row.status = action === 'hold' ? 'held' : action === 'reject' || action === 'skip' ? 'rejected' : action === 'preserve' ? 'existing' : action === 'none' ? 'none' : 'ready';
+      row.reason = e.reason ?? row.reason;
+    }
     row.source = 'execution';
   }
   for (const w of links.writes_performed ?? []) {
@@ -814,7 +831,7 @@ export async function collectLinkSources(runDir, run) {
 /** The Links section (shared by PNG and HTML), or null when the run has no link data at all. */
 export function linksSection({ runDir, sources }) {
   const { links, report, pendingUrls, validations, manifests } = sources;
-  const rows = buildLinkRows({ links, categoryResults: report?.report?.category_results ?? [], pendingUrls });
+  const rows = sortLinkRowsByStatus(buildLinkRows({ links, categoryResults: report?.report?.category_results ?? [], pendingUrls }));
   const hasData = rows.length || links.website_bootstrap || links.execution?.length || links.candidates?.length;
   if (!hasData) return null;
   const held = rows.filter((r) => r.status.kind === 'held').length;
@@ -1351,7 +1368,7 @@ function renderHtml(sections, { title, reviewDir, runDir = path.dirname(reviewDi
   }
   const navHtml = `<nav class="toc" id="toc"><button class="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-list">Sections</button>
 <ol id="toc-list">
-<li><a href="#top" class="top">Top</a></li>
+
 ${nav.map((n) => `<li><a href="#${esc(n.id)}">${esc(n.label)}</a>${n.subs.length ? `<ol>${n.subs.map((s) => `<li><a href="#${esc(s.id)}">${esc(s.label)}</a></li>`).join('')}</ol>` : ''}</li>`).join('\n')}
 </ol></nav>`;
   return `<!doctype html>
@@ -1609,16 +1626,10 @@ async function main() {
     slackLink ? { label: 'Slack thread', url: slackLink } : null,
     figmaLink ? { label: 'Figma', url: figmaLink } : null,
     printFolderLink ? { label: 'Print files (Drive)', url: printFolderLink } : null,
-    defaultLetter && sheet?.cells?.[defaultLetter] ? { label: 'Compare default', url: 'compare-default.html' } : null,
   ].filter(Boolean);
-  // Link chips (2026-10-12, Travisse): only rows that are written, live, ready to write, or already on
-  // the location, as "Label host/path"; held rows carry a small "held" tag; rejected candidates never
-  // appear here (they stay in the Links table). Falls back to the request website when the run has no link rows.
+  // No "Compare default" chip and no per-link chips (Website / Ordering / ... HELD) at the top of the page
+  // (Travisse 2026-10-21): the Links section carries every URL and its status; compare-default.html is still built.
   const linkSources = await collectLinkSources(runDir, run);
-  const linkRows = buildLinkRows({ links: linkSources.links, categoryResults: linkSources.report?.report?.category_results ?? [], pendingUrls: linkSources.pendingUrls });
-  const linkChips = overviewLinkChips(linkRows);
-  if (!linkChips.some((c) => c.label === 'Website') && website) linkChips.unshift({ label: 'Website', url: website, host: displayUrl(website, 44), tag: null });
-  overviewLinks.push(...linkChips);
   const gbpLinks = [
     placeId ? { label: 'Google Maps place', url: `https://www.google.com/maps/place/?q=place_id:${placeId}` } : null,
     { label: 'Google search', url: `https://www.google.com/search?q=${gq(`${name} ${city}`.trim())}` },
@@ -1672,14 +1683,10 @@ async function main() {
   const headerItems = [
     { text: name, size: 52, bold: true },
     { text: `${city}${req.request_id ? `   ·   request ${req.request_id}` : ''}${req.order_type ? `   ·   ${req.order_type.replace(/_/g, ' ')}` : ''}`, size: 24, color: '#444444', gap: 6 },
-    { text: defaultLetter ? `Fable's default: ${defaultLetter}${flag ? ` (flag: ${flag.words})` : ''}` : 'Fable named no default letter', size: 34, bold: true, color: GREEN, gap: 22 },
-    { text: rationaleLine || 'No rationale recorded.', size: 22, gap: 6 },
-    { text: `Confidence: ${decision?.confidence ?? 'unknown'}${flags.length ? `   ·   flags: ${flags.join(', ')}` : ''}`, size: 19, color: '#666666', gap: 8 },
   ];
-  if (defaultCell?.cell) {
-    const cell = defaultCell.cell;
-    headerItems.push({ text: `Cell ${focusLetter} = ${cell.row_label}, primary ${cell.primary}, band ${cell.secondary} (${provenanceWords(cell.secondary_source, cell.secondary_label)}), text ${cell.text}, print digit ${cell.print_text_secondary}${cell.badge_digit_print?.fix ? ` -> fix ${cell.badge_digit_print.fix}` : ''}`, size: 19, color: '#666666', gap: 4 });
-  }
+  // No "Fable's default: X" block in the header (Travisse 2026-10-21): no default line, rationale,
+  // confidence/flags, cell description, default-cell render or 3x crop. The default stays framed on the
+  // sheet; logo-3x.png is still computed below for run.json (variants.review_canvas.sections.logo_3x).
   // ---- logo at 3x (what prints) for the exact final upload of the focused cell -----------------
   let zoom = null;
   if (defaultCell?.cell) {
@@ -1697,7 +1704,7 @@ async function main() {
   usage.logo_3x = zoom ? { file: zoom.file ? rel(runDir, zoom.file) : null, logo: zoom.logo ?? null, edge_quality: zoom.edge_quality, line: zoom.line } : null;
   // The per-row gate summary is no longer rendered (Travisse, 2026-10-12); the gate results stay in run.json.
   sections.push({ id: 'header', links: overviewLinks, parts: [
-    { type: 'header', items: headerItems, cell: defaultCell ? { html: templates.cellHtml(defaultCell.view, { src: srcFromReview }), file: args.png && existsSync(cellFile) ? cellFile : null, caption: `Fable's default cell ${defaultLetter}${flag ? ` (${flag.words} source, floor 700px)` : ''}` } : null, zoom: zoom?.file ? { file: zoom.file, line: zoom.line, pass: zoom.edge_quality?.pass ?? null } : null },
+    { type: 'header', items: headerItems, cell: null, zoom: null },
   ] });
   // No inline Signage sheets section (removed 2026-10-19, Karissa): the signage is approved on the Drive PDFs.
 
@@ -1706,6 +1713,7 @@ async function main() {
   const mapsPng = path.join(reviewDir, 'google-maps-photos.png');
   const logoSearchPng = path.join(reviewDir, 'logo-image-search.png');
   const logoSearchDir = path.join(reviewDir, 'logo-search');
+  const logoSearchShotMeta = path.join(reviewDir, 'logo-image-search.json');
   const cachedWebsite = [
     abs(runDir, evidence.website?.visual_evidence?.desktop),
     path.join(runDir, 'evidence', 'website-visual', 'desktop.png'),
@@ -1845,17 +1853,26 @@ async function main() {
     usage.logo_search = { mode: liveLogo.cached ? 'cached live-Chrome results' : 'fresh, live Chrome', source: liveLogo.source, count: liveLogo.results.length, dir: rel(runDir, logoSearchDir) };
     logoParts.push({ type: 'text', items: [{ text: `${liveLogo.source}: first ${liveLogo.results.length} results, thumbnails at the size Google serves them. Captions are Google's alt text.`, size: 20 }] });
     logoParts.push({ type: 'grid', items: liveLogo.results.slice(0, 24).map((r) => ({ file: r.file, label: `${r.alt || '(no caption)'}${r.w ? `  ${r.w}x${r.h}` : ''}`, href: r.page ?? null, hrefLabel: r.page ? new URL(r.page).hostname.replace(/^www\./, '') : null })), cols: 4, cellH: 280, labelH: 56, labelSize: 15 });
-  } else if (args.skipGoogle) {
-    usage.logo_search = { mode: 'skipped' };
-    logoParts.push({ type: 'gray', text: 'Logo image search skipped (--skip-google) and no cached results under review/logo-search/.', height: 100 });
   } else if (logoCapture?.ok) {
     usage.logo_search = { mode: 'fresh screenshot', source: logoCapture.source, file: rel(runDir, logoSearchPng), notes: [...(liveLogo?.notes ?? []), ...logoCapture.notes] };
+    // sidecar so a later --skip-google rebuild (or the other machine after a pull) can say where the shot came from
+    await fs.writeFile(logoSearchShotMeta, `${JSON.stringify({ source: logoCapture.source, query, captured_at: new Date().toISOString() }, null, 1)}\n`).catch(() => {});
     logoParts.push({ type: 'text', items: [{ text: `Source: ${logoCapture.source}, first result rows at 1440x900 (${S}x).`, size: 20 }, { text: usage.logo_search.notes.join(' · '), size: 16, color: '#666666', gap: 4 }] }, { type: 'image', file: logoSearchPng, maxH: 1100, alt: 'logo image search' });
+  } else if (existsSync(logoSearchPng)) {
+    // An earlier fallback screenshot (Bing/DuckDuckGo when Google blocks headless search) is reused, never
+    // dropped, by a --skip-google rebuild or a failed recapture (Il Capo 2026-10-21: the first build's Bing shot
+    // vanished from the page on every later --skip-google rebuild).
+    const meta = await readJson(logoSearchShotMeta);
+    const when = meta?.captured_at ? String(meta.captured_at).slice(0, 10) : (() => { try { return new Date(statSync(logoSearchPng).mtimeMs).toISOString().slice(0, 10); } catch { return null; } })();
+    usage.logo_search = { mode: 'cached screenshot', source: meta?.source ?? null, file: rel(runDir, logoSearchPng) };
+    logoParts.push({ type: 'text', items: [{ text: `Source: ${meta?.source ?? 'image search'} screenshot${when ? `, captured ${when}` : ''} (reused).`, size: 20 }] }, { type: 'image', file: logoSearchPng, maxH: 1100, alt: 'logo image search' });
   } else {
-    usage.logo_search = { mode: 'failed', notes: [...(liveLogo?.notes ?? []), ...(logoCapture?.notes ?? ['not attempted'])] };
-    logoParts.push({ type: 'gray', text: `Logo image search not captured. ${usage.logo_search.notes.join(' · ')}`, height: 110 });
+    usage.logo_search = args.skipGoogle ? { mode: 'skipped' } : { mode: 'failed', notes: [...(liveLogo?.notes ?? []), ...(logoCapture?.notes ?? ['not attempted'])] };
   }
-  sections.push({ id: 'logo-search', title: 'Logo image search', subtitle: `"${query}"`, links: [{ label: 'Open Google Images', url: `https://www.google.com/search?tbm=isch&q=${gq(query)}` }], parts: logoParts });
+  // No results at all: no Logo image search section and no gray box (Travisse 2026-10-21); the Google
+  // Images link moves to the Logo candidates section's chips.
+  const googleImagesLink = { label: 'Google Images logo search', url: `https://www.google.com/search?tbm=isch&q=${gq(query)}` };
+  if (logoParts.length) sections.push({ id: 'logo-search', title: 'Logo image search', subtitle: `"${query}"`, links: [{ label: 'Open Google Images', url: googleImagesLink.url }], parts: logoParts });
 
   // ---- 5. logo candidates -----------------------------------------------------------------
   const candParts = [];
@@ -1881,7 +1898,7 @@ async function main() {
     candParts.push({ type: 'text', items: [{ text: 'Raw source files the candidates were cut from', size: 22, bold: true, gap: 12 }] });
     candParts.push({ type: 'grid', items: rawFiles, cols: 4, cellH: 240, labelH: 56, labelSize: 16, bg: LOGO_BG });
   }
-  sections.push({ id: 'candidates', title: 'Logo candidates', subtitle: 'from the evidence packet; green frame = the file Fable chose. Gray background so white knockouts stay visible.', links: website ? [{ label: 'Website', url: website }] : [], parts: candParts });
+  sections.push({ id: 'candidates', title: 'Logo candidates', subtitle: 'from the evidence packet; green frame = the file Fable chose. Gray background so white knockouts stay visible.', links: [website ? { label: 'Website', url: website } : null, logoParts.length ? null : googleImagesLink].filter(Boolean), parts: candParts });
 
   // ---- 6. variant sheet: drawn by the browser from the sheet view (no png on the default path) ----------
   const sheetParts = [];

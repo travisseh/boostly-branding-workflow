@@ -658,7 +658,7 @@ test('FINALIZE at build: no finalize-asset.mjs means no upload fields; a finaliz
   const again = await finalizeRowAsset(row, dir, { cli });
   assert.equal(again.cached, true, 'same sha: no second run');
   const sheet = sheetWith([{ hex: '#111111', source: 'fable_chosen', label: 'chosen' }], [row]);
-  assert.match(cellLabelText(sheet, sheet.cells.A), /upload \d+ KB$/);
+  assert.match(cellLabelText(sheet, sheet.cells.A), /\d+ KB$/);
   assert.equal(sheet.cells.A.view ?? null, null);
   const view = cellView(sheet, sheet.cells.A);
   assert.equal(view.upload.bytes, row.upload_bytes);
@@ -765,7 +765,7 @@ test('add-cell print roles: a row with print_primary/print_secondary drives the 
   assert.match(stickerBand(manifest, blue).note, /print primary/);
   assert.match(rowLabelText(manifest, blue), /print primary #263950/);
   assert.match(printRolesText(cell), /print primary #263950/);
-  assert.match(printRolesText(cell), /print band #C93B18 digit/);
+  assert.match(printRolesText(cell), /print band #C93B18$/);
   // A plain cell prints nothing extra and its print roles mirror the web roles.
   const plain = manifest.cells.A;
   assert.equal(plain.print_primary, plain.primary);
@@ -969,7 +969,7 @@ test('a human rejected mark keeps its letter and renders greyed with REJECTED in
   applyMark(manifest, 'B', 'rejected', { note: 'green ink on the green card (1.03:1): the lockup vanishes', by: 'Travisse' });
   assert.deepEqual(Object.keys(manifest.cells), letters, 'a rejected mark removes nothing: every letter stays');
   assert.equal(manifest.cells.B.status, 'rejected');
-  assert.match(cellLabelText(manifest, manifest.cells.B), /^B  REJECTED   /, 'the header strip says REJECTED right after the letter');
+  assert.match(cellLabelText(manifest, manifest.cells.B), /^B  REJECTED(\s|$)/, 'the header strip says REJECTED right after the letter');
   assert.doesNotMatch(cellLabelText(manifest, manifest.cells.A), /REJECTED/);
   await composeSheet(manifest, out);
   const after = fs.readFileSync(sheetFile, 'utf8');
@@ -977,7 +977,7 @@ test('a human rejected mark keeps its letter and renders greyed with REJECTED in
   const b = cellOf(after, 'B');
   assert.match(b, /^<div class="bs-cell rejected"/, 'the rejected class greys every tile of the cell (CSS filter) and frames it');
   assert.match(b, /bs-rejected-word">REJECTED</, 'REJECTED is written across the card');
-  assert.match(b, /class="bs-label" style="background: #616161;">B  REJECTED/, 'the header strip is grey and says REJECTED');
+  assert.match(b, /class="bs-label" style="background: #616161;"><span class="bs-letter">B<\/span>REJECTED/, 'the header strip is grey and says REJECTED');
   assert.equal(manifest.cells.B.view.rejected, true);
   assert.equal(manifest.cells.B.view.status_tag, 'REJECTED');
   // Cell A is byte-identical: the treatment is confined to the rejected cell.

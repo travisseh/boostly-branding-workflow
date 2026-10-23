@@ -1262,7 +1262,7 @@ export function cellView(manifest, cell) {
     row: cell.row,
     row_label: cell.row_label ?? row.label,
     column_index: cell.column_index ?? null,
-    header: { text: cellLabelText(manifest, cell), bg: rejected ? STATUS_STYLE.rejected.color : digit?.pass ? '#1B5E20' : '#B71C1C' },
+    header: { text: cellLabelText(manifest, cell), bg: rejected ? STATUS_STYLE.rejected.color : '#2B2B2B' }, // one neutral: the digit gate is in the label text, not the colour (Travisse 2026-10-21)
     card: { logo: rel(row.logo), primary: cell.primary, secondary: cell.secondary, text: cell.text, text_secondary: cell.text, issue_id: 1 },
     sticker: stickerLogo
       ? { logo: rel(stickerLogo), band, headline: copy.sticker.title, body: copy.sticker.body, layout: copy.sticker.layout, qr: qrView(links?.table_promo), seed: templates.seedFrom(path.basename(stickerLogo) + band), status: null }
@@ -1403,27 +1403,22 @@ export function printRolesText(cell) {
   const parts = [];
   if (cell.print_primary && cell.print_primary !== cell.primary) parts.push(`print primary ${cell.print_primary}`);
   if (cell.print_secondary && cell.print_secondary !== cell.secondary) {
-    const d = cell.badge_digit_print;
-    parts.push(`print band ${cell.print_secondary}${d ? ` digit ${d.contrast_with_text}:1 ${d.pass ? 'ok' : `LOW${d.fix ? `, use ${d.fix === '#FFFFFF' ? 'white' : 'black'} digit` : ''}`}` : ''}`);
+    parts.push(`print band ${cell.print_secondary}`);
   }
   return parts.length ? `   ${parts.join('  ')}` : '';
 }
 /** Pure: the header strip of a cell. A human-rejected cell says REJECTED right after its letter. */
 export function cellLabelText(manifest, cell) {
-  const digit = cell.badge_digit_web;
-  const flag = digit.pass ? 'ok' : `LOW${digit.fix ? `, use ${digit.fix === '#FFFFFF' ? 'white' : 'black'} digit` : ', no brand fix'}`;
-  const words = provenanceWords(cell.secondary_source, cell.secondary_label);
-  // the native px of a small-source trace stays on the default cell's label (a flag, not a hold; legacy hold sheets keep theirs)
+  // The label is for the human reader: letter, print roles, the small-source flag and the upload size. The band hex,
+  // provenance and the digit-contrast gate live in the column header and in the cell data (badge_digit_web/print),
+  // which the pick and close-out scripts read (Travisse 2026-10-22).
   const flagPx = manifest.default_flag?.letter === cell.letter ? manifest.default_flag.native_px ?? null : null;
   const holdPx = flagPx ? `   source ${flagPx}px` : '';
   const row = manifest.rows.find((r) => r.key === cell.row);
-  const upload = row?.upload_bytes ? `   upload ${Math.round(row.upload_bytes / 1000)} KB` : '';
+  const upload = row?.upload_bytes ? `   ${Math.round(row.upload_bytes / 1000)} KB` : '';
   const printRoles = printRolesText(cell);
   const head = cell.status === 'rejected' ? `${cell.letter}  REJECTED` : cell.letter;
-  // A print-role cell leads with its print palette so the 120px-per-column label never truncates it away.
-  return printRoles
-    ? `${head}${printRoles}   web band ${cell.secondary} digit ${digit.contrast_with_text}:1 ${flag}${holdPx}${upload}`
-    : `${head}   ${cell.secondary} ${words}   digit ${digit.contrast_with_text}:1 ${flag}${holdPx}${upload}`;
+  return `${head}${printRoles}${holdPx}${upload}`;
 }
 /**
  * Write <out>/variant-sheet.html: the montage drawn from every cell's view with the vendored templates,

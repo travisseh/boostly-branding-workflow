@@ -166,7 +166,7 @@ test('cellView carries everything the browser needs, with run-dir-relative logo 
   assert.equal(linked.pop.qr.url, 'https://tp.boostly.com/FMWJ');
   manifest.qr_links = null;
   assert.equal(view.header.text, "A   #B56CAD Fable's pick   digit 3.68:1 ok");
-  assert.equal(view.header.bg, '#1B5E20');
+  assert.equal(view.header.bg, '#2B2B2B');
   assert.equal(view.status, null);
   assert.equal(view.not_viable, null);
   assert.equal(view.rejected, false);
@@ -179,10 +179,11 @@ test('cellView carries everything the browser needs, with run-dir-relative logo 
   assert.equal(b.rejected, true);
   assert.equal(b.status_tag, 'REJECTED');
   assert.equal(b.header.bg, '#616161');
-  // a LOW digit header is red
+  // a LOW digit header keeps the neutral colour; the gate text carries the flag
   manifest.cells.B.status = null;
   manifest.cells.B.badge_digit_web = { pass: false, contrast_with_text: 2.1, fix: '#000000' };
-  assert.equal(cellView(manifest, manifest.cells.B).header.bg, '#B71C1C');
+  assert.equal(cellView(manifest, manifest.cells.B).header.bg, '#2B2B2B');
+  assert.match(cellView(manifest, manifest.cells.B).header.text, /LOW, use black digit/);
   fs.rmSync(runDir, { recursive: true, force: true });
 });
 

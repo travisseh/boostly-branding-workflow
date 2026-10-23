@@ -539,6 +539,7 @@
 .bs-hdr.row { width: ${GEOMETRY.ROW_HEADER_W}px; padding: 8px; line-height: 1.2; display: flex; align-items: center; overflow-wrap: anywhere; }
 .bs-cell { position: absolute; }
 .bs-cell .bs-label { position: absolute; left: 0; top: 0; right: 0; height: ${GEOMETRY.LABEL_H}px; line-height: ${GEOMETRY.LABEL_H}px; padding: 0 8px; color: #fff; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; }
+.bs-cell .bs-label .bs-letter { display: inline-block; min-width: 30px; margin: 0 8px 0 -4px; padding: 0 6px; border-radius: 4px; background: #fff; color: #111; font-size: 22px; line-height: 26px; vertical-align: middle; text-align: center; }
 .bs-cell .bs-tile { position: absolute; background: ${TILE_BG}; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .bs-cell.rejected .bs-tile { filter: grayscale(1) contrast(0.55) brightness(1.3); }
 .bs-cell .bs-frame { position: absolute; inset: 0; pointer-events: none; border: 4px solid transparent; }
@@ -577,12 +578,17 @@
     const rejectedWord = rejected ? '<div class="bs-rejected-word">REJECTED</div>' : '';
     const notViable = view.not_viable ? `<div class="bs-frame" style="border-color: ${NOT_VIABLE_STYLE.color};"></div><div class="bs-tag" style="left: 4px; bottom: 4px; background: ${NOT_VIABLE_STYLE.color}; color: ${NOT_VIABLE_STYLE.text}; font-size: 11px;">${esc(`${NOT_VIABLE_STYLE.tag}: ${view.not_viable.verdict}`)}</div>` : '';
     return `<div class="${classes}" data-letter="${esc(view.letter)}" style="${pos}width: ${g.cellW}px; height: ${g.cellH}px;">
-  <div class="bs-label" style="background: ${esc(view.header.bg)};">${esc(view.header.text)}</div>
+  <div class="bs-label" style="background: ${esc(view.header.bg)};">${labelHtml(view.header.text)}</div>
   <div class="bs-tile" style="left: ${CELL_PAD}px; top: ${LABEL_H + CELL_PAD}px; width: ${CARD_W}px; height: ${g.cardH}px;">${card}</div>
   <div class="bs-tile" style="left: ${CARD_W + CELL_PAD * 2}px; top: ${LABEL_H + CELL_PAD}px; width: ${SIDE_W}px; height: ${g.sideH}px;">${sticker}</div>
   <div class="bs-tile" style="left: ${CARD_W + CELL_PAD * 2}px; top: ${LABEL_H + CELL_PAD * 2 + g.sideH}px; width: ${SIDE_W}px; height: ${g.sideH}px;">${pop}</div>
   ${rejectedWord}${frame}${notViable}
 </div>`;
+  }
+  /** Label markup: the leading letter token as a white badge (Travisse 2026-10-21), the rest plain. */
+  function labelHtml(text) {
+    const m = /^([A-Z]{1,2})(\s+|$)([\s\S]*)$/.exec(String(text ?? ''));
+    return m ? `<span class="bs-letter">${esc(m[1])}</span>${esc(m[3])}` : esc(text);
   }
   /**
    * The whole montage from a sheet view ({ columns:[{index,hex,text}], rows:[{key,text}], cells:{L: view} }).

@@ -305,7 +305,14 @@ export function restorePlaceholders(v, key = null) {
 function redactText(text) {
   let dropped = 0;
   const out = text.split("\n").map((l) => {
-    if (STREET_LINE.test(l) || /\bship[- ]?to\b/i.test(l) || /\b\d{5}(-\d{4})?\b.*\b(MI|UT|CA|TX|NY|FL|OH|IL|PA|GA|NC|WA|AZ|CO|MA|TN|IN|MO|MD|WI|MN|SC|AL|LA|KY|OR|OK|CT|IA|MS|AR|KS|NV|NM|NE|ID|WV|HI|NH|ME|MT|RI|DE|SD|ND|AK|VT|WY|DC)\b/.test(l)) { dropped++; return "[line removed from the public bundle: ship-to]"; }
+    const zipState = /\b\d{5}(-\d{4})?\b.*\b(MI|UT|CA|TX|NY|FL|OH|IL|PA|GA|NC|WA|AZ|CO|MA|TN|IN|MO|MD|WI|MN|SC|AL|LA|KY|OR|OK|CT|IA|MS|AR|KS|NV|NM|NE|ID|WV|HI|NH|ME|MT|RI|DE|SD|ND|AK|VT|WY|DC)\b/;
+    // a link line that merely quotes a street address (a Catering bullet with the venue address in
+    // parentheses, Mi Corazon 2026-10-22) keeps its URL: cut the address substring, drop nothing else
+    if (/https?:\/\//.test(l) && !/\bship[- ]?to\b/i.test(l) && (STREET_LINE.test(l) || zipState.test(l))) {
+      dropped++;
+      return l.replace(new RegExp(STREET_LINE.source, "gi"), "[address removed]").replace(/\b\d{5}(-\d{4})?\b/g, "[zip removed]");
+    }
+    if (STREET_LINE.test(l) || /\bship[- ]?to\b/i.test(l) || zipState.test(l)) { dropped++; return "[line removed from the public bundle: ship-to]"; }
     return l;
   }).join("\n");
   return { text: out, dropped };
@@ -409,7 +416,7 @@ export function collectBundle(rp) {
   for (const f of ["decision.json", "links-block.json", "slack-post.json", "slack-note.txt"]) addPath(f);
   addDir("candidates");
   addDir("variants", (n) => /\.json$/.test(n));
-  addDir("signage", (n) => /\.svg$/.test(n));
+  addDir("signage", (n) => /\.svg$/.test(n) || n === "plan.json"); // plan.json: the direct renderer's input (export-direct on a pulled copy failed without it, Mi Corazon 2026-10-22)
   addDir(path.join("signage", "shots"), (n) => /\.(png|jpg|jpeg|webp)$/i.test(n));
   // every image or vector run.json points at (chosen logos, sticker file, proofs)
   const refs = new Set();
@@ -433,8 +440,11 @@ export function collectBundle(rp) {
 }
 
 /** The manifest to push: uploaded files (reusing the store copy when the hash is unchanged) plus Blob references. */
+// Bundle contract version (2026-10-21): the hosted review site (boostly-branding-workflow site/) refuses a
+// manifest whose schema_version it does not know. Bump only on a breaking change to the manifest shape.
+export const BUNDLE_SCHEMA_VERSION = 1;
 export function buildManifest(rp, files, refs, prev, { by, total = 0, now = nowIso() } = {}) {
-  const manifest = { slug: rp.slug, pushed_at: now, by: by || os.hostname(), bytes: total, refs: refs.size, files: {} };
+  const manifest = { schema_version: BUNDLE_SCHEMA_VERSION, slug: rp.slug, pushed_at: now, by: by || os.hostname(), bytes: total, refs: refs.size, files: {} };
   const toUpload = [];
   for (const [rel, buf] of files) {
     const hash = sha256(buf);
@@ -485,6 +495,11 @@ async function cmdSet() {
   if (opt.by) next.by = opt.by;
   next.host = os.hostname();
   next.updated_at = nowIso();
+  // Claude Code session join (2026-10-21): Claude Code exports session.id on every telemetry event and passes the
+  // same id to tool subprocesses as CLAUDE_CODE_SESSION_ID (subagents share their lead's id). Stamp the latest one
+  // and keep the distinct ids that touched this run, so Axiom can join tool/cost events to runs (docs/telemetry.md).
+  const sid = process.env.CLAUDE_CODE_SESSION_ID;
+  if (sid) { next.session_id = sid; next.sessions = [...new Set([...(cur.sessions || []), sid])].slice(-20); }
   if (next.stage === "done") delete next.editing;
   else next.editing = claim(next.editing);
   guardPublic({ last_step: next.last_step, next_step: next.next_step, blocked_on: next.blocked_on }, "progress text");

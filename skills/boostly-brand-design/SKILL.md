@@ -644,6 +644,10 @@ Everything lives in the spike project, this skill orchestrates it, it does not d
    step 3b (INSTAGRAM EVIDENCE).
 8. **Visible website surfaces choose palette roles; computed styles provide exact values.** When
    an official website exists, capture full-page desktop and mobile screenshots before Fable.
+   `capture-website-visual.mjs` dismisses load-time promo, newsletter and cookie modals first
+   (Escape, close controls, then hides any fixed overlay still covering the viewport) and records
+   what it did in `evidence/website-visual/popups.json`; a screenshot that still shows a modal is
+   a capture defect, recapture it rather than embedding the live site.
    Record computed styles from visible semantic surfaces such as header, footer, page background,
    primary CTA, secondary CTA, borders, and navigation. Fable uses the screenshots to decide which
    surfaces are visually prominent and which colors belong in primary/secondary roles; use the

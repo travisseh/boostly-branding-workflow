@@ -114,6 +114,77 @@ async function collectAssets(page) {
   });
 }
 
+
+// Travisse 2026-10-22: many restaurant sites open a promo / newsletter / cookie modal on load, and the
+// full-page screenshot then shows the modal instead of the site. Dismiss it before capturing:
+// Escape, then visible close controls, then hide any remaining fixed overlay that covers the
+// viewport and restore body scroll. Records what it did in popups.json next to the screenshots.
+const CLOSE_SELECTORS = [
+  '[aria-label*="close" i]', '[aria-label*="dismiss" i]', '[title*="close" i]',
+  'button[class*="close" i]', 'a[class*="close" i]', '[class*="modal" i] [class*="close" i]',
+  '[class*="popup" i] [class*="close" i]', '[class*="lightbox" i] [class*="close" i]',
+  '[id*="close" i]', '.mfp-close', '.pum-close', '.sgpb-popup-close', '.elementor-popup-modal .dialog-close-button',
+  '.wixui-popup-close', '[data-dismiss="modal"]', '[data-close]', '.fancybox-close-small',
+];
+const DECLINE_TEXT = /^(x|×|✕|close|no thanks|no, thanks|not now|maybe later|dismiss|skip|continue to site|got it|ok|okay|accept|accept all|i agree|agree|allow all)$/i;
+async function dismissPopups(page) {
+  const log = { escape: false, clicked: [], hidden: [], scroll_unlocked: false };
+  const overlayCount = () => page.evaluate(() => {
+    const vw = innerWidth, vh = innerHeight;
+    return Array.from(document.querySelectorAll("body *")).filter((e) => {
+      const cs = getComputedStyle(e);
+      if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return false;
+      const r = e.getBoundingClientRect();
+      return r.width * r.height >= 0.3 * vw * vh && r.top < vh * 0.5 && r.bottom > vh * 0.5;
+    }).length;
+  });
+  const before = await overlayCount().catch(() => 0);
+  if (!before) return { ...log, overlays_before: 0, overlays_after: 0 };
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(400);
+  log.escape = true;
+  if (await overlayCount().catch(() => 0)) {
+    for (const sel of CLOSE_SELECTORS) {
+      const loc = page.locator(sel).filter({ visible: true });
+      const n = await loc.count().catch(() => 0);
+      for (let i = 0; i < Math.min(n, 3); i++) {
+        try { await loc.nth(i).click({ timeout: 1200, force: false }); log.clicked.push(sel); await page.waitForTimeout(350); } catch {}
+      }
+      if (!(await overlayCount().catch(() => 0))) break;
+    }
+  }
+  if (await overlayCount().catch(() => 0)) {
+    const btns = page.locator("button, a, [role=button]").filter({ visible: true });
+    const n = await btns.count().catch(() => 0);
+    for (let i = 0; i < Math.min(n, 60); i++) {
+      const t = ((await btns.nth(i).innerText().catch(() => "")) || "").trim();
+      if (!DECLINE_TEXT.test(t)) continue;
+      try { await btns.nth(i).click({ timeout: 1200 }); log.clicked.push(`text:${t}`); await page.waitForTimeout(350); } catch {}
+      if (!(await overlayCount().catch(() => 0))) break;
+    }
+  }
+  // Last resort: hide fixed overlays that still cover the viewport, and unlock body scroll.
+  const hidden = await page.evaluate(() => {
+    const vw = innerWidth, vh = innerHeight; const out = [];
+    for (const e of Array.from(document.querySelectorAll("body *"))) {
+      const cs = getComputedStyle(e);
+      if (cs.position !== "fixed" || cs.display === "none") continue;
+      const r = e.getBoundingClientRect();
+      if (r.width * r.height >= 0.3 * vw * vh && r.top < vh * 0.5 && r.bottom > vh * 0.5 && !e.matches("header, nav, [role=banner]")) {
+        e.style.setProperty("display", "none", "important");
+        out.push((e.tagName + (e.id ? "#" + e.id : "") + (e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : "")).slice(0, 80));
+      }
+    }
+    let unlocked = false;
+    for (const el of [document.documentElement, document.body]) {
+      if (/hidden/.test(getComputedStyle(el).overflow)) { el.style.setProperty("overflow", "visible", "important"); unlocked = true; }
+    }
+    return { out, unlocked };
+  }).catch(() => ({ out: [], unlocked: false }));
+  log.hidden = hidden.out; log.scroll_unlocked = hidden.unlocked;
+  return { ...log, overlays_before: before, overlays_after: await overlayCount().catch(() => null) };
+}
+
 const launchOpts = headed
   ? { headless: false, channel: "chrome", args: ["--disable-blink-features=AutomationControlled"] }
   : { headless: true };
@@ -132,6 +203,9 @@ try {
     process.exit(2);
   }
   fs.writeFileSync(path.join(outDir, "home.html"), await page.content());
+  const popups = await dismissPopups(page);
+  fs.writeFileSync(path.join(outDir, "popups.json"), JSON.stringify(popups, null, 1));
+  await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(outDir, "desktop.png"), fullPage: true });
   const desktopSurfaces = await probeSurfaces(page, "desktop");
   const assets = await collectAssets(page);
@@ -139,6 +213,8 @@ try {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(1500);
+  const mobilePopups = await dismissPopups(page);
+  if (mobilePopups.overlays_before) fs.writeFileSync(path.join(outDir, "popups-mobile.json"), JSON.stringify(mobilePopups, null, 1));
   await page.screenshot({ path: path.join(outDir, "mobile.png"), fullPage: true });
   const mobileSurfaces = await probeSurfaces(page, "mobile");
 
@@ -156,7 +232,7 @@ try {
     path.join(outDir, "computed-styles.json"),
     JSON.stringify({ url, surfaces }, null, 1)
   );
-  console.log("captured:", outDir, "title:", title, "surfaces:", surfaces.length, "images:", assets.images.length);
+  console.log("captured:", outDir, "title:", title, "popups:", popups.overlays_before ? `${popups.overlays_before}->${popups.overlays_after}` : "none", "surfaces:", surfaces.length, "images:", assets.images.length);
 } finally {
   await browser.close();
 }
